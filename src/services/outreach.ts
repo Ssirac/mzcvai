@@ -19,6 +19,23 @@ import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
 
+// Single place to build the SMTP transporter. Port 465 ⇒ implicit SSL (secure:true);
+// all other ports (587/25) ⇒ STARTTLS (secure:false). Generous timeouts so a
+// blocked/slow port fails fast with a clear error instead of hanging forever.
+function buildTransport() {
+  const port = parseInt(process.env.SMTP_PORT ?? "587");
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+    tls: { rejectUnauthorized: false },
+  });
+}
+
 /**
  * Send a REAL-looking application email (no "Test" wording) for a candidate to
  * the given recipients, with the candidate's CV attached. The letter is written
@@ -68,15 +85,7 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
     } catch { /* skip — send without attachment */ }
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT ?? "587"),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
+  const transporter = buildTransport();
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
@@ -321,15 +330,7 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   const subject = outreach.subject ?? "Bewerbung";
 
   // Send via Nodemailer
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT ?? "587"),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
+  const transporter = buildTransport();
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
