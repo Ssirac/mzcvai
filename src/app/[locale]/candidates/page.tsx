@@ -446,15 +446,9 @@ export default function CandidatesPage() {
   }
 
   async function createOutreachDraft(matchId: string) {
-    // Without a found email there's nothing to send to — guide the user to enrichment
-    const m = matches.find((x) => x.id === matchId);
-    if (m && !m.employer.genericEmail) {
-      toast("Bu şirkətin e-mail ünvanı tapılmayıb. Əvvəlcə İdarə panelindən \"E-mail tap\" işlədin.", "error");
-      return;
-    }
     setOutreachLoading(matchId);
     try {
-      // Step 1: create draft
+      // Step 1: create draft (server auto-finds the employer email if missing)
       const res = await fetch("/api/outreach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -488,6 +482,8 @@ export default function CandidatesPage() {
       const sendData = await sendRes.json();
       if (sendData.ok) {
         toast("Mail göndərildi ✓", "success");
+      } else if ((sendData.error ?? "").includes("No email address")) {
+        toast("Bu şirkətin e-mail ünvanı tapılmadı. Yalnız online forma ilə müraciət mümkündür.", "error");
       } else {
         toast(sendData.error ?? "Göndərmə xətası", "error");
       }

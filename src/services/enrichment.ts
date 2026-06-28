@@ -260,6 +260,58 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * On-demand enrichment for ONE employer — used right before sending outreach so
+ * the user doesn't have to run a separate enrichment pass. Tries chain detection,
+ * then scrapes the (known or guessed) website for a generic email. Returns the
+ * found email (or null) so the caller can decide whether to send.
+ */
+export async function enrichSingleEmployer(employerId: string): Promise<string | null> {
+  const employer = await prisma.employer.findUnique({
+    where: { id: employerId },
+    select: { id: true, website: true, name: true, genericEmail: true, sponsorshipSignal: true },
+  });
+  if (!employer) return null;
+
+  // Already has an email — nothing to do
+  if (employer.genericEmail) return employer.genericEmail;
+
+  // Chain detection (sets sponsorship signal but won't produce an email)
+  if (employer.sponsorshipSignal === "UNKNOWN") {
+    const chainSignal = signalFromChainName(employer.name);
+    if (chainSignal) {
+      await prisma.employer.update({
+        where: { id: employer.id },
+        data: { sponsorshipSignal: chainSignal, lastEnrichedAt: new Date() },
+      });
+    }
+  }
+
+  const website = employer.website ?? guessWebsite(employer.name);
+  if (!website) {
+    await prisma.employer.update({
+      where: { id: employer.id },
+      data: { lastEnrichedAt: new Date(), enrichmentError: "No website available" },
+    });
+    return null;
+  }
+
+  try {
+    await enrichEmployer(employer.id, website);
+    if (!employer.website) {
+      await prisma.employer.update({ where: { id: employer.id }, data: { website } });
+    }
+  } catch {
+    // enrichEmployer already records its own error; just fall through
+  }
+
+  const refreshed = await prisma.employer.findUnique({
+    where: { id: employerId },
+    select: { genericEmail: true },
+  });
+  return refreshed?.genericEmail ?? null;
+}
+
 // Enrich all employers: chain detection first (instant), then website scraping
 export async function enrichPendingEmployers(limit = 20): Promise<{
   enriched: number;

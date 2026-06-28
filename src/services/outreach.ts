@@ -15,6 +15,7 @@ import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { anthropic } from "@/lib/anthropic";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
+import { enrichSingleEmployer } from "@/services/enrichment";
 
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
@@ -218,7 +219,17 @@ export async function createOutreachDraft(matchId: string): Promise<string> {
     include: { employer: true, vacancy: true },
   });
 
-  const toAddress = match.employer.genericEmail ?? null;
+  // On-demand: if the employer has no email yet, try to find one right now so the
+  // user can send in a single click without a separate enrichment pass.
+  let toAddress = match.employer.genericEmail ?? null;
+  if (!toAddress) {
+    try {
+      toAddress = await enrichSingleEmployer(match.employerId);
+    } catch (err) {
+      console.error("[outreach] on-demand enrichment failed:", (err as Error).message);
+    }
+  }
+
   if (toAddress && looksPersonal(toAddress)) {
     throw new Error(`GDPR block: ${toAddress} appears to be a personal email address. Only generic company addresses allowed.`);
   }
