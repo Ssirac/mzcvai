@@ -166,6 +166,7 @@ export default function CandidatesPage() {
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
+  const [enrichingMatches, setEnrichingMatches] = useState(false);
 
   // Pending = not yet contacted. Surface employers that already have a found
   // email first (those can be mailed immediately), keeping score order within each group.
@@ -546,6 +547,29 @@ export default function CandidatesPage() {
   }
 
   // Bulk: send an application to every matching employer (respects guards)
+  async function findEmailsForMatches() {
+    if (!selectedId) return;
+    setEnrichingMatches(true);
+    try {
+      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/enrich-matches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (ok && data.ok) {
+        toast(
+          `${Number(data.found ?? 0)} yeni e-mail tapıldı (cəmi e-mailli: ${Number(data.found ?? 0) + Number(data.alreadyHad ?? 0)})`,
+          "success"
+        );
+        loadMatches(selectedId);
+      } else {
+        toast(String(data.error ?? "error"), "error");
+      }
+    } finally {
+      setEnrichingMatches(false);
+    }
+  }
+
   async function sendAllOutreach() {
     if (!selectedId) return;
     // If the user ticked specific jobs, send only those; otherwise send to all.
@@ -1154,19 +1178,32 @@ export default function CandidatesPage() {
                           <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                         </div>
                       </div>
-                      <button
-                        onClick={sendAllOutreach}
-                        disabled={sendingAll}
-                        className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
-                      >
-                        {sendingAll ? (
-                          <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("sendingAll")}</>
-                        ) : selectedMatchIds.size > 0 ? (
-                          <>✉️ {t("sendSelected", { count: selectedMatchIds.size })}</>
-                        ) : (
-                          <>✉️ {t("sendAll")}</>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={findEmailsForMatches}
+                          disabled={enrichingMatches || sendingAll}
+                          className="bg-gray-800 hover:bg-gray-700 active:bg-gray-900 disabled:opacity-50 text-gray-200 text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                        >
+                          {enrichingMatches ? (
+                            <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("findingEmails")}</>
+                          ) : (
+                            <>🔍 {t("findEmails")}</>
+                          )}
+                        </button>
+                        <button
+                          onClick={sendAllOutreach}
+                          disabled={sendingAll}
+                          className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                        >
+                          {sendingAll ? (
+                            <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("sendingAll")}</>
+                          ) : selectedMatchIds.size > 0 ? (
+                            <>✉️ {t("sendSelected", { count: selectedMatchIds.size })}</>
+                          ) : (
+                            <>✉️ {t("sendAll")}</>
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       {pendingMatches.map((m) => {

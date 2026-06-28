@@ -351,6 +351,51 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   return refreshed?.genericEmail ?? null;
 }
 
+/**
+ * Find emails for every employer matched to ONE candidate that doesn't have one
+ * yet. Listing-text mining runs first (fast, no browser), website scraping only
+ * as fallback. Returns how many emails were newly found so the UI can report it.
+ */
+export async function enrichMatchesForCandidate(candidateId: string): Promise<{
+  found: number;
+  alreadyHad: number;
+  stillMissing: number;
+  total: number;
+}> {
+  const matches = await prisma.match.findMany({
+    where: { candidateId },
+    select: { employer: { select: { id: true, genericEmail: true } } },
+  });
+
+  // De-duplicate employers (a candidate can match the same employer twice)
+  const seen = new Set<string>();
+  const employerIds: string[] = [];
+  let alreadyHad = 0;
+  for (const m of matches) {
+    if (seen.has(m.employer.id)) continue;
+    seen.add(m.employer.id);
+    if (m.employer.genericEmail) { alreadyHad++; continue; }
+    employerIds.push(m.employer.id);
+  }
+
+  let found = 0;
+  for (const id of employerIds) {
+    try {
+      const email = await enrichSingleEmployer(id);
+      if (email) found++;
+    } catch {
+      // keep going — one bad site shouldn't stop the batch
+    }
+  }
+
+  return {
+    found,
+    alreadyHad,
+    stillMissing: employerIds.length - found,
+    total: seen.size,
+  };
+}
+
 // Enrich all employers: chain detection first (instant), then website scraping
 export async function enrichPendingEmployers(limit = 20): Promise<{
   enriched: number;

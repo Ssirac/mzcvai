@@ -199,6 +199,8 @@
     "noOutreachHint": "Start from \"Write application\" in the matching jobs.",
     "formOnly": "No email — via form",
     "sendAll": "Send to all",
+    "findEmails": "Find emails",
+    "findingEmails": "Searching...",
     "selectAll": "Select all",
     "sendSelected": "Send to selected ({count})",
     "sendingAll": "Sending...",

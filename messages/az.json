@@ -199,6 +199,8 @@
     "noOutreachHint": "Uyğun işlər bölməsindən \"Müraciət yaz\" ilə başlayın.",
     "formOnly": "E-mail yox — forma ilə",
     "sendAll": "Hamısına göndər",
+    "findEmails": "E-mailləri tap",
+    "findingEmails": "Axtarılır...",
     "selectAll": "Hamısını seç",
     "sendSelected": "Seçilənlərə göndər ({count})",
     "sendingAll": "Göndərilir...",
