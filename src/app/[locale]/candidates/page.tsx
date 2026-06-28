@@ -188,6 +188,11 @@ export default function CandidatesPage() {
     );
   }
 
+  // Quick-select the first N pending jobs (email-having employers come first)
+  function selectFirstN(n: number) {
+    setSelectedMatchIds(new Set(pendingMatches.slice(0, n).map((m) => m.id)));
+  }
+
   async function loadCandidates() {
     const { data } = await jsonFetch("/api/candidates");
     setCandidates((data.candidates as Candidate[]) ?? []);
@@ -1114,7 +1119,7 @@ export default function CandidatesPage() {
                 ) : (
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
                           <input
                             type="checkbox"
@@ -1124,6 +1129,27 @@ export default function CandidatesPage() {
                           />
                           {t("selectAll")}
                         </label>
+                        {/* Quick-select first N */}
+                        <div className="flex items-center gap-1">
+                          {[10, 20, 30].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => selectFirstN(n)}
+                              disabled={pendingMatches.length === 0}
+                              className="text-xs px-2 py-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40"
+                            >
+                              {n}
+                            </button>
+                          ))}
+                          {selectedMatchIds.size > 0 && (
+                            <button
+                              onClick={() => setSelectedMatchIds(new Set())}
+                              className="text-xs px-2 py-1 rounded-md text-gray-500 hover:text-gray-300"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-400">
                           <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                         </div>
