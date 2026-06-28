@@ -59,14 +59,21 @@ export async function POST(req: NextRequest) {
 
     const scored = await scoreEmployersForSearch(beruf, region);
 
-    // Remove any part-time / mini-job vacancies that slipped in (title-based cleanup)
-    const { count: partTimeDeleted } = await prisma.vacancy.deleteMany({
-      where: {
-        OR: PART_TIME_TITLE_KEYWORDS.map((kw) => ({
-          title: { contains: kw, mode: "insensitive" as const },
-        })),
-      },
-    });
+    // Remove any part-time / mini-job vacancies that slipped in (title-based cleanup).
+    // Must delete child Match rows first to avoid FK violation.
+    const partTimeWhere = {
+      OR: PART_TIME_TITLE_KEYWORDS.map((kw) => ({
+        title: { contains: kw, mode: "insensitive" as const },
+      })),
+    };
+    const ptVacancies = await prisma.vacancy.findMany({ where: partTimeWhere, select: { id: true } });
+    const ptIds = ptVacancies.map((v) => v.id);
+    let partTimeDeleted = 0;
+    if (ptIds.length > 0) {
+      await prisma.match.deleteMany({ where: { vacancyId: { in: ptIds } } });
+      const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: ptIds } } });
+      partTimeDeleted = count;
+    }
 
     return NextResponse.json({
       ok: true,
