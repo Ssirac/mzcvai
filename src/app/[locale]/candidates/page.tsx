@@ -171,7 +171,9 @@ export default function CandidatesPage() {
   // Pending = not yet contacted. Surface employers that already have a found
   // email first (those can be mailed immediately), keeping score order within each group.
   const pendingMatches = matches
-    .filter((m) => m.outreach.length === 0)
+    // Hide a job only once it's actually SENT — a stuck DRAFT (failed send) must
+    // stay in the list so it can be retried, not silently disappear.
+    .filter((m) => !m.outreach.some((o) => o.status === "SENT"))
     .sort((a, b) => (b.employer.genericEmail ? 1 : 0) - (a.employer.genericEmail ? 1 : 0));
 
   function toggleMatchSelect(id: string) {
@@ -487,6 +489,9 @@ export default function CandidatesPage() {
       }
 
       const outreachId: string = data.outreachId;
+      // If anything below fails, remove the just-created draft so it doesn't linger
+      const discardDraft = () =>
+        fetch(`/api/outreach/${outreachId}`, { method: "DELETE" }).catch(() => {});
 
       // Step 2: approve
       const approveRes = await fetch(`/api/outreach/${outreachId}`, {
@@ -495,6 +500,7 @@ export default function CandidatesPage() {
         body: JSON.stringify({ action: "approve", userId: "admin" }),
       });
       if (!approveRes.ok) {
+        await discardDraft();
         toast("Təsdiq xətası", "error");
         return;
       }
@@ -508,10 +514,14 @@ export default function CandidatesPage() {
       const sendData = await sendRes.json();
       if (sendData.ok) {
         toast("Mail göndərildi ✓", "success");
-      } else if ((sendData.error ?? "").includes("No email address")) {
-        toast("Bu şirkətin e-mail ünvanı tapılmadı. Yalnız online forma ilə müraciət mümkündür.", "error");
       } else {
-        toast(sendData.error ?? "Göndərmə xətası", "error");
+        // Send failed → drop the draft so the job stays in the list to retry
+        await discardDraft();
+        if ((sendData.error ?? "").includes("No email address")) {
+          toast("Bu şirkətin e-mail ünvanı tapılmadı. Yalnız online forma ilə müraciət mümkündür.", "error");
+        } else {
+          toast(sendData.error ?? "Göndərmə xətası", "error");
+        }
       }
 
       if (selectedId) { loadMatches(selectedId); loadComms(selectedId); }
@@ -1267,9 +1277,9 @@ export default function CandidatesPage() {
                               </div>
 
                               <div className="shrink-0 sm:text-right">
-                                {m.outreach.length > 0 ? (
-                                  <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR[m.outreach[0].status] ?? "bg-gray-700 text-gray-300"}`}>
-                                    {m.outreach[0].status}
+                                {m.outreach.some((o) => o.status === "SENT") ? (
+                                  <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR["SENT"] ?? "bg-gray-700 text-gray-300"}`}>
+                                    SENT
                                   </span>
                                 ) : (
                                   <div className="flex flex-col items-stretch sm:items-end gap-1">

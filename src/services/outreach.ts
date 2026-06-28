@@ -373,6 +373,7 @@ export async function sendAllForCandidate(
   const testMode = !!process.env.OUTREACH_TEST_RECIPIENT?.trim();
 
   for (const match of matches) {
+    let createdOutreachId: string | null = null;
     try {
       if (match.outreach.some((o) => o.status === "SENT")) { result.alreadySent++; continue; }
       // Without test mode we can only email employers that expose a generic address
@@ -381,6 +382,7 @@ export async function sendAllForCandidate(
       // Reuse an existing draft/approved record or create a fresh draft
       const existing = match.outreach.find((o) => o.status === "DRAFT" || o.status === "APPROVED");
       const outreachId = existing ? existing.id : await createOutreachDraft(match.id);
+      if (!existing) createdOutreachId = outreachId;
 
       const current = await prisma.outreach.findUniqueOrThrow({ where: { id: outreachId } });
       if (current.status === "DRAFT") await approveOutreach(outreachId, approvedBy);
@@ -388,6 +390,10 @@ export async function sendAllForCandidate(
       await sendOutreach(outreachId);
       result.sent++;
     } catch (err) {
+      // Drop the draft we just created so failed attempts don't leave clutter
+      if (createdOutreachId) {
+        await prisma.outreach.deleteMany({ where: { id: createdOutreachId, status: { not: "SENT" } } });
+      }
       const msg = (err as Error).message;
       if (msg.includes("Daily outreach limit")) { result.limitReached = true; break; }
       if (msg.includes("Cooldown")) { result.skippedCooldown++; continue; }

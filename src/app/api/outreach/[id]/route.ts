@@ -36,3 +36,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return apiError(err);
   }
 }
+
+// DELETE /api/outreach/[id] — remove an outreach record. Used to clean up a
+// DRAFT/APPROVED that never sent (failed/abandoned), so it doesn't linger. Never
+// deletes a SENT record (that's real history).
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const o = await prisma.outreach.findUnique({ where: { id: params.id }, select: { status: true } });
+    if (!o) return NextResponse.json({ ok: true });
+    if (o.status === "SENT") {
+      return NextResponse.json({ error: "Cannot delete a sent outreach" }, { status: 400 });
+    }
+    await prisma.outreach.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return apiError(err);
+  }
+}

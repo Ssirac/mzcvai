@@ -5,8 +5,26 @@ import { prisma } from "@/lib/prisma";
 // which employers/vacancies were contacted, what was sent, and the status.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Purge stale, never-sent drafts (older than 5 min) for this candidate so old
+    // abandoned attempts don't pile up. A fresh in-progress send completes in
+    // seconds, so this never touches an active one.
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await prisma.outreach.deleteMany({
+      where: {
+        match: { candidateId: params.id },
+        status: { not: "SENT" },
+        sentAt: null,
+        createdAt: { lt: fiveMinAgo },
+      },
+    });
+
+    // Only show outreach that was actually SENT — drafts that never went out
+    // (e.g. a failed/abandoned send) must not clutter the "Sent emails" tab.
     const outreach = await prisma.outreach.findMany({
-      where: { match: { candidateId: params.id } },
+      where: {
+        match: { candidateId: params.id },
+        OR: [{ status: "SENT" }, { sentAt: { not: null } }],
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
