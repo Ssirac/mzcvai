@@ -6,6 +6,6 @@ import { NextResponse } from "next/server";
  */
 export function apiError(err: unknown, status = 500, publicMessage = "Internal error") {
   console.error("[api]", err);
-  const message = process.env.NODE_ENV === "production" ? publicMessage : (err as Error).message;
+  const message = (err as Error).message || publicMessage;
   return NextResponse.json({ error: message }, { status });
 }
