@@ -448,18 +448,45 @@ export default function CandidatesPage() {
   async function createOutreachDraft(matchId: string) {
     setOutreachLoading(matchId);
     try {
+      // Step 1: create draft
       const res = await fetch("/api/outreach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId }),
       });
       const data = await res.json();
-      if (data.ok) {
-        toast(t("draftCreated"), "success");
-        if (selectedId) { loadMatches(selectedId); loadComms(selectedId); }
-      } else {
+      if (!data.ok) {
         toast(data.error ?? t("parseError"), "error");
+        return;
       }
+
+      const outreachId: string = data.outreachId;
+
+      // Step 2: approve
+      const approveRes = await fetch(`/api/outreach/${outreachId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", userId: "admin" }),
+      });
+      if (!approveRes.ok) {
+        toast("Təsdiq xətası", "error");
+        return;
+      }
+
+      // Step 3: send
+      const sendRes = await fetch(`/api/outreach/${outreachId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send" }),
+      });
+      const sendData = await sendRes.json();
+      if (sendData.ok) {
+        toast("Mail göndərildi ✓", "success");
+      } else {
+        toast(sendData.error ?? "Göndərmə xətası", "error");
+      }
+
+      if (selectedId) { loadMatches(selectedId); loadComms(selectedId); }
     } finally {
       setOutreachLoading(null);
     }
