@@ -31,4 +31,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Sync the DB schema, then start. `next start` listens on $PORT (Railway sets it).
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run start"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npx next start -p ${PORT:-3000}"]
