@@ -86,8 +86,28 @@ function looksPersonal(email: string): boolean {
   return /^[a-z]+[.\-_][a-z]+$/i.test(local) && !/^(info|bewerbung|jobs|karriere|hr|personal|kontakt|post|mail|office|bewerbungen|stelle|stellen|team)$/i.test(local);
 }
 
+// Standard service paragraphs appended to EVERY employer letter (before the
+// signature): visa/process support, the cost-free & non-binding presentation +
+// first online interview, and the offer to arrange one. The visa paragraph is
+// only shown when the candidate actually needs sponsorship.
+function standardClosing(needsVisa: boolean): string {
+  const parts: string[] = [];
+  if (needsVisa) {
+    parts.push(
+      "Sollte für den Kandidaten ein Visum erforderlich sein, begleitet MZ Personalvermittlung den gesamten Bewerbungsprozess und unterstützt sowohl den Kandidaten als auch Ihr Unternehmen bei den organisatorischen Abläufen bis zum Arbeitsbeginn."
+    );
+  }
+  parts.push(
+    "Die Vorstellung des Kandidaten sowie ein erstes Online-Vorstellungsgespräch sind für Ihr Unternehmen selbstverständlich unverbindlich und kostenfrei."
+  );
+  parts.push(
+    "Gerne organisieren wir kurzfristig ein Online-Vorstellungsgespräch mit dem Kandidaten und stehen Ihnen für Rückfragen jederzeit persönlich zur Verfügung."
+  );
+  return parts.join("\n\n");
+}
+
 // Agency signature appended to EVERY letter — so the employer knows MZ sent it
-// and how to reply. Phone is optional (set AGENCY_PHONE in .env).
+// and how to reply. Name + phone are always shown (set AGENCY_PHONE in .env).
 function agencySignature(candidateName: string): string {
   const name = process.env.AGENCY_NAME || "MZ Personalvermittlung";
   const phone = process.env.AGENCY_PHONE || "";
@@ -131,6 +151,7 @@ PFLICHT (unbedingt einhalten):
 - Gehe auf die ANFORDERUNGEN der Stellenanzeige ein und verbinde sie mit der Erfahrung/den Fähigkeiten des Kandidaten (zeige die Passung konkret auf).
 - Mache deutlich, dass die Bewerbung über die Personalvermittlung "MZ Personalvermittlung" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an MZ Personalvermittlung gehen.
 - Schreibe KEINE Grußformel und KEINE Unterschrift am Ende (wird separat ergänzt).
+- Erwähne NICHT die Themen Visum/Visabegleitung, Kostenfreiheit/Unverbindlichkeit der Vorstellung oder das Angebot eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
 - Verwende NIEMALS das Wort "Test".
 - Max. 230 Wörter, professionell, freundlich, konkret (keine Floskeln).
 
@@ -156,7 +177,7 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
   let body = message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
   body = body.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
   body = body.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
-  body = `${body}\n\n${agencySignature(candidate.name)}`;
+  body = `${body}\n\n${standardClosing(candidate.needsSponsorship)}\n\n${agencySignature(candidate.name)}`;
   const subject = `Bewerbung als ${vacancy.title} – ${candidate.name}`;
   return { subject, body };
 }
