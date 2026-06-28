@@ -261,6 +261,33 @@ function sleep(ms: number) {
 }
 
 /**
+ * Mine the employer's own job listings for a generic application email. Job
+ * postings frequently spell out "Bewerbung an: jobs@firma.de" in the description
+ * (or in the raw API payload), which is the most reliable email of all — it's the
+ * address the employer explicitly wants applications sent to. No network needed.
+ */
+async function emailFromVacancies(employerId: string): Promise<string | null> {
+  const vacancies = await prisma.vacancy.findMany({
+    where: { employerId, status: "ACTIVE" },
+    select: { description: true, applyValue: true, rawData: true },
+    orderBy: { foundAt: "desc" },
+    take: 10,
+  });
+
+  for (const v of vacancies) {
+    // applyValue is sometimes a bare email address
+    if (v.applyValue && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v.applyValue.trim())) {
+      const found = extractGenericEmails(v.applyValue);
+      if (found[0]) return found[0];
+    }
+    const haystack = `${v.description ?? ""} ${v.applyValue ?? ""} ${v.rawData ? JSON.stringify(v.rawData) : ""}`;
+    const emails = extractGenericEmails(haystack);
+    if (emails[0]) return emails[0];
+  }
+  return null;
+}
+
+/**
  * On-demand enrichment for ONE employer — used right before sending outreach so
  * the user doesn't have to run a separate enrichment pass. Tries chain detection,
  * then scrapes the (known or guessed) website for a generic email. Returns the
@@ -285,6 +312,18 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
         data: { sponsorshipSignal: chainSignal, lastEnrichedAt: new Date() },
       });
     }
+  }
+
+  // Step 0: many job postings include the application email directly in the
+  // description ("Bewerbung an: info@..."). Mining the listing text is faster and
+  // more reliable than scraping a website, so try it FIRST.
+  const fromListing = await emailFromVacancies(employer.id);
+  if (fromListing) {
+    await prisma.employer.update({
+      where: { id: employer.id },
+      data: { genericEmail: fromListing, lastEnrichedAt: new Date(), enrichmentError: null },
+    });
+    return fromListing;
   }
 
   const website = employer.website ?? guessWebsite(employer.name);

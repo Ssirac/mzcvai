@@ -167,7 +167,11 @@ export default function CandidatesPage() {
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
 
-  const pendingMatches = matches.filter((m) => m.outreach.length === 0);
+  // Pending = not yet contacted. Surface employers that already have a found
+  // email first (those can be mailed immediately), keeping score order within each group.
+  const pendingMatches = matches
+    .filter((m) => m.outreach.length === 0)
+    .sort((a, b) => (b.employer.genericEmail ? 1 : 0) - (a.employer.genericEmail ? 1 : 0));
 
   function toggleMatchSelect(id: string) {
     setSelectedMatchIds((prev) => {
