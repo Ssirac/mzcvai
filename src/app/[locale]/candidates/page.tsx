@@ -166,6 +166,8 @@ export default function CandidatesPage() {
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
+  const pendingMatches = matches.filter((m) => m.outreach.length === 0);
+
   async function loadCandidates() {
     const { data } = await jsonFetch("/api/candidates");
     setCandidates((data.candidates as Candidate[]) ?? []);
@@ -1034,7 +1036,7 @@ export default function CandidatesPage() {
 
               {/* Tabs */}
               <div className="flex gap-1 border-b border-gray-800 mb-4">
-                {([["matches", t("tabMatches"), matches.length], ["comms", t("tabComms"), comms.length]] as const).map(([key, label, count]) => (
+                {([["matches", t("tabMatches"), pendingMatches.length], ["comms", t("tabComms"), comms.length]] as const).map(([key, label, count]) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -1051,16 +1053,16 @@ export default function CandidatesPage() {
               {activeTab === "matches" && (
                 matchesLoading ? (
                   <div className="text-gray-500 text-sm">{t("searching")}</div>
-                ) : matches.length === 0 ? (
+                ) : pendingMatches.length === 0 ? (
                   <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
-                    <div className="text-gray-400 text-sm mb-3">{t("noVacancyTitle")}</div>
-                    <div className="text-gray-500 text-xs">{t("noVacancyHint")}</div>
+                    <div className="text-gray-400 text-sm mb-3">{comms.length > 0 ? t("allSent") : t("noVacancyTitle")}</div>
+                    <div className="text-gray-500 text-xs">{comms.length > 0 ? t("allSentHint") : t("noVacancyHint")}</div>
                   </div>
                 ) : (
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                       <div className="text-sm text-gray-400">
-                        <span className="text-white font-bold text-lg">{matches.length}</span> {t("found")}
+                        <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                       </div>
                       <button
                         onClick={sendAllOutreach}
@@ -1075,7 +1077,7 @@ export default function CandidatesPage() {
                       </button>
                     </div>
                     <div className="space-y-3">
-                      {matches.map((m) => {
+                      {pendingMatches.map((m) => {
                         const jobLink = m.vacancy.url
                           || (m.vacancy.applyValue && /^https?:\/\//.test(m.vacancy.applyValue) ? m.vacancy.applyValue : null);
                         return (

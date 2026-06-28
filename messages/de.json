@@ -206,6 +206,8 @@
     "draftCreated": "Bewerbungsentwurf erstellt",
     "statusUpdated": "Status aktualisiert",
     "candidateDeleted": "Kandidat gelöscht",
-    "backToList": "← Zurück zur Liste"
+    "backToList": "← Zurück zur Liste",
+    "allSent": "Bewerbungen an alle passenden Arbeitgeber gesendet.",
+    "allSentHint": "Antworten im Tab „Gesendete E-Mails" verfolgen."
   }
 }

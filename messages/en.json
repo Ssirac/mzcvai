@@ -206,6 +206,8 @@
     "draftCreated": "Application draft created",
     "statusUpdated": "Status updated",
     "candidateDeleted": "Candidate deleted",
-    "backToList": "← Back to list"
+    "backToList": "← Back to list",
+    "allSent": "Applications sent to all matching employers.",
+    "allSentHint": "Track responses in the Sent Emails tab."
   }
 }

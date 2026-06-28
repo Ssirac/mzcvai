@@ -207,6 +207,8 @@
     "statusUpdated": "Status yeniləndi",
     "candidateDeleted": "Namizəd silindi",
     "backToList": "← Siyahı",
+    "allSent": "Bütün uyğun işlərə müraciət göndərildi.",
+    "allSentHint": "Göndərilən maillər bölməsindən nəticələri izləyin.",
     "draft": "Qaralama"
   }
 }
