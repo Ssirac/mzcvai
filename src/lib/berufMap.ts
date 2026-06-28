@@ -196,6 +196,46 @@ function termIncludes(haystack: string, needle: string): boolean {
   return new RegExp(`(^|[^a-zäöüß])${esc}([^a-zäöüß]|$)`, "i").test(haystack);
 }
 
+/**
+ * Seniority level of an occupation/title (higher = more senior). Used so a
+ * candidate is matched to jobs at THEIR level and a bit below — never above.
+ *   0 = Helfer / Aushilfe / ungelernt / Praktikum (entry)
+ *   1 = Fachkraft / regular skilled worker (DEFAULT)
+ *   2 = Vorarbeiter / Schicht-/Teamleiter / Meister / Senior (lead)
+ *   3 = Leitung / Manager / Geschäftsführer / Direktor (management)
+ */
+const LEVEL3_WORDS = [
+  "geschäftsführer", "geschaeftsfuehrer", "geschäftsleitung", "manager", "managerin",
+  "management", "director", "direktor", "direktorin", "vorstand", "inhaber", "prokurist",
+  "führungskraft", "fuehrungskraft", "küchenchef", "kuechenchef", "chefkoch",
+  "chef de cuisine", "head of", "betriebsleitung",
+];
+const LEVEL2_WORDS = [
+  "senior", "vorarbeiter", "meister", "meisterin", "supervisor", "polier",
+  "sous chef", "souschef", "sous-chef", "chef de partie", "obermonteur",
+  "geprüfter", "gepruefter", "stellvertretende", "stellvertretender",
+  "schichtführer", "schichtfuehrer", "teamlead", "team lead",
+];
+const LEVEL0_WORDS = [
+  "helfer", "hilfskraft", "aushilfe", "ungelernt", "anlernkraft", "quereinsteiger",
+  "praktikant", "praktikum", "trainee", "azubi", "auszubildende", "auszubildender",
+  "ausbildung", "werkstudent", "minijob", "küchenhilfe", "kuechenhilfe",
+  "servicehilfe", "reinigungshilfe", "bauhelfer", "lagerhelfer", "produktionshelfer",
+];
+
+export function seniorityLevel(text: string): number {
+  const t = (text || "").toLowerCase();
+  // Schicht-/Team-/Gruppenleiter are LEADS (level 2), not top management — check first
+  if (/(schicht|team|gruppen)leit(er|erin|ung)/.test(t)) return 2;
+  // Any "…leiter/…leitung" word ⇒ management (Bauleiter, Projektleitung) — but
+  // exclude "begleiter/begleitung" (Reisebegleiter etc., which is NOT a leader).
+  const isLeader = /\w*leit(er|erin|ung)\b/.test(t) && !/begleit/.test(t);
+  if (isLeader || LEVEL3_WORDS.some((k) => t.includes(k))) return 3;
+  if (LEVEL2_WORDS.some((k) => t.includes(k))) return 2;
+  if (LEVEL0_WORDS.some((k) => t.includes(k))) return 0;
+  return 1;
+}
+
 export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacancyTitle = ""): boolean {
   const c = candidateBeruf.trim().toLowerCase();
   const v = vacancyBeruf.trim().toLowerCase();

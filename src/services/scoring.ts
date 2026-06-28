@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
-import { berufSearchKeywords } from "@/lib/berufMap";
+import { berufSearchKeywords, seniorityLevel } from "@/lib/berufMap";
 
 const MATCH_THRESHOLD = 60; // minimum fitScore to create a Match record
 
@@ -70,6 +70,20 @@ export async function matchCandidateToVacancies(candidateId: string) {
     .filter((x): x is string => !!x && x.trim().length > 0)
     .join(" / ");
 
+  // Seniority window for matching:
+  //  - maxLevel (ceiling) = what the candidate is QUALIFIED for (their beruf).
+  //    We never match above this — no pushing a Fachkraft into management roles.
+  //  - preferredLevel = the level they are AIMING for (desiredPosition). Often
+  //    LOWER than the ceiling (e.g. a store manager willing to take entry-level
+  //    hospitality work for a visa). It never raises the ceiling.
+  //  - minLevel (floor) = a bit below the lowest of the two, so "a bit below" is
+  //    included but we don't flood a manager with helper jobs.
+  const maxLevel = seniorityLevel(candidate.beruf || candidate.desiredPosition || "");
+  const preferredLevel = candidate.desiredPosition?.trim()
+    ? seniorityLevel(candidate.desiredPosition)
+    : maxLevel;
+  const minLevel = Math.min(maxLevel, preferredLevel) - 1;
+
   // Build a flexible filter: match the profile or any of its synonyms against
   // the vacancy beruf OR title (case-insensitive), free-text, all sectors.
   const keywords = Array.from(
@@ -106,6 +120,9 @@ export async function matchCandidateToVacancies(candidateId: string) {
   for (const vacancy of vacancies) {
     const fit = calculateFitScore({
       candidateBeruf: searchProfile,
+      candidateMaxLevel: maxLevel,
+      candidateMinLevel: minLevel,
+      candidatePreferredLevel: preferredLevel,
       candidateRegions: candidate.regionPrefs,
       candidateLanguages: candidate.languages,
       candidateNeedsSponsorship: candidate.needsSponsorship,

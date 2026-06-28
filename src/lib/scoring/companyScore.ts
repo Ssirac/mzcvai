@@ -10,7 +10,7 @@
  */
 
 import type { Employer, Vacancy, EmployerSignalLog, SponsorshipSignal } from "@prisma/client";
-import { berufMatches } from "@/lib/berufMap";
+import { berufMatches, seniorityLevel } from "@/lib/berufMap";
 
 export interface ScoreBreakdown {
   sponsorship: number;   // 0–40
@@ -190,11 +190,15 @@ export interface FitBreakdown {
   region: number;      // 0–25
   language: number;    // 0–20
   sponsorship: number; // 0–15
+  level: number;       // vacancy seniority level (0–3)
   total: number;
 }
 
 export function calculateFitScore(params: {
   candidateBeruf: string;
+  candidateMaxLevel: number;       // qualification ceiling (never match above this)
+  candidateMinLevel: number;       // willing floor (a bit below the desired level)
+  candidatePreferredLevel: number; // the level the candidate is actually aiming for
   candidateRegions: string[];
   candidateLanguages: string[];
   candidateNeedsSponsorship: boolean;
@@ -205,6 +209,9 @@ export function calculateFitScore(params: {
 }): FitBreakdown {
   const {
     candidateBeruf,
+    candidateMaxLevel,
+    candidateMinLevel,
+    candidatePreferredLevel,
     candidateRegions,
     candidateLanguages,
     candidateNeedsSponsorship,
@@ -213,6 +220,14 @@ export function calculateFitScore(params: {
     vacancyTitle,
     employerSponsorshipSignal,
   } = params;
+
+  // Seniority gate: match from the candidate's "willing floor" up to their
+  // qualification ceiling — never above (too senior). Out-of-range ⇒ not a match.
+  const vacLevel = seniorityLevel(`${vacancyBeruf} ${vacancyTitle ?? ""}`);
+  const levelInRange = vacLevel <= candidateMaxLevel && vacLevel >= candidateMinLevel;
+  if (!levelInRange) {
+    return { beruf: 0, region: 0, language: 0, sponsorship: 0, level: vacLevel, total: 0 };
+  }
 
   // Flexible, case-insensitive beruf match (handles free-text occupations)
   const exact = candidateBeruf.trim().toLowerCase() === vacancyBeruf.trim().toLowerCase();
@@ -238,6 +253,9 @@ export function calculateFitScore(params: {
     sponsorship = employerSponsorshipSignal !== "NO" ? 10 : 10;
   }
 
-  const total = Math.min(beruf + region + language + sponsorship, 100);
-  return { beruf, region, language, sponsorship, total };
+  // Small preference for jobs at the level the candidate is aiming for, so those
+  // rank above the more distant (but still valid) levels.
+  const levelBonus = vacLevel === candidatePreferredLevel ? 3 : 0;
+  const total = Math.min(beruf + region + language + sponsorship + levelBonus, 100);
+  return { beruf, region, language, sponsorship, level: vacLevel, total };
 }
