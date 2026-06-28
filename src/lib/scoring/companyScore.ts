@@ -1,0 +1,243 @@
+/**
+ * Company Score — sponsorship-dominant scoring (0–100)
+ *
+ * Weight distribution (total 100):
+ *   Sponsorship signal          40  ← always dominant
+ *   Active matching vacancy     20
+ *   Direct apply channel        15
+ *   Behavioral history          15  (starts at 0, fills from EmployerSignalLog)
+ *   Context fit (region/size)   10
+ */
+
+import type { Employer, Vacancy, EmployerSignalLog, SponsorshipSignal } from "@prisma/client";
+import { berufMatches } from "@/lib/berufMap";
+
+export interface ScoreBreakdown {
+  sponsorship: number;   // 0–40
+  vacancy: number;       // 0–20
+  channel: number;       // 0–15
+  behavior: number;      // 0–15
+  context: number;       // 0–10
+  total: number;         // 0–100
+  signals: string[];     // human-readable explanation
+}
+
+// ─── Sponsorship signal → score (40 max) ──────────────────────────────────────
+function scoreSponsorshipSignal(signal: SponsorshipSignal): { score: number; signal: string } {
+  switch (signal) {
+    case "YES":
+      return { score: 40, signal: "Explicit sponsorship/visa keyword found (+40)" };
+    case "LIKELY":
+      return { score: 28, signal: "Probable sponsorship signal (English posting or Fachkräfte aus Ausland) (+28)" };
+    case "UNKNOWN":
+      return { score: 10, signal: "No sponsorship signal yet — enrichment pending (+10)" };
+    case "NO":
+      return { score: 0, signal: "Employer signal indicates no non-EU hiring (+0)" };
+  }
+}
+
+// ─── Vacancy presence → score (20 max) ───────────────────────────────────────
+function scoreVacancy(
+  vacancies: Pick<Vacancy, "beruf" | "region" | "status">[],
+  targetBeruf: string,
+  targetRegion: string
+): { score: number; signal: string } {
+  const active = vacancies.filter((v) => v.status === "ACTIVE");
+  if (active.length === 0) return { score: 0, signal: "No active vacancies (+0)" };
+
+  const exactMatch = active.filter(
+    (v) => v.beruf === targetBeruf && v.region === targetRegion
+  );
+  if (exactMatch.length > 0) {
+    return { score: 20, signal: `${exactMatch.length} active vacancy matches beruf+region exactly (+20)` };
+  }
+
+  const beruMatch = active.filter((v) => v.beruf === targetBeruf);
+  if (beruMatch.length > 0) {
+    return { score: 14, signal: `${beruMatch.length} active vacancy matches beruf (different region) (+14)` };
+  }
+
+  return { score: 8, signal: `${active.length} active vacancy (different beruf) (+8)` };
+}
+
+// ─── Apply channel → score (15 max) ──────────────────────────────────────────
+function scoreApplyChannel(employer: Pick<Employer, "genericEmail" | "applyFormUrl" | "phone">): {
+  score: number;
+  signal: string;
+} {
+  if (employer.genericEmail || employer.applyFormUrl) {
+    const channel = employer.genericEmail ? "email" : "online form";
+    return { score: 15, signal: `Direct apply channel available (${channel}) (+15)` };
+  }
+  if (employer.phone) {
+    return { score: 6, signal: "Only phone contact available — no direct email/form (+6)" };
+  }
+  return { score: 0, signal: "No known apply channel (+0)" };
+}
+
+// ─── Behavioral history → score (15 max) ─────────────────────────────────────
+// Day 1 this is always 0 — fills as outreach happens
+function scoreBehavior(signalLogs: Pick<EmployerSignalLog, "eventType">[]): {
+  score: number;
+  signal: string;
+} {
+  if (signalLogs.length === 0) {
+    return { score: 0, signal: "No behavioral history yet (day 1 baseline) (+0)" };
+  }
+
+  let score = 0;
+  const notes: string[] = [];
+
+  const hiredCount = signalLogs.filter((l) => l.eventType === "CANDIDATE_HIRED").length;
+  const repliedCount = signalLogs.filter((l) => l.eventType === "REPLY_RECEIVED").length;
+  const bouncedCount = signalLogs.filter((l) => l.eventType === "OUTREACH_BOUNCED").length;
+
+  if (hiredCount > 0) {
+    score += Math.min(hiredCount * 5, 10);
+    notes.push(`${hiredCount} past hire(s) (+${Math.min(hiredCount * 5, 10)})`);
+  }
+  if (repliedCount > 0) {
+    score += Math.min(repliedCount * 2, 5);
+    notes.push(`${repliedCount} prior reply/replies (+${Math.min(repliedCount * 2, 5)})`);
+  }
+  if (bouncedCount > 0) {
+    score = Math.max(0, score - bouncedCount * 2);
+    notes.push(`${bouncedCount} bounce(s) (−${bouncedCount * 2})`);
+  }
+
+  score = Math.min(score, 15);
+  return {
+    score,
+    signal: notes.length > 0 ? notes.join("; ") : "Behavioral data present but neutral (+0)",
+  };
+}
+
+// ─── Context fit → score (10 max) ────────────────────────────────────────────
+function scoreContext(employer: Pick<Employer, "stars" | "rooms" | "region">, targetRegion: string): {
+  score: number;
+  signal: string;
+} {
+  let score = 0;
+  const notes: string[] = [];
+
+  if (employer.region === targetRegion) {
+    score += 5;
+    notes.push(`Region matches ${targetRegion} (+5)`);
+  }
+
+  // Larger hotels more likely to sponsor
+  if (employer.rooms && employer.rooms >= 50) {
+    score += 3;
+    notes.push(`Hotel has ${employer.rooms} rooms — likely structured HR (+3)`);
+  }
+
+  // 4+ star hotels more likely to have international hiring pipelines
+  if (employer.stars && employer.stars >= 4) {
+    score += 2;
+    notes.push(`${employer.stars}-star property (+2)`);
+  }
+
+  score = Math.min(score, 10);
+  return {
+    score,
+    signal: notes.length > 0 ? notes.join("; ") : "Insufficient context data (+0)",
+  };
+}
+
+// ─── Main scoring function ────────────────────────────────────────────────────
+export function calculateCompanyScore(params: {
+  employer: Pick<Employer, "genericEmail" | "applyFormUrl" | "phone" | "sponsorshipSignal" | "stars" | "rooms" | "region">;
+  vacancies: Pick<Vacancy, "beruf" | "region" | "status">[];
+  signalLogs: Pick<EmployerSignalLog, "eventType">[];
+  targetBeruf: string;
+  targetRegion: string;
+}): ScoreBreakdown {
+  const { employer, vacancies, signalLogs, targetBeruf, targetRegion } = params;
+
+  const sponsorshipResult = scoreSponsorshipSignal(employer.sponsorshipSignal);
+  const vacancyResult = scoreVacancy(vacancies, targetBeruf, targetRegion);
+  const channelResult = scoreApplyChannel(employer);
+  const behaviorResult = scoreBehavior(signalLogs);
+  const contextResult = scoreContext(employer, targetRegion);
+
+  const total =
+    sponsorshipResult.score +
+    vacancyResult.score +
+    channelResult.score +
+    behaviorResult.score +
+    contextResult.score;
+
+  return {
+    sponsorship: sponsorshipResult.score,
+    vacancy: vacancyResult.score,
+    channel: channelResult.score,
+    behavior: behaviorResult.score,
+    context: contextResult.score,
+    total: Math.min(total, 100),
+    signals: [
+      `SPONSORSHIP: ${sponsorshipResult.signal}`,
+      `VACANCY: ${vacancyResult.signal}`,
+      `CHANNEL: ${channelResult.signal}`,
+      `BEHAVIOR: ${behaviorResult.signal}`,
+      `CONTEXT: ${contextResult.signal}`,
+    ],
+  };
+}
+
+// ─── Candidate–Employer fit score (0–100) ────────────────────────────────────
+export interface FitBreakdown {
+  beruf: number;       // 0–40
+  region: number;      // 0–25
+  language: number;    // 0–20
+  sponsorship: number; // 0–15
+  total: number;
+}
+
+export function calculateFitScore(params: {
+  candidateBeruf: string;
+  candidateRegions: string[];
+  candidateLanguages: string[];
+  candidateNeedsSponsorship: boolean;
+  vacancyBeruf: string;
+  vacancyRegion: string;
+  vacancyTitle?: string;
+  employerSponsorshipSignal: SponsorshipSignal;
+}): FitBreakdown {
+  const {
+    candidateBeruf,
+    candidateRegions,
+    candidateLanguages,
+    candidateNeedsSponsorship,
+    vacancyBeruf,
+    vacancyRegion,
+    vacancyTitle,
+    employerSponsorshipSignal,
+  } = params;
+
+  // Flexible, case-insensitive beruf match (handles free-text occupations)
+  const exact = candidateBeruf.trim().toLowerCase() === vacancyBeruf.trim().toLowerCase();
+  const beruf = exact ? 40 : berufMatches(candidateBeruf, vacancyBeruf, vacancyTitle ?? "") ? 32 : 0;
+
+  let region = 0;
+  if (candidateRegions.length === 0 || candidateRegions.includes("Deutschland") || candidateRegions.includes(vacancyRegion)) {
+    region = 25;
+  } else {
+    region = 0;
+  }
+
+  const speaksGerman = candidateLanguages.some((l) => l.toLowerCase().startsWith("de"));
+  const language = speaksGerman ? 20 : 5;
+
+  let sponsorship = 0;
+  if (candidateNeedsSponsorship) {
+    if (employerSponsorshipSignal === "YES") sponsorship = 15;
+    else if (employerSponsorshipSignal === "LIKELY") sponsorship = 10;
+    else sponsorship = 0;
+  } else {
+    // Candidate doesn't need sponsorship — no penalty, small bonus for employer openness
+    sponsorship = employerSponsorshipSignal !== "NO" ? 10 : 10;
+  }
+
+  const total = Math.min(beruf + region + language + sponsorship, 100);
+  return { beruf, region, language, sponsorship, total };
+}

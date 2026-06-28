@@ -1,0 +1,326 @@
+/**
+ * Layer 2 — Employer Enrichment via Puppeteer
+ *
+ * Rules:
+ * - Only enriches employers that already have a vacancy from Arbeitsagentur (Layer 1)
+ * - Always checks robots.txt before crawling
+ * - Never stores personal/named HR email addresses
+ * - Polite request rate — 2s delay between employers
+ *
+ * Legal note: This is not legal advice.
+ * Consult a German GDPR/UWG lawyer before scaling outreach operations.
+ */
+
+import { launchBrowser } from "@/lib/browser";
+import { prisma } from "@/lib/prisma";
+import type { SponsorshipSignal } from "@prisma/client";
+
+const SPONSORSHIP_KEYWORDS = [
+  "visum", "sponsoring", "sponsorship", "relocation", "fachkräfte",
+  "welcome", "international", "nicht-eu", "drittstaaten", "ausland",
+  "work permit", "zuwanderung", "einwanderung",
+];
+
+const ENGLISH_INDICATORS = [
+  "apply now", "we are looking for", "join our team", "we offer",
+  "requirements:", "responsibilities:", "about us",
+];
+
+// Recruitment-department addresses are preferred over general ones so outreach
+// lands directly with HR / "Bewerbung", not a generic info@ inbox.
+const RECRUITMENT_PREFIXES = [
+  "bewerbung", "bewerbungen", "karriere", "jobs", "job", "recruiting",
+  "recruitment", "personal", "hr", "stelle", "stellen", "career", "careers",
+];
+const GENERAL_PREFIXES = ["info", "kontakt", "contact", "office", "post", "mail", "team"];
+const GENERIC_EMAIL_PREFIXES = [...RECRUITMENT_PREFIXES, ...GENERAL_PREFIXES];
+
+// Lower number = higher priority (recruitment dept first)
+function emailPriority(email: string): number {
+  const local = email.split("@")[0]?.toLowerCase() ?? "";
+  const r = RECRUITMENT_PREFIXES.findIndex((p) => local === p || local.startsWith(p));
+  if (r !== -1) return r;
+  const g = GENERAL_PREFIXES.findIndex((p) => local === p || local.startsWith(p));
+  return 100 + (g === -1 ? 99 : g);
+}
+
+// Check robots.txt — returns true if path is allowed
+async function isAllowedByRobots(baseUrl: string, path = "/"): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${baseUrl}/robots.txt`, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) return true; // no robots.txt = allowed
+
+    const text = await res.text();
+    const lines = text.toLowerCase().split("\n");
+    let applicable = false;
+
+    for (const line of lines) {
+      if (line.startsWith("user-agent: *") || line.startsWith("user-agent: mzpersonal")) {
+        applicable = true;
+      }
+      if (applicable && line.startsWith("disallow:")) {
+        const disallowedPath = line.replace("disallow:", "").trim();
+        if (disallowedPath && path.startsWith(disallowedPath)) return false;
+      }
+      if (applicable && line.startsWith("user-agent:") && !line.includes("*") && !line.includes("mzpersonal")) {
+        applicable = false;
+      }
+    }
+    return true;
+  } catch {
+    return true; // on error, assume allowed (fail-open)
+  }
+}
+
+function extractGenericEmails(text: string): string[] {
+  // De-obfuscate common anti-scraper tricks: info(at)firma.de, info [at] firma [dot] de
+  const deob = text
+    .replace(/\s*[\(\[\{]\s*at\s*[\)\]\}]\s*/gi, "@")
+    .replace(/\s+at\s+/gi, "@")
+    .replace(/\s*[\(\[\{]\s*dot\s*[\)\]\}]\s*/gi, ".")
+    .replace(/\s+dot\s+/gi, ".");
+
+  const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+  const all = deob.match(emailRegex) ?? [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of all) {
+    const email = raw.toLowerCase();
+    const local = email.split("@")[0] ?? "";
+    if (GENERIC_EMAIL_PREFIXES.some((prefix) => local === prefix || local.startsWith(prefix))) {
+      if (!seen.has(email)) { seen.add(email); result.push(email); }
+    }
+  }
+  // Sort so the recruitment-department address comes first
+  return result.sort((a, b) => emailPriority(a) - emailPriority(b));
+}
+
+function detectSponsorshipSignal(text: string): SponsorshipSignal {
+  const lower = text.toLowerCase();
+  const hasExplicit = SPONSORSHIP_KEYWORDS.some((kw) => lower.includes(kw));
+  const hasEnglish = ENGLISH_INDICATORS.some((kw) => lower.includes(kw));
+
+  if (hasExplicit) return "YES";
+  if (hasEnglish) return "LIKELY";
+  return "UNKNOWN";
+}
+
+function extractStars(text: string): number | null {
+  const match = text.match(/(\d)\s*[-–]?\s*sterne?/i) ?? text.match(/(\d)\s*star/i);
+  if (match && match[1]) {
+    const n = parseInt(match[1]);
+    if (n >= 1 && n <= 5) return n;
+  }
+  return null;
+}
+
+function extractRooms(text: string): number | null {
+  const match = text.match(/(\d{2,4})\s*(zimmer|rooms?|betten)/i);
+  if (match && match[1]) {
+    const n = parseInt(match[1]);
+    if (n >= 5 && n <= 5000) return n;
+  }
+  return null;
+}
+
+// Well-known hotel chains → sponsorship signal (YES = known to hire internationally)
+const KNOWN_CHAINS: { keywords: string[]; signal: SponsorshipSignal }[] = [
+  { keywords: ["hilton", "hampton by hilton", "doubletree", "curio"], signal: "YES" },
+  { keywords: ["marriott", "sheraton", "westin", "renaissance", "courtyard", "moxy"], signal: "YES" },
+  { keywords: ["accor", "ibis", "novotel", "mercure", "sofitel", "pullman"], signal: "YES" },
+  { keywords: ["intercontinental", "holiday inn", "crowne plaza", "staybridge"], signal: "YES" },
+  { keywords: ["hyatt", "andaz", "park hyatt"], signal: "YES" },
+  { keywords: ["best western", "bestwestern"], signal: "LIKELY" },
+  { keywords: ["radisson", "park inn"], signal: "LIKELY" },
+  { keywords: ["nhow", "nh hotel", "nh hotels"], signal: "LIKELY" },
+  { keywords: ["leonardo hotel", "fattal"], signal: "LIKELY" },
+  { keywords: ["lindner hotel"], signal: "LIKELY" },
+  { keywords: ["steigenberger", "dorint", "relexa"], signal: "LIKELY" },
+];
+
+function signalFromChainName(name: string): SponsorshipSignal | null {
+  const lower = name.toLowerCase();
+  for (const chain of KNOWN_CHAINS) {
+    if (chain.keywords.some((kw) => lower.includes(kw))) return chain.signal;
+  }
+  return null;
+}
+
+// Try to guess employer website from company name (heuristic)
+function guessWebsite(name: string): string | null {
+  // Remove legal suffixes and trim
+  const clean = name
+    .toLowerCase()
+    .replace(/\b(gmbh|ag|kg|ohg|mbh|co\.|ug|e\.v\.|mbh|&|co|kgaa|gmbh\s*&\s*co\.?\s*kg?)\b/gi, "")
+    .replace(/[^a-z0-9äöüß\s\-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/[äöüß]/g, (c) => ({ ä: "ae", ö: "oe", ü: "ue", ß: "ss" }[c] ?? c));
+
+  if (!clean || clean.length < 3) return null;
+  return `https://${clean}.de`;
+}
+
+// Enrich a single employer website
+async function enrichEmployer(employerId: string, website: string): Promise<void> {
+  const baseUrl = website.startsWith("http") ? website : `https://${website}`;
+
+  const allowed = await isAllowedByRobots(baseUrl);
+  if (!allowed) {
+    await prisma.employer.update({
+      where: { id: employerId },
+      data: { enrichmentError: "robots.txt disallows crawling", lastEnrichedAt: new Date() },
+    });
+    return;
+  }
+
+  const browser = await launchBrowser();
+
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de; +https://mz-personalvermittlung.de)");
+    await page.setDefaultTimeout(15000);
+
+    // Load homepage
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    const homeText = await page.evaluate(() => document.body.innerText);
+    const homeHtml = await page.content();
+
+    // Collect relevant inner pages: Impressum & Kontakt (legally must list a
+    // generic contact email in Germany — highest-yield), plus careers pages.
+    const innerLinks = await page.$$eval("a", (anchors) => {
+      const want = (text: string, href: string, keys: string[]) =>
+        keys.some((k) => text.includes(k) || href.toLowerCase().includes(k));
+      const out: { impressum: string[]; kontakt: string[]; jobs: string[] } = { impressum: [], kontakt: [], jobs: [] };
+      for (const a of anchors) {
+        const href = a.href;
+        const text = a.textContent?.toLowerCase() ?? "";
+        if (!href || href.includes("mailto:")) continue;
+        if (want(text, href, ["impressum", "imprint"])) out.impressum.push(href);
+        else if (want(text, href, ["kontakt", "contact"])) out.kontakt.push(href);
+        else if (want(text, href, ["karriere", "job", "stelle", "bewerbung", "career"])) out.jobs.push(href);
+      }
+      return out;
+    });
+
+    // Visit the most useful inner pages (Impressum first), accumulate HTML/text.
+    const visitOrder = [innerLinks.impressum[0], innerLinks.kontakt[0], innerLinks.jobs[0]].filter(Boolean) as string[];
+    let innerHtml = "";
+    let innerText = "";
+    for (const link of visitOrder.slice(0, 3)) {
+      try {
+        await page.goto(link, { waitUntil: "domcontentloaded" });
+        innerText += " " + (await page.evaluate(() => document.body.innerText));
+        innerHtml += " " + (await page.content());
+      } catch {
+        // Non-fatal — continue with what we have
+      }
+    }
+
+    const fullText = homeText + " " + innerText;
+
+    // Extract data — emails from homepage + Impressum/Kontakt/careers pages
+    const genericEmails = extractGenericEmails(homeHtml + " " + innerHtml + " " + innerText);
+    const applyFormMatch = (homeHtml + innerHtml).match(/href="([^"]*(?:bewerbung|apply|karriere|jobs)[^"]*form[^"]*)"/i);
+    const sponsorshipSignal = detectSponsorshipSignal(fullText);
+    const stars = extractStars(fullText);
+    const rooms = extractRooms(fullText);
+
+    await prisma.employer.update({
+      where: { id: employerId },
+      data: {
+        genericEmail: genericEmails[0] ?? null,
+        applyFormUrl: applyFormMatch?.[1] ?? null,
+        sponsorshipSignal,
+        ...(stars ? { stars } : {}),
+        ...(rooms ? { rooms } : {}),
+        lastEnrichedAt: new Date(),
+        enrichmentError: null,
+      },
+    });
+  } catch (err) {
+    await prisma.employer.update({
+      where: { id: employerId },
+      data: {
+        enrichmentError: (err as Error).message.slice(0, 500),
+        lastEnrichedAt: new Date(),
+      },
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Enrich all employers: chain detection first (instant), then website scraping
+export async function enrichPendingEmployers(limit = 20): Promise<{
+  enriched: number;
+  chainMatched: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const employers = await prisma.employer.findMany({
+    where: {
+      vacancies: { some: { status: "ACTIVE" } },
+      OR: [
+        { lastEnrichedAt: null },
+        { lastEnrichedAt: { lt: cutoff }, enrichmentError: { not: null } },
+      ],
+    },
+    select: { id: true, website: true, name: true, sponsorshipSignal: true },
+    take: limit,
+  });
+
+  const result = { enriched: 0, chainMatched: 0, skipped: 0, errors: [] as string[] };
+
+  for (const employer of employers) {
+    // Step 1: Instant chain detection (no HTTP needed)
+    if (employer.sponsorshipSignal === "UNKNOWN") {
+      const chainSignal = signalFromChainName(employer.name);
+      if (chainSignal) {
+        await prisma.employer.update({
+          where: { id: employer.id },
+          data: { sponsorshipSignal: chainSignal, lastEnrichedAt: new Date() },
+        });
+        result.chainMatched++;
+        continue;
+      }
+    }
+
+    // Step 2: Website scraping — use existing or try heuristic URL
+    const website = employer.website ?? guessWebsite(employer.name);
+    if (!website) {
+      await prisma.employer.update({
+        where: { id: employer.id },
+        data: { lastEnrichedAt: new Date(), enrichmentError: "No website available" },
+      });
+      result.skipped++;
+      continue;
+    }
+
+    try {
+      await enrichEmployer(employer.id, website);
+      // Save guessed website if it worked and we didn't have one
+      if (!employer.website) {
+        await prisma.employer.update({ where: { id: employer.id }, data: { website } });
+      }
+      result.enriched++;
+    } catch (err) {
+      result.errors.push(`${employer.name}: ${(err as Error).message}`);
+    }
+
+    await sleep(2000);
+  }
+
+  return result;
+}
