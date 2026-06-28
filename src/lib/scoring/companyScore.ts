@@ -253,9 +253,14 @@ export function calculateFitScore(params: {
     sponsorship = employerSponsorshipSignal !== "NO" ? 10 : 10;
   }
 
-  // Small preference for jobs at the level the candidate is aiming for, so those
-  // rank above the more distant (but still valid) levels.
-  const levelBonus = vacLevel === candidatePreferredLevel ? 3 : 0;
+  // Level bonus: prioritise jobs SLIGHTLY BELOW the preferred level (easier
+  // to hire non-EU candidates into), then exact preferred, then further below.
+  const levelDiff = candidatePreferredLevel - vacLevel; // positive = vacancy is lower
+  const levelBonus =
+    levelDiff === 1 ? 6 :  // one step below preferred — most realistic for visa hire
+    levelDiff === 0 ? 3 :  // exact preferred level
+    levelDiff >= 2 ? 1 :   // two+ steps below — still valid, ranked last
+    0;                     // above preferred (within maxLevel) — no bonus
   const total = Math.min(beruf + region + language + sponsorship + levelBonus, 100);
   return { beruf, region, language, sponsorship, level: vacLevel, total };
 }
