@@ -14,7 +14,7 @@
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
 import type { ApplyChannel, SponsorshipSignal } from "@prisma/client";
-import { berufSearchKeywords } from "@/lib/berufMap";
+import { berufSearchKeywords, isPartTimeJob } from "@/lib/berufMap";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 const BASE = "https://api.adzuna.com/v1/api/jobs/de/search";
@@ -127,6 +127,7 @@ export async function ingestAdzuna(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job, keywords)) continue;
+          if (isPartTimeJob(job.title, job.contract_time ? [job.contract_time] : [])) continue;
 
           const sourceRef = `adzuna:${job.id}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });

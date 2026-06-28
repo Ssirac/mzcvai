@@ -9,6 +9,7 @@
 import axios, { AxiosError } from "axios";
 import { prisma } from "@/lib/prisma";
 import type { Employer, ApplyChannel } from "@prisma/client";
+import { isPartTimeJob } from "@/lib/berufMap";
 
 const BASE_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4";
 const API_KEY = "jobboerse-jobsuche"; // public key for the BA job search API
@@ -390,6 +391,11 @@ async function processJob(
   // Relevance filter — skip jobs unrelated to the occupation being searched
   if (!isJobRelevant(job, beruf, detail, keyword)) {
     return; // silently skip irrelevant matches from broad keyword search
+  }
+
+  // Skip part-time and mini-job listings — MZ only places full-time candidates
+  if (isPartTimeJob(job.titel ?? "", job.arbeitszeitmodelle ?? [])) {
+    return;
   }
 
   // Extract extra data from job description

@@ -257,3 +257,33 @@ export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacan
   const tokens = c.split(/[\s/,-]+/).filter((t) => t.length >= 3);
   return tokens.some((t) => termIncludes(v, t) || termIncludes(title, t));
 }
+
+// Keywords that indicate part-time or mini-job — we never ingest these.
+const PART_TIME_TITLE_KEYWORDS = [
+  "teilzeit", "minijob", "mini-job", "geringfügig", "nebenjob",
+  "part-time", "part time", "520-euro", "450-euro", "400-euro",
+  "520 euro", "450 euro", "400 euro", "midijob", "midi-job",
+];
+const PART_TIME_TYPE_KEYWORDS = [
+  "part_time", "part time", "parttime", "mini_job", "minijob",
+  "teilzeit", "geringfügig",
+];
+
+/**
+ * Returns true if a job should be SKIPPED because it is part-time / mini-job.
+ * @param title  Job title
+ * @param types  Optional list of employment-type strings from the API (e.g. job_types, contract_time)
+ */
+export function isPartTimeJob(title: string, types?: string[]): boolean {
+  const t = (title ?? "").toLowerCase();
+  if (PART_TIME_TITLE_KEYWORDS.some((kw) => t.includes(kw))) return true;
+  if (types && types.length > 0) {
+    const combined = types.join(" ").toLowerCase();
+    if (PART_TIME_TYPE_KEYWORDS.some((kw) => combined.includes(kw))) {
+      // Only skip if there's NO full-time signal at all
+      const hasFullTime = /full.?time|vollzeit|full_time/i.test(combined);
+      if (!hasFullTime) return true;
+    }
+  }
+  return false;
+}

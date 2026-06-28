@@ -7,7 +7,7 @@
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
 import type { ApplyChannel, SponsorshipSignal } from "@prisma/client";
-import { berufSearchKeywords } from "@/lib/berufMap";
+import { berufSearchKeywords, isPartTimeJob } from "@/lib/berufMap";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 interface JoobleJob {
@@ -97,6 +97,7 @@ export async function ingestJooble(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job.title, keywords)) continue;
+          if (isPartTimeJob(job.title, job.type ? [job.type] : [])) continue;
           const sourceRef = `jooble:${job.id ?? job.link}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
           if (existing) { result.vacanciesUpdated++; continue; }
