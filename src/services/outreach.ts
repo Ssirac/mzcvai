@@ -57,7 +57,15 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
   if (c.cvData) {
     attachments = [{ filename: c.cvFileName || cvFileName(c.name), content: Buffer.from(c.cvData) }];
   } else {
-    try { attachments = [{ filename: cvFileName(c.name), content: await generateCandidateCvPdf(c) }]; } catch { /* skip */ }
+    try {
+      const pdf = await Promise.race([
+        generateCandidateCvPdf(c),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("PDF timeout")), 25000)
+        ),
+      ]);
+      attachments = [{ filename: cvFileName(c.name), content: pdf }];
+    } catch { /* skip — send without attachment */ }
   }
 
   const transporter = nodemailer.createTransport({
@@ -293,7 +301,12 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     }];
   } else {
     try {
-      const pdf = await generateCandidateCvPdf(candidate);
+      const pdf = await Promise.race([
+        generateCandidateCvPdf(candidate),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("PDF generation timeout after 25s")), 25000)
+        ),
+      ]);
       cvAttachment = [{ filename: cvFileName(candidate.name), content: pdf }];
     } catch (err) {
       console.error("[outreach] CV PDF generation failed:", (err as Error).message);
