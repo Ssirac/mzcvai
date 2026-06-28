@@ -1,5 +1,5 @@
 # ── MZ Talent Intelligence — production image ────────────────────────────────
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # System Chromium for Puppeteer (CV PDFs + employer enrichment) + its libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,8 +19,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
 # Install deps (use cache layer)
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json package-lock.json* ./
+RUN npm install --prefer-offline
 
 # Build
 COPY . .
