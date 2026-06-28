@@ -11,31 +11,14 @@
  * Consult a German GDPR/UWG lawyer before scaling outreach operations.
  */
 
-import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { anthropic } from "@/lib/anthropic";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 import { enrichSingleEmployer } from "@/services/enrichment";
+import { sendMail } from "@/lib/mailer";
 
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
-
-// Single place to build the SMTP transporter. Port 465 ⇒ implicit SSL (secure:true);
-// all other ports (587/25) ⇒ STARTTLS (secure:false). Generous timeouts so a
-// blocked/slow port fails fast with a clear error instead of hanging forever.
-function buildTransport() {
-  const port = parseInt(process.env.SMTP_PORT ?? "587");
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-    tls: { rejectUnauthorized: false },
-  });
-}
 
 /**
  * Send a REAL-looking application email (no "Test" wording) for a candidate to
@@ -86,15 +69,7 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
     } catch { /* skip — send without attachment */ }
   }
 
-  const transporter = buildTransport();
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: recipients.join(", "),
-    subject,
-    text: body,
-    attachments,
-  });
+  await sendMail({ to: recipients, subject, text: body, attachments });
 
   return { subject, sentTo: recipients, employer: employerName, body };
 }
@@ -340,16 +315,8 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   const body = outreach.draftBody;
   const subject = outreach.subject ?? "Bewerbung";
 
-  // Send via Nodemailer
-  const transporter = buildTransport();
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: recipient,
-    subject,
-    text: body,
-    attachments: cvAttachment,
-  });
+  // Send via Resend (HTTPS API) when configured, else SMTP
+  await sendMail({ to: recipient, subject, text: body, attachments: cvAttachment });
 
   // Mark sent + log behavior signal
   await prisma.outreach.update({
