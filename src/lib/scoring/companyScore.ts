@@ -240,8 +240,16 @@ export function calculateFitScore(params: {
     region = 0;
   }
 
-  const speaksGerman = candidateLanguages.some((l) => l.toLowerCase().startsWith("de"));
-  const language = speaksGerman ? 20 : 5;
+  // Graduated German-level score: higher level → more competitive, ranked higher
+  const germanEntry = candidateLanguages.find((l) => l.toLowerCase().startsWith("de-"));
+  const germanLevel = germanEntry ? germanEntry.split("-")[1]?.toUpperCase() ?? "" : "";
+  const language =
+    germanLevel === "C2" || germanLevel === "C1" ? 20 :
+    germanLevel === "B2" ? 17 :
+    germanLevel === "B1" ? 14 :
+    germanLevel === "A2" ? 10 :
+    germanLevel === "A1" ?  7 :
+    candidateLanguages.some((l) => l.toLowerCase().startsWith("de")) ? 5 : 0;
 
   let sponsorship = 0;
   if (candidateNeedsSponsorship) {
