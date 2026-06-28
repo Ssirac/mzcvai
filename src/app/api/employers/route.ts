@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       include: {
         vacancies: {
           where: { status: "ACTIVE" },
-          select: { id: true, title: true, beruf: true, region: true },
+          select: { id: true, title: true, beruf: true, region: true, url: true },
         },
         _count: { select: { vacancies: true, signalLogs: true } },
       },

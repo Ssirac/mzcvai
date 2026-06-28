@@ -205,6 +205,8 @@
     "dailyLimitReached": "Gündəlik göndərmə limitinə (20) çatdı — sabah davam edin",
     "draftCreated": "Müraciət qaralaması yaradıldı",
     "statusUpdated": "Status yeniləndi",
-    "candidateDeleted": "Namizəd silindi"
+    "candidateDeleted": "Namizəd silindi",
+    "backToList": "← Siyahı",
+    "draft": "Qaralama"
   }
 }

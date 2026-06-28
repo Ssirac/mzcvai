@@ -205,6 +205,7 @@
     "dailyLimitReached": "Tageslimit (20) erreicht — morgen fortsetzen",
     "draftCreated": "Bewerbungsentwurf erstellt",
     "statusUpdated": "Status aktualisiert",
-    "candidateDeleted": "Kandidat gelöscht"
+    "candidateDeleted": "Kandidat gelöscht",
+    "backToList": "← Zurück zur Liste"
   }
 }

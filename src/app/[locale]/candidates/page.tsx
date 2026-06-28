@@ -164,6 +164,7 @@ export default function CandidatesPage() {
   const [comms, setComms] = useState<OutreachItem[]>([]);
   const [commsLoading, setCommsLoading] = useState(false);
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
   async function loadCandidates() {
     const { data } = await jsonFetch("/api/candidates");
@@ -193,6 +194,7 @@ export default function CandidatesPage() {
     setShowForm(false);
     setActiveTab("matches");
     setExpandedComm(null);
+    setMobileView("detail");
     loadMatches(id);
     loadComms(id);
   }
@@ -205,6 +207,7 @@ export default function CandidatesPage() {
     setExistingCvName(null);
     setSelectedId(null);
     setShowForm(true);
+    setMobileView("detail");
   }
 
   // Load an existing candidate's full record into the editable form
@@ -394,6 +397,7 @@ export default function CandidatesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          ...(editingId ? { id: editingId } : {}),
           languages: langs,
           experience: form.experience.filter((e) => e.company || e.title),
           education: form.education.filter((e) => e.school || e.degree),
@@ -548,7 +552,7 @@ export default function CandidatesPage() {
 
       <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-110px)]">
         {/* Left — candidate list */}
-        <div className="w-full lg:w-72 border-b lg:border-b-0 lg:border-r border-gray-800 overflow-y-auto p-3 space-y-1 max-h-56 lg:max-h-none shrink-0">
+        <div className={`w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-gray-800 overflow-y-auto p-3 space-y-1 shrink-0 ${mobileView === "detail" ? "hidden lg:block" : ""}`}>
           {/* Search + status filter / sort */}
           {candidates.length > 0 && (
             <div className="pb-2 mb-1 border-b border-gray-800 sticky top-0 bg-gray-950 z-10 space-y-2">
@@ -595,6 +599,11 @@ export default function CandidatesPage() {
                 <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${STATUS_COLOR[c.status]}`}>{t(`status${c.status}`)}</span>
               </div>
               <div className="text-xs text-gray-400 mt-0.5">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
+              {(c.currentCity || c.phone) && (
+                <div className="text-xs text-gray-600 mt-0.5 truncate">
+                  {[c.currentCity, c.phone].filter(Boolean).join(" · ")}
+                </div>
+              )}
               <div className="text-xs text-gray-500 mt-0.5">
                 {t("matchCount", { count: c._count.matches })}
                 {c.needsSponsorship && <span className="ml-2 text-yellow-500">{t("needsSponsorshipShort")}</span>}
@@ -604,7 +613,13 @@ export default function CandidatesPage() {
         </div>
 
         {/* Right — form or match results */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className={`flex-1 overflow-y-auto p-4 sm:p-6 ${mobileView === "list" ? "hidden lg:block" : ""}`}>
+          <button
+            onClick={() => setMobileView("list")}
+            className="lg:hidden mb-4 flex items-center gap-1.5 text-sm text-gray-400 hover:text-white"
+          >
+            {t("backToList")}
+          </button>
 
           {/* Add candidate form */}
           {showForm && (
@@ -965,6 +980,20 @@ export default function CandidatesPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">★ {t("needsSponsorshipShort")}</span>
                       )}
                     </div>
+                  {(selectedCandidate.phone || selectedCandidate.email) && (
+                    <div className="mt-2 flex flex-wrap gap-4 text-xs">
+                      {selectedCandidate.phone && (
+                        <a href={`tel:${selectedCandidate.phone}`} className="flex items-center gap-1 text-gray-400 hover:text-white">
+                          📞 {selectedCandidate.phone}
+                        </a>
+                      )}
+                      {selectedCandidate.email && (
+                        <a href={`mailto:${selectedCandidate.email}`} className="flex items-center gap-1 text-gray-400 hover:text-white">
+                          ✉️ {selectedCandidate.email}
+                        </a>
+                      )}
+                    </div>
+                  )}
                   </div>
                   <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
                     <select

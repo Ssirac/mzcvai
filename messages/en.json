@@ -205,6 +205,7 @@
     "dailyLimitReached": "Daily send limit (20) reached — continue tomorrow",
     "draftCreated": "Application draft created",
     "statusUpdated": "Status updated",
-    "candidateDeleted": "Candidate deleted"
+    "candidateDeleted": "Candidate deleted",
+    "backToList": "← Back to list"
   }
 }

@@ -95,12 +95,47 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const candidate = await prisma.candidate.upsert({
-      where: { email: b.email ?? `noemail-${Date.now()}@placeholder.mz` },
-      create: { email: b.email || null, ...data, ...statusData, ...cvFields },
-      update: { ...data, ...statusData, ...cvFields },
-      omit: { cvData: true },
-    });
+    // Identify create vs update by EXPLICIT id only — never by email. Using email
+    // as the key caused new candidates (whose form still carried a previous
+    // person's email) to silently overwrite an existing candidate.
+    const editId = typeof b.id === "string" && b.id.trim() ? b.id.trim() : null;
+    const email = typeof b.email === "string" && b.email.trim() ? b.email.trim() : null;
+    const isUnique = (e: unknown) => typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+
+    let candidate;
+    if (editId) {
+      // Edit an existing candidate by id. Try with the email; if it collides with
+      // another candidate, keep this one's email unchanged instead of failing.
+      try {
+        candidate = await prisma.candidate.update({
+          where: { id: editId },
+          data: { email, ...data, ...statusData, ...cvFields },
+          omit: { cvData: true },
+        });
+      } catch (e) {
+        if (!isUnique(e)) throw e;
+        candidate = await prisma.candidate.update({
+          where: { id: editId },
+          data: { ...data, ...statusData, ...cvFields },
+          omit: { cvData: true },
+        });
+      }
+    } else {
+      // New candidate — always create. If the email already belongs to someone
+      // else, save this candidate WITHOUT it rather than overwriting/losing data.
+      try {
+        candidate = await prisma.candidate.create({
+          data: { email, ...data, ...statusData, ...cvFields },
+          omit: { cvData: true },
+        });
+      } catch (e) {
+        if (!isUnique(e)) throw e;
+        candidate = await prisma.candidate.create({
+          data: { email: null, ...data, ...statusData, ...cvFields },
+          omit: { cvData: true },
+        });
+      }
+    }
 
     // Auto-run matching immediately after creation
     let matchResult = await matchCandidateToVacancies(candidate.id);
