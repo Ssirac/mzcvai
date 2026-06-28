@@ -259,7 +259,7 @@ export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacan
 }
 
 // Keywords that indicate part-time or mini-job — we never ingest these.
-const PART_TIME_TITLE_KEYWORDS = [
+export const PART_TIME_TITLE_KEYWORDS = [
   "teilzeit", "minijob", "mini-job", "geringfügig", "nebenjob",
   "part-time", "part time", "520-euro", "450-euro", "400-euro",
   "520 euro", "450 euro", "400 euro", "midijob", "midi-job",

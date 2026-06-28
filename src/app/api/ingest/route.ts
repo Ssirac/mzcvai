@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { scoreEmployersForSearch } from "@/services/scoring";
 import { SOURCES, availableSources, getSource } from "@/services/sources/registry";
+import { prisma } from "@/lib/prisma";
+import { PART_TIME_TITLE_KEYWORDS } from "@/lib/berufMap";
 
 // POST /api/ingest
 // Body: { beruf, region, maxPages?, source? }  — source = a module id or "all".
@@ -57,12 +59,22 @@ export async function POST(req: NextRequest) {
 
     const scored = await scoreEmployersForSearch(beruf, region);
 
+    // Remove any part-time / mini-job vacancies that slipped in (title-based cleanup)
+    const { count: partTimeDeleted } = await prisma.vacancy.deleteMany({
+      where: {
+        OR: PART_TIME_TITLE_KEYWORDS.map((kw) => ({
+          title: { contains: kw, mode: "insensitive" as const },
+        })),
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       vacanciesNew: totals.vacanciesNew,
       vacanciesUpdated: totals.vacanciesUpdated,
       employersNew: totals.employersNew,
       employersScored: scored,
+      partTimeDeleted,
       sourcesRun: modules.map((m) => m.id),
       perSource,
       errors: totals.errors,
