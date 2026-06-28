@@ -349,10 +349,20 @@ export interface BulkSendResult {
  * application to every matching employer — strictly respecting the existing
  * safety guards (daily cap, per-employer cooldown, generic-email-only). The
  * daily limit naturally stops the run, so this never becomes a spam cannon.
+ *
+ * When `matchIds` is given, only those specific matches are sent (select-and-send
+ * from the UI); otherwise all matches for the candidate are processed.
  */
-export async function sendAllForCandidate(candidateId: string, approvedBy: string): Promise<BulkSendResult> {
+export async function sendAllForCandidate(
+  candidateId: string,
+  approvedBy: string,
+  matchIds?: string[]
+): Promise<BulkSendResult> {
   const matches = await prisma.match.findMany({
-    where: { candidateId },
+    where: {
+      candidateId,
+      ...(matchIds && matchIds.length > 0 ? { id: { in: matchIds } } : {}),
+    },
     orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],
     include: { employer: true, outreach: true },
   });

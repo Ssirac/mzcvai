@@ -165,8 +165,24 @@ export default function CandidatesPage() {
   const [commsLoading, setCommsLoading] = useState(false);
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
 
   const pendingMatches = matches.filter((m) => m.outreach.length === 0);
+
+  function toggleMatchSelect(id: string) {
+    setSelectedMatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedMatchIds((prev) =>
+      prev.size === pendingMatches.length ? new Set() : new Set(pendingMatches.map((m) => m.id))
+    );
+  }
 
   async function loadCandidates() {
     const { data } = await jsonFetch("/api/candidates");
@@ -523,13 +539,16 @@ export default function CandidatesPage() {
   // Bulk: send an application to every matching employer (respects guards)
   async function sendAllOutreach() {
     if (!selectedId) return;
-    if (!confirm(t("sendAllConfirm", { count: matches.length }))) return;
+    // If the user ticked specific jobs, send only those; otherwise send to all.
+    const ids = selectedMatchIds.size > 0 ? Array.from(selectedMatchIds) : undefined;
+    const count = ids ? ids.length : pendingMatches.length;
+    if (!confirm(t("sendAllConfirm", { count }))) return;
     setSendingAll(true);
     try {
       const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/send-all`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: "bulk-send" }),
+        body: JSON.stringify({ userId: "bulk-send", ...(ids ? { matchIds: ids } : {}) }),
       });
       if (ok && data.ok) {
         toast(
@@ -540,6 +559,7 @@ export default function CandidatesPage() {
           "success"
         );
         if (data.limitReached) toast(t("dailyLimitReached"), "info");
+        setSelectedMatchIds(new Set());
         loadMatches(selectedId);
         loadComms(selectedId);
         setActiveTab("comms");
@@ -1090,8 +1110,19 @@ export default function CandidatesPage() {
                 ) : (
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                      <div className="text-sm text-gray-400">
-                        <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchIds.size === pendingMatches.length && pendingMatches.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                          />
+                          {t("selectAll")}
+                        </label>
+                        <div className="text-sm text-gray-400">
+                          <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
+                        </div>
                       </div>
                       <button
                         onClick={sendAllOutreach}
@@ -1100,6 +1131,8 @@ export default function CandidatesPage() {
                       >
                         {sendingAll ? (
                           <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("sendingAll")}</>
+                        ) : selectedMatchIds.size > 0 ? (
+                          <>✉️ {t("sendSelected", { count: selectedMatchIds.size })}</>
                         ) : (
                           <>✉️ {t("sendAll")}</>
                         )}
@@ -1110,8 +1143,14 @@ export default function CandidatesPage() {
                         const jobLink = m.vacancy.url
                           || (m.vacancy.applyValue && /^https?:\/\//.test(m.vacancy.applyValue) ? m.vacancy.applyValue : null);
                         return (
-                          <div key={m.id} className="group bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition-colors">
+                          <div key={m.id} className={`group bg-gray-900 border rounded-2xl p-4 transition-colors ${selectedMatchIds.has(m.id) ? "border-emerald-600/60" : "border-gray-800 hover:border-gray-700"}`}>
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedMatchIds.has(m.id)}
+                                onChange={() => toggleMatchSelect(m.id)}
+                                className="mt-1 w-4 h-4 accent-emerald-500 cursor-pointer shrink-0"
+                              />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-white">{m.employer.name}</span>

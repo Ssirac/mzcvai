@@ -199,6 +199,8 @@
     "noOutreachHint": "Uyğun işlər bölməsindən \"Müraciət yaz\" ilə başlayın.",
     "formOnly": "E-mail yox — forma ilə",
     "sendAll": "Hamısına göndər",
+    "selectAll": "Hamısını seç",
+    "sendSelected": "Seçilənlərə göndər ({count})",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",
     "bulkResult": "{sent} göndərildi, {skipped} ötürüldü",

@@ -199,6 +199,8 @@
     "noOutreachHint": "Starten Sie über \"Bewerbung schreiben\" bei den passenden Stellen.",
     "formOnly": "Keine E-Mail — via Formular",
     "sendAll": "An alle senden",
+    "selectAll": "Alle auswählen",
+    "sendSelected": "An Ausgewählte senden ({count})",
     "sendingAll": "Wird gesendet...",
     "sendAllConfirm": "An {count} Arbeitgeber bewerben? (Tageslimit und Cooldown werden eingehalten)",
     "bulkResult": "{sent} gesendet, {skipped} übersprungen",

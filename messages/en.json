@@ -199,6 +199,8 @@
     "noOutreachHint": "Start from \"Write application\" in the matching jobs.",
     "formOnly": "No email — via form",
     "sendAll": "Send to all",
+    "selectAll": "Select all",
+    "sendSelected": "Send to selected ({count})",
     "sendingAll": "Sending...",
     "sendAllConfirm": "Apply to {count} employers? (Daily limit and cooldown are respected)",
     "bulkResult": "{sent} sent, {skipped} skipped",
