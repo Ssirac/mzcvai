@@ -65,6 +65,9 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
     port: parseInt(process.env.SMTP_PORT ?? "587"),
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   await transporter.sendMail({
@@ -310,6 +313,9 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     port: parseInt(process.env.SMTP_PORT ?? "587"),
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   await transporter.sendMail({
