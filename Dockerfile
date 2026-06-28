@@ -13,18 +13,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Use the system Chromium; don't download Puppeteer's own copy
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Install deps (use cache layer)
+# Install ALL deps (including devDependencies needed for next build / tailwindcss)
 COPY package.json package-lock.json* ./
-RUN npm install --prefer-offline
+RUN npm install --include=dev
 
 # Build
 COPY . .
 RUN npx prisma generate && npm run build
+
+# Switch to production mode after build is complete
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
