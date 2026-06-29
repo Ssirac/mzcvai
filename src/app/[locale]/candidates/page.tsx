@@ -557,6 +557,29 @@ export default function CandidatesPage() {
   }
 
   // Bulk: send an application to every matching employer (respects guards)
+  async function resetOutreach() {
+    if (!selectedId) return;
+    if (!confirm(t("resetConfirm"))) return;
+    try {
+      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/reset-outreach`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (ok && data.ok) {
+        toast(t("resetDone", { count: Number(data.deleted ?? 0) }), "success");
+        setSelectedMatchIds(new Set());
+        loadMatches(selectedId);
+        loadComms(selectedId);
+        setActiveTab("matches");
+      } else {
+        toast(String(data.error ?? "error"), "error");
+      }
+    } catch {
+      toast("error", "error");
+    }
+  }
+
   async function findEmailsForMatches() {
     if (!selectedId) return;
     setEnrichingMatches(true);
@@ -1316,6 +1339,17 @@ export default function CandidatesPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm text-gray-400">
+                        <span className="text-white font-bold">{comms.length}</span> {t("statSent")}
+                      </div>
+                      <button
+                        onClick={resetOutreach}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-red-900/60 text-red-300 hover:bg-red-950/40"
+                      >
+                        ↺ {t("resetOutreach")}
+                      </button>
+                    </div>
                     {comms.map((o) => (
                       <div key={o.id} className="relative bg-gray-900 border border-gray-800 rounded-2xl pl-5 pr-4 py-4 overflow-hidden">
                         {/* status spine */}

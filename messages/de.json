@@ -210,6 +210,9 @@
     "draftCreated": "Bewerbungsentwurf erstellt",
     "statusUpdated": "Status aktualisiert",
     "candidateDeleted": "Kandidat gelöscht",
+    "resetOutreach": "Alle zurücksetzen",
+    "resetConfirm": "Alle gesendeten E-Mails zurücksetzen? Die Stellen erscheinen wieder unter „Passende Stellen“ und können erneut gesendet werden.",
+    "resetDone": "{count} E-Mails zurückgesetzt — Stellen können erneut gesendet werden",
     "backToList": "← Zurück zur Liste",
     "allSent": "Bewerbungen an alle passenden Arbeitgeber gesendet.",
     "allSentHint": "Antworten im Tab „Gesendete E-Mails“ verfolgen."

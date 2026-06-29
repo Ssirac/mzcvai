@@ -260,11 +260,16 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     throw new Error(`GDPR block: ${outreach.toAddress} appears personal. Refusing to send.`);
   }
 
-  // Guard 4: Daily rate limit
+  // Guard 4: Daily rate limit — counted PER CANDIDATE (each candidate gets their
+  // own MAX_PER_DAY allowance), not a single shared pool.
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const sentToday = await prisma.outreach.count({
-    where: { status: "SENT", sentAt: { gte: todayStart } },
+    where: {
+      status: "SENT",
+      sentAt: { gte: todayStart },
+      match: { candidateId: outreach.match.candidateId },
+    },
   });
   if (sentToday >= MAX_PER_DAY) {
     throw new Error(`Daily outreach limit (${MAX_PER_DAY}) reached. Try again tomorrow.`);

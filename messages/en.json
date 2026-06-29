@@ -210,6 +210,9 @@
     "draftCreated": "Application draft created",
     "statusUpdated": "Status updated",
     "candidateDeleted": "Candidate deleted",
+    "resetOutreach": "Reset all",
+    "resetConfirm": "Undo all sent emails? The jobs will return to \"Matching jobs\" and can be sent again.",
+    "resetDone": "{count} emails reset — jobs can be sent again",
     "backToList": "← Back to list",
     "allSent": "Applications sent to all matching employers.",
     "allSentHint": "Track responses in the Sent Emails tab."
