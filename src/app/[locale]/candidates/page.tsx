@@ -1290,7 +1290,17 @@ export default function CandidatesPage() {
                                       🔗 {t("jobListing")}
                                     </a>
                                   )}
-                                  {m.employer.genericEmail && <span>📧 {m.employer.genericEmail}</span>}
+                                  {m.employer.genericEmail ? (
+                                    <a href={`mailto:${m.employer.genericEmail}`}
+                                      className="inline-flex items-center gap-1 bg-emerald-600/15 text-emerald-300 border border-emerald-600/30 hover:bg-emerald-600/25 px-2.5 py-1 rounded-md font-medium truncate max-w-[260px]"
+                                      title={m.employer.genericEmail}>
+                                      ✉ {m.employer.genericEmail}
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-red-900/20 text-red-400 border border-red-800/30 px-2.5 py-1 rounded-md text-[11px]">
+                                      ✕ email yox
+                                    </span>
+                                  )}
                                   {m.employer.website && (
                                     <a href={m.employer.website.startsWith("http") ? m.employer.website : `https://${m.employer.website}`}
                                       target="_blank" rel="noopener noreferrer"
@@ -1313,9 +1323,6 @@ export default function CandidatesPage() {
                                     >
                                       {outreachLoading === m.id ? t("preparing") : t("writeApplication")}
                                     </button>
-                                    {!m.employer.genericEmail && (
-                                      <span className="text-[10px] text-gray-500 text-right">{t("formOnly")}</span>
-                                    )}
                                   </div>
                                 )}
                               </div>
