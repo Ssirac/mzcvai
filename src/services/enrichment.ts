@@ -288,6 +288,50 @@ async function emailFromVacancies(employerId: string): Promise<string | null> {
 }
 
 /**
+ * Hunter.io domain-search: given an employer's website domain (e.g. "firma.de"),
+ * asks Hunter for the most common generic email pattern and returns the best
+ * address (bewerbung/hr/jobs/info priority). Falls back gracefully on any error
+ * so the rest of enrichment continues unaffected. Uses at most 1 API credit.
+ *
+ * Requires HUNTER_API_KEY env var (https://hunter.io → API Keys, 25 free/day).
+ */
+async function emailFromHunter(domain: string): Promise<string | null> {
+  const key = process.env.HUNTER_API_KEY;
+  if (!key) return null;
+
+  try {
+    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${key}&limit=10&type=generic`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as {
+      data?: {
+        emails?: { value: string; type: string; confidence: number }[];
+        domain?: string;
+      };
+    };
+
+    const emails = json.data?.emails ?? [];
+    // Filter to generic addresses only, sort by our own priority
+    const generic = emails
+      .filter((e) => e.type === "generic" && e.confidence >= 70)
+      .map((e) => e.value.toLowerCase())
+      .filter((e) => {
+        const local = e.split("@")[0] ?? "";
+        return GENERIC_EMAIL_PREFIXES.some((p) => local === p || local.startsWith(p));
+      })
+      .sort((a, b) => emailPriority(a) - emailPriority(b));
+
+    return generic[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * On-demand enrichment for ONE employer — used right before sending outreach so
  * the user doesn't have to run a separate enrichment pass. Tries chain detection,
  * then scrapes the (known or guessed) website for a generic email. Returns the
@@ -326,7 +370,25 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     return fromListing;
   }
 
+  // Step 1: Hunter.io domain search — fast HTTP call, no browser needed.
+  // Only runs when HUNTER_API_KEY is set (25 free credits/day).
   const website = employer.website ?? guessWebsite(employer.name);
+  if (website) {
+    try {
+      const domain = new URL(website.startsWith("http") ? website : `https://${website}`).hostname.replace(/^www\./, "");
+      const fromHunter = await emailFromHunter(domain);
+      if (fromHunter) {
+        await prisma.employer.update({
+          where: { id: employer.id },
+          data: { genericEmail: fromHunter, lastEnrichedAt: new Date(), enrichmentError: null },
+        });
+        return fromHunter;
+      }
+    } catch {
+      // URL parse failed or Hunter returned nothing — continue to Puppeteer
+    }
+  }
+
   if (!website) {
     await prisma.employer.update({
       where: { id: employer.id },
@@ -335,6 +397,7 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     return null;
   }
 
+  // Step 2: Puppeteer website scraping (Impressum / Kontakt pages)
   try {
     await enrichEmployer(employer.id, website);
     if (!employer.website) {
