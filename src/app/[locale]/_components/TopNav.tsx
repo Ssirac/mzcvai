@@ -62,8 +62,9 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
           <span className="hidden md:block text-white font-semibold text-sm">Talent Intelligence</span>
         </a>
 
-        {/* Primary tabs — prominent */}
-        <div className="flex items-center gap-1 ml-1 sm:ml-2">
+        {/* Primary tabs — prominent. On phones only the active tab shows its
+            label (others collapse to icons) so the bar fits a narrow screen. */}
+        <div className="flex items-center gap-0.5 sm:gap-1 ml-0.5 sm:ml-2">
           {tabs.map((tab) => {
             const isActive = active === tab.key;
             return (
@@ -71,14 +72,15 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                 key={tab.key}
                 href={tab.href}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                title={tab.label}
+                className={`flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
                     : "text-gray-400 hover:text-white hover:bg-gray-800/60"
                 }`}
               >
                 {tab.icon}
-                <span>{tab.label}</span>
+                <span className={isActive ? "inline" : "hidden md:inline"}>{tab.label}</span>
               </a>
             );
           })}
