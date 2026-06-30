@@ -75,6 +75,29 @@ export async function POST(req: NextRequest) {
       partTimeDeleted = count;
     }
 
+    // Remove stale vacancies (older than EXPIRY_DAYS, never re-seen by a fresh
+    // ingest). Keeps history intact: a vacancy is skipped if any of its matches
+    // has a SENT outreach, so already-contacted employers stay visible in
+    // "Göndərilən maillər". Match/Outreach rows are deleted first (FK-safe).
+    const EXPIRY_DAYS = 30;
+    const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    const staleVacancies = await prisma.vacancy.findMany({
+      where: {
+        foundAt: { lt: expiryCutoff },
+        matches: { none: { outreach: { some: { status: "SENT" } } } },
+      },
+      select: { id: true, matches: { select: { id: true } } },
+    });
+    const staleVacancyIds = staleVacancies.map((v) => v.id);
+    const staleMatchIds = staleVacancies.flatMap((v) => v.matches.map((m) => m.id));
+    let expiredDeleted = 0;
+    if (staleVacancyIds.length > 0) {
+      await prisma.outreach.deleteMany({ where: { matchId: { in: staleMatchIds } } });
+      await prisma.match.deleteMany({ where: { id: { in: staleMatchIds } } });
+      const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: staleVacancyIds } } });
+      expiredDeleted = count;
+    }
+
     return NextResponse.json({
       ok: true,
       vacanciesNew: totals.vacanciesNew,
@@ -82,6 +105,7 @@ export async function POST(req: NextRequest) {
       employersNew: totals.employersNew,
       employersScored: scored,
       partTimeDeleted,
+      expiredDeleted,
       sourcesRun: modules.map((m) => m.id),
       perSource,
       errors: totals.errors,
