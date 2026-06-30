@@ -3,7 +3,11 @@ import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
 import { berufSearchKeywords, seniorityLevel } from "@/lib/berufMap";
 
-const MATCH_THRESHOLD = 60; // minimum fitScore to create a Match record
+// Minimum fitScore to create a Match. The vacancy pool is ALREADY restricted to
+// occupation-relevant jobs by the search query, so a solid occupation + region
+// match (≈57) should qualify even without a German level or a sponsorship
+// signal — otherwise candidates with no German level set get zero matches.
+const MATCH_THRESHOLD = 55;
 
 // Recalculate and persist score for a single employer
 export async function refreshEmployerScore(params: {
