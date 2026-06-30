@@ -36,9 +36,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         createdAt: true,
         approvedAt: true,
         sentAt: true,
+        deliveredAt: true,
         openedAt: true,
+        openCount: true,
         repliedAt: true,
+        replyText: true,
         bouncedAt: true,
+        followUpCount: true,
+        lastFollowUpAt: true,
         match: {
           select: {
             employer: { select: { name: true, city: true, region: true, sponsorshipSignal: true } },
@@ -53,10 +58,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         acc.total++;
         if (o.status === "SENT" || o.sentAt) acc.sent++;
         if (o.status === "DRAFT") acc.draft++;
-        if (o.status === "REPLIED") acc.replied++;
+        if (o.openedAt || o.openCount > 0) acc.opened++;
+        if (o.status === "REPLIED" || o.repliedAt) acc.replied++;
+        if (o.status === "BOUNCED" || o.bouncedAt) acc.bounced++;
         return acc;
       },
-      { total: 0, sent: 0, draft: 0, replied: 0 }
+      { total: 0, sent: 0, draft: 0, opened: 0, replied: 0, bounced: 0 }
     );
 
     return NextResponse.json({ outreach, counts });

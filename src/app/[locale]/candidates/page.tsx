@@ -54,7 +54,14 @@ interface OutreachItem {
   status: string;
   createdAt: string;
   sentAt: string | null;
+  deliveredAt: string | null;
+  openedAt: string | null;
+  openCount: number;
   repliedAt: string | null;
+  replyText: string | null;
+  bouncedAt: string | null;
+  followUpCount: number;
+  lastFollowUpAt: string | null;
   match: {
     employer: { name: string; city: string | null; region: string | null; sponsorshipSignal: string };
     vacancy: { title: string; url: string | null; source: string };
@@ -1418,6 +1425,33 @@ export default function CandidatesPage() {
                               {o.sentAt && <span className="text-emerald-400">{t("commSent")}: {fmtDate(o.sentAt)}</span>}
                               {o.repliedAt && <span className="text-green-400">{t("commReplied")}: {fmtDate(o.repliedAt)}</span>}
                             </div>
+                            {/* Engagement chips — at a glance: delivered / opened / replied / bounced / follow-ups */}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {o.deliveredAt && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ çatdırıldı</span>
+                              )}
+                              {(o.openedAt || o.openCount > 0) && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-violet-500/15 text-violet-300 border border-violet-500/25">
+                                  👁 açıldı{o.openCount > 1 ? ` ×${o.openCount}` : ""}
+                                </span>
+                              )}
+                              {o.repliedAt && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-300 border border-green-500/30">💬 cavab verdi</span>
+                              )}
+                              {o.bouncedAt && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">⚠ çatmadı</span>
+                              )}
+                              {o.followUpCount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                  ↻ təqib ×{o.followUpCount}
+                                </span>
+                              )}
+                            </div>
+                            {o.replyText && (
+                              <div className="mt-2 text-xs text-green-200/80 bg-green-900/15 border border-green-800/30 rounded-lg px-2.5 py-1.5">
+                                💬 <span className="text-green-400/70">Cavab:</span> {o.replyText}
+                              </div>
+                            )}
                             {o.subject && <div className="mt-2 text-sm text-gray-300"><span className="text-gray-600 text-xs">{t("commSubject")}:</span> {o.subject}</div>}
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
