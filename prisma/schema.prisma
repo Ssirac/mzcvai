@@ -124,6 +124,8 @@ model Employer {
   sourceRef          String?
   // Contact — GDPR: generic only (info@, bewerbung@), NOT personal HR email
   genericEmail       String?
+  emailSource        String?           // where genericEmail came from: listing|hunter|apollo|google|website
+  emailStatus        String?           // verification result: deliverable|risky|undeliverable|unknown
   applyFormUrl       String?
   phone              String?
   sponsorshipSignal  SponsorshipSignal @default(UNKNOWN)

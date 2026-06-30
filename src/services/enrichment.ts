@@ -332,10 +332,97 @@ async function emailFromHunter(domain: string): Promise<string | null> {
 }
 
 /**
+ * Apollo.io organization enrichment — given a domain, asks Apollo for the
+ * organization's public/generic email if it exposes one. Defensive: returns null
+ * on any failure so the pipeline continues. Requires APOLLO_API_KEY.
+ */
+async function emailFromApollo(domain: string): Promise<string | null> {
+  const key = process.env.APOLLO_API_KEY;
+  if (!key) return null;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch("https://api.apollo.io/api/v1/organizations/enrich?domain=" + encodeURIComponent(domain), {
+      method: "GET",
+      headers: { "Content-Type": "application/json", "x-api-key": key },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as { organization?: { email?: string } };
+    const email = json.organization?.email?.toLowerCase();
+    if (!email) return null;
+    const local = email.split("@")[0] ?? "";
+    if (GENERIC_EMAIL_PREFIXES.some((p) => local === p || local.startsWith(p))) return email;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Last-resort discovery: drive the existing headless browser to a search engine
+ * and read generic emails out of the results snippets. Uses DuckDuckGo's HTML
+ * endpoint (no captcha, no API key) and queries for the company's application
+ * address. Returns the best generic email found, or null.
+ */
+async function emailFromSearch(employerName: string, domain: string | null): Promise<string | null> {
+  const query = domain
+    ? `"${domain}" bewerbung OR kontakt email`
+    : `${employerName} bewerbung email impressum`;
+
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)");
+    await page.setDefaultTimeout(15000);
+    await page.goto(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { waitUntil: "domcontentloaded" });
+    const text = await page.evaluate(() => document.body.innerText);
+    const emails = extractGenericEmails(text);
+    // Prefer an email whose domain matches the employer's, if we know it
+    if (domain) {
+      const onDomain = emails.find((e) => e.endsWith("@" + domain) || e.endsWith("." + domain));
+      if (onDomain) return onDomain;
+    }
+    return emails[0] ?? null;
+  } catch {
+    return null;
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Verify an email's deliverability via Hunter's Email Verifier. Returns the
+ * status string ("deliverable" | "risky" | "undeliverable" | "unknown") or null
+ * if verification is unavailable. Costs 1 Hunter credit per call, so it only runs
+ * when VERIFY_EMAILS is enabled.
+ */
+async function verifyEmail(email: string): Promise<string | null> {
+  const key = process.env.HUNTER_API_KEY;
+  if (!key || process.env.VERIFY_EMAILS !== "true") return null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`https://api.hunter.io/v2/email-verifier?email=${encodeURIComponent(email)}&api_key=${key}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { status?: string } };
+    return json.data?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * On-demand enrichment for ONE employer — used right before sending outreach so
- * the user doesn't have to run a separate enrichment pass. Tries chain detection,
- * then scrapes the (known or guessed) website for a generic email. Returns the
- * found email (or null) so the caller can decide whether to send.
+ * the user doesn't have to run a separate enrichment pass. Runs every discovery
+ * source in order of reliability until one yields a generic email, optionally
+ * verifies it, and records which source produced it. Returns the email or null.
+ *
+ * Order: listing text → Hunter.io → Apollo.io → search engine → website scraping.
  */
 export async function enrichSingleEmployer(employerId: string): Promise<string | null> {
   const employer = await prisma.employer.findUnique({
@@ -358,37 +445,69 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     }
   }
 
-  // Step 0: many job postings include the application email directly in the
-  // description ("Bewerbung an: info@..."). Mining the listing text is faster and
-  // more reliable than scraping a website, so try it FIRST.
-  const fromListing = await emailFromVacancies(employer.id);
-  if (fromListing) {
-    await prisma.employer.update({
-      where: { id: employer.id },
-      data: { genericEmail: fromListing, lastEnrichedAt: new Date(), enrichmentError: null },
-    });
-    return fromListing;
-  }
-
-  // Step 1: Hunter.io domain search — fast HTTP call, no browser needed.
-  // Only runs when HUNTER_API_KEY is set (25 free credits/day).
   const website = employer.website ?? guessWebsite(employer.name);
+  let domain: string | null = null;
   if (website) {
     try {
-      const domain = new URL(website.startsWith("http") ? website : `https://${website}`).hostname.replace(/^www\./, "");
-      const fromHunter = await emailFromHunter(domain);
-      if (fromHunter) {
-        await prisma.employer.update({
-          where: { id: employer.id },
-          data: { genericEmail: fromHunter, lastEnrichedAt: new Date(), enrichmentError: null },
-        });
-        return fromHunter;
-      }
+      domain = new URL(website.startsWith("http") ? website : `https://${website}`).hostname.replace(/^www\./, "");
     } catch {
-      // URL parse failed or Hunter returned nothing — continue to Puppeteer
+      domain = null;
     }
   }
 
+  // Persist a found email (with its source + verification status) and return it.
+  // If verification says "undeliverable", reject it and let the caller try the
+  // next source by returning null.
+  const accept = async (email: string, source: string): Promise<string | null> => {
+    const status = await verifyEmail(email);
+    if (status === "undeliverable") return null;
+    await prisma.employer.update({
+      where: { id: employer.id },
+      data: {
+        genericEmail: email,
+        emailSource: source,
+        emailStatus: status,
+        lastEnrichedAt: new Date(),
+        enrichmentError: null,
+        ...(website && !employer.website ? { website } : {}),
+      },
+    });
+    return email;
+  };
+
+  // Step 0: listing text (most reliable — employer wrote it for applications)
+  const fromListing = await emailFromVacancies(employer.id);
+  if (fromListing) {
+    const ok = await accept(fromListing, "listing");
+    if (ok) return ok;
+  }
+
+  // Step 1: Hunter.io domain search (fast HTTP, 50 free credits/month)
+  if (domain) {
+    const fromHunter = await emailFromHunter(domain);
+    if (fromHunter) {
+      const ok = await accept(fromHunter, "hunter");
+      if (ok) return ok;
+    }
+  }
+
+  // Step 2: Apollo.io organization enrichment (second provider)
+  if (domain) {
+    const fromApollo = await emailFromApollo(domain);
+    if (fromApollo) {
+      const ok = await accept(fromApollo, "apollo");
+      if (ok) return ok;
+    }
+  }
+
+  // Step 3: search-engine scraping (no API key, uses the headless browser)
+  const fromSearch = await emailFromSearch(employer.name, domain);
+  if (fromSearch) {
+    const ok = await accept(fromSearch, "google");
+    if (ok) return ok;
+  }
+
+  // Step 4: full website scraping (Impressum / Kontakt) — slowest, last resort
   if (!website) {
     await prisma.employer.update({
       where: { id: employer.id },
@@ -397,7 +516,6 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     return null;
   }
 
-  // Step 2: Puppeteer website scraping (Impressum / Kontakt pages)
   try {
     await enrichEmployer(employer.id, website);
     if (!employer.website) {
@@ -411,6 +529,12 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     where: { id: employerId },
     select: { genericEmail: true },
   });
+  if (refreshed?.genericEmail) {
+    await prisma.employer.update({
+      where: { id: employer.id },
+      data: { emailSource: "website" },
+    });
+  }
   return refreshed?.genericEmail ?? null;
 }
 

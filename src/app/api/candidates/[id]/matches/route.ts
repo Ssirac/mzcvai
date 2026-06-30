@@ -26,7 +26,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           select: {
             name: true, city: true, region: true, stars: true, rooms: true,
             score: true, scoreBreakdown: true, sponsorshipSignal: true,
-            genericEmail: true, applyFormUrl: true, phone: true,
+            genericEmail: true, emailSource: true, emailStatus: true,
+            applyFormUrl: true, phone: true,
             website: true,
           },
         },

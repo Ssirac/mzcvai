@@ -38,7 +38,8 @@ interface Match {
   employer: {
     name: string; city: string | null; region: string | null; stars: number | null;
     score: number; sponsorshipSignal: string; scoreBreakdown: Record<string, unknown> | null;
-    genericEmail: string | null; applyFormUrl: string | null; website: string | null;
+    genericEmail: string | null; emailSource: string | null; emailStatus: string | null;
+    applyFormUrl: string | null; website: string | null;
   };
   outreach: { id: string; status: string }[];
 }
@@ -1291,11 +1292,24 @@ export default function CandidatesPage() {
                                     </a>
                                   )}
                                   {m.employer.genericEmail ? (
-                                    <a href={`mailto:${m.employer.genericEmail}`}
-                                      className="inline-flex items-center gap-1 bg-emerald-600/15 text-emerald-300 border border-emerald-600/30 hover:bg-emerald-600/25 px-2.5 py-1 rounded-md font-medium truncate max-w-[260px]"
-                                      title={m.employer.genericEmail}>
-                                      ✉ {m.employer.genericEmail}
-                                    </a>
+                                    <span className="inline-flex items-center gap-1">
+                                      <a href={`mailto:${m.employer.genericEmail}`}
+                                        className="inline-flex items-center gap-1 bg-emerald-600/15 text-emerald-300 border border-emerald-600/30 hover:bg-emerald-600/25 px-2.5 py-1 rounded-md font-medium truncate max-w-[260px]"
+                                        title={m.employer.genericEmail}>
+                                        ✉ {m.employer.genericEmail}
+                                      </a>
+                                      {m.employer.emailSource && (
+                                        <span className="text-[9px] uppercase tracking-wide text-gray-500" title="Mənbə">
+                                          {m.employer.emailSource}
+                                        </span>
+                                      )}
+                                      {m.employer.emailStatus === "undeliverable" && (
+                                        <span className="text-[9px] text-red-400" title="Çatdırıla bilməz">⚠</span>
+                                      )}
+                                      {m.employer.emailStatus === "deliverable" && (
+                                        <span className="text-[9px] text-emerald-400" title="Doğrulandı">✓</span>
+                                      )}
+                                    </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 bg-red-900/20 text-red-400 border border-red-800/30 px-2.5 py-1 rounded-md text-[11px]">
                                       ✕ email yox
