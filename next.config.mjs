@@ -39,10 +39,20 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   experimental: {
-    serverComponentsExternalPackages: ["puppeteer"],
+    serverComponentsExternalPackages: ["puppeteer", "imapflow"],
+    // Enables src/instrumentation.ts (in-process scheduler for replies + follow-ups)
+    instrumentationHook: true,
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  webpack: (config) => {
+    // imapflow is a Node-only library (uses `stream`, `net`, `tls`). Keep it out
+    // of the webpack graph so it's required at runtime in the Node server and
+    // never dragged into the edge/instrumentation bundle.
+    config.externals = config.externals || [];
+    config.externals.push({ imapflow: "commonjs imapflow" });
+    return config;
   },
 };
 
