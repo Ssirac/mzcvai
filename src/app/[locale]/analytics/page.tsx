@@ -9,6 +9,7 @@ interface Analytics {
     sent: number; delivered: number; opened: number; replied: number; bounced: number; followUps: number;
     deliveryRate: number; openRate: number; replyRate: number; bounceRate: number;
   };
+  pipeline: { interviews: number; placed: number };
   last30: { sent: number; replied: number; replyRate: number };
   byBeruf: Row[];
   byRegion: Row[];
@@ -95,11 +96,11 @@ export default function AnalyticsPage() {
               <Stat label="Follow-up" value={data.funnel.followUps} sub="göndərildi" color="text-blue-300" />
             </div>
 
-            {/* Last 30 days */}
-            <div className="grid grid-cols-3 gap-3">
-              <Stat label="Son 30 gün — göndərildi" value={data.last30.sent} />
-              <Stat label="Son 30 gün — cavab" value={data.last30.replied} color="text-green-300" />
-              <Stat label="Son 30 gün — cavab faizi" value={`${data.last30.replyRate}%`} color="text-green-300" />
+            {/* Placement pipeline */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Stat label="Müsahibə" value={data.pipeline.interviews} color="text-violet-300" sub="aktiv mərhələ" />
+              <Stat label="İşə düzəldi" value={data.pipeline.placed} color="text-emerald-300" sub="yerləşdirmə" />
+              <Stat label="Son 30 gün — cavab faizi" value={`${data.last30.replyRate}%`} sub={`${data.last30.replied}/${data.last30.sent}`} color="text-green-300" />
             </div>
 
             {/* Breakdowns */}

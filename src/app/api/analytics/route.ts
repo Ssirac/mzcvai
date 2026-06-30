@@ -72,6 +72,12 @@ export async function GET() {
       }
     }
 
+    // Placement pipeline counts (application stages set by the user).
+    const [interviews, placed] = await Promise.all([
+      prisma.match.count({ where: { status: "INTERVIEW" } }),
+      prisma.match.count({ where: { status: "PLACED" } }),
+    ]);
+
     const rate = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
 
     const topList = <T extends Bucket>(map: Map<string, T>, withName = false) =>
@@ -96,6 +102,7 @@ export async function GET() {
         replyRate: rate(replied, total),
         bounceRate: rate(bounced, total),
       },
+      pipeline: { interviews, placed },
       last30: { sent: last30Sent, replied: last30Replied, replyRate: rate(last30Replied, last30Sent) },
       byBeruf: topList(byBeruf),
       byRegion: topList(byRegion),

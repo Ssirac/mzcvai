@@ -44,8 +44,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         bouncedAt: true,
         followUpCount: true,
         lastFollowUpAt: true,
+        matchId: true,
         match: {
           select: {
+            status: true,
             employer: { select: { name: true, city: true, region: true, sponsorshipSignal: true } },
             vacancy: { select: { title: true, url: true, source: true } },
           },

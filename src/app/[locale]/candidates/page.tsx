@@ -62,7 +62,9 @@ interface OutreachItem {
   bouncedAt: string | null;
   followUpCount: number;
   lastFollowUpAt: string | null;
+  matchId: string;
   match: {
+    status: string;
     employer: { name: string; city: string | null; region: string | null; sponsorshipSignal: string };
     vacancy: { title: string; url: string | null; source: string };
   };
@@ -76,6 +78,15 @@ function phoneDigits(raw: string): string {
   else if (p.startsWith("0")) p = "49" + p.slice(1);
   return p;
 }
+
+// Placement pipeline stages the user can advance an application through after
+// it's been sent. Order matters (left→right = progress).
+const PIPELINE_STAGES: { key: string; label: string; active: string }[] = [
+  { key: "REPLIED", label: "Cavab", active: "bg-green-500/20 text-green-300 border-green-500/40" },
+  { key: "INTERVIEW", label: "Müsahibə", active: "bg-violet-500/20 text-violet-300 border-violet-500/40" },
+  { key: "PLACED", label: "İşə düzəldi", active: "bg-emerald-500/25 text-emerald-200 border-emerald-500/50" },
+  { key: "REJECTED", label: "İmtina", active: "bg-red-500/15 text-red-300 border-red-500/40" },
+];
 
 const OUTREACH_COLOR: Record<string, string> = {
   DRAFT: "bg-amber-500/15 text-amber-300 border border-amber-500/30",
@@ -247,6 +258,17 @@ export default function CandidatesPage() {
     const data = await res.json();
     setComms(data.outreach ?? []);
     setCommsLoading(false);
+  }
+
+  async function setMatchStage(matchId: string, status: string) {
+    // Optimistic update so the pipeline feels instant.
+    setComms((prev) => prev.map((c) => (c.matchId === matchId ? { ...c, match: { ...c.match, status } } : c)));
+    const res = await fetch(`/api/matches/${matchId}/stage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok && selectedId) loadComms(selectedId);
   }
 
   useEffect(() => { loadCandidates(); }, []);
@@ -1478,6 +1500,24 @@ export default function CandidatesPage() {
                                 💬 <span className="text-green-400/70">Cavab:</span> {o.replyText}
                               </div>
                             )}
+                            {/* Placement pipeline — advance the application's stage */}
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                              <span className="text-[10px] text-gray-600 uppercase tracking-wide mr-0.5">Mərhələ:</span>
+                              {PIPELINE_STAGES.map((s) => {
+                                const isActive = o.match.status === s.key;
+                                return (
+                                  <button
+                                    key={s.key}
+                                    onClick={() => setMatchStage(o.matchId, s.key)}
+                                    className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
+                                      isActive ? s.active : "bg-gray-800/40 text-gray-500 border-gray-700/50 hover:text-gray-300 hover:border-gray-600"
+                                    }`}
+                                  >
+                                    {s.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
                             {o.subject && <div className="mt-2 text-sm text-gray-300"><span className="text-gray-600 text-xs">{t("commSubject")}:</span> {o.subject}</div>}
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
