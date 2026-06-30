@@ -10,6 +10,7 @@ import { enrichPendingEmployers } from "@/services/enrichment";
 import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/scoring";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
+import { deletePartTimeVacancies } from "@/services/cleanup";
 import { prisma } from "@/lib/prisma";
 
 const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = [
@@ -86,6 +87,14 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       log.push(`Cleanup FAILED: ${(err as Error).message}`);
+    }
+
+    // Step 5b: Purge any part-time / mini-job listings — full-time only.
+    try {
+      const pt = await deletePartTimeVacancies();
+      log.push(`Part-time purge: deleted ${pt.partTimeDeleted}`);
+    } catch (err) {
+      log.push(`Part-time purge FAILED: ${(err as Error).message}`);
     }
 
     // Step 6: Detect employer replies (IMAP) BEFORE follow-ups, so we never
