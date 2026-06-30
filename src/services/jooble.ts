@@ -7,7 +7,7 @@
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
 import type { ApplyChannel, SponsorshipSignal } from "@prisma/client";
-import { berufSearchKeywords, isPartTimeJob } from "@/lib/berufMap";
+import { berufSearchKeywords, isPartTimeJob, isNonGermanLocation } from "@/lib/berufMap";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 interface JoobleJob {
@@ -97,6 +97,7 @@ export async function ingestJooble(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job.title, keywords)) continue;
+          if (isNonGermanLocation(job.location ?? "")) continue; // Germany only
           if (isPartTimeJob(job.title, job.type ? [job.type] : [], job.snippet ?? "")) continue;
           const sourceRef = `jooble:${job.id ?? job.link}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });

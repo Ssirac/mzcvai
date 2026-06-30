@@ -12,7 +12,7 @@
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
 import type { ApplyChannel, SponsorshipSignal } from "@prisma/client";
-import { berufSearchKeywords, isPartTimeJob } from "@/lib/berufMap";
+import { berufSearchKeywords, isPartTimeJob, isNonGermanLocation } from "@/lib/berufMap";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 const API_URL = "https://www.arbeitnow.com/api/job-board-api";
@@ -141,6 +141,7 @@ export async function ingestArbeitnow(opts: IngestOptions): Promise<IngestResult
       for (const job of jobs) {
         try {
           if (!matchesKeyword(job, keywords)) continue;
+          if (isNonGermanLocation(job.location ?? "")) continue; // Germany only
           if (isPartTimeJob(job.title, job.job_types ?? [], job.description ?? "")) continue;
 
           const region = normalizeRegion(job.location ?? "");

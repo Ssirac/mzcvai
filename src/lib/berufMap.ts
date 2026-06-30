@@ -286,6 +286,24 @@ export const PART_TIME_HARD_KEYWORDS = [
  * @param types  Optional list of employment-type strings from the API (e.g. job_types, contract_time)
  * @param description  Optional job description text (scanned for HARD signals only)
  */
+// European job boards (Arbeitnow, Jooble) can return jobs in neighbouring
+// countries. The agency places only in Germany, so drop anything whose location
+// clearly names a non-German country or city.
+const NON_GERMAN_LOCATIONS = [
+  "österreich", "austria", "wien", "vienna", "graz", "salzburg", "linz", "innsbruck",
+  "schweiz", "switzerland", "suisse", "zürich", "zurich", "genf", "geneva", "basel", "bern", "lausanne",
+  "niederlande", "netherlands", "nederland", "amsterdam", "rotterdam", "den haag", "utrecht", "eindhoven",
+  "belgien", "belgium", "brüssel", "brussels", "antwerpen", "antwerp",
+  "polen", "poland", "polska", "warschau", "warsaw", "krakau", "krakow",
+  "luxemburg", "luxembourg", "frankreich", "france", "paris", "italien", "italy", "spanien", "spain",
+  "dänemark", "denmark", "tschechien", "czech", "prag", "prague", "ungarn", "hungary", "budapest",
+  "remote - eu", "united kingdom", "london", "ireland", "dublin",
+];
+export function isNonGermanLocation(location: string): boolean {
+  const l = (location ?? "").toLowerCase();
+  return NON_GERMAN_LOCATIONS.some((k) => l.includes(k));
+}
+
 export function isPartTimeJob(title: string, types?: string[], description?: string): boolean {
   const t = (title ?? "").toLowerCase();
   if (PART_TIME_TITLE_KEYWORDS.some((kw) => t.includes(kw))) return true;
