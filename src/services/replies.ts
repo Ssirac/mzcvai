@@ -24,6 +24,21 @@ function domainOf(email: string | null | undefined): string | null {
   return at ? at.replace(/^www\./, "") : null;
 }
 
+// An employer telling us to stop. If the reply says any of these, we flag the
+// employer as opted-out so no further application or follow-up is ever sent.
+const OPT_OUT_PHRASES = [
+  "aus dem verteiler", "aus ihrem verteiler", "aus eurem verteiler", "löschen sie uns", "loeschen sie uns",
+  "keine weiteren nachrichten", "keine weiteren e-mails", "keine weiteren mails", "keine weiteren angebote",
+  "keine vorschläge", "keine vorschlaege", "keine externe unterstützung", "keine externe unterstuetzung",
+  "kein interesse", "nicht kontaktieren", "nicht mehr kontaktieren", "bitte abmelden", "abmelden",
+  "unsubscribe", "remove us", "stop sending", "do not contact", "keine zusammenarbeit",
+  "wir benötigen keine", "wir benoetigen keine", "no thanks", "kein bedarf", "keinen bedarf",
+];
+function isOptOutReply(text: string): boolean {
+  const t = text.toLowerCase();
+  return OPT_OUT_PHRASES.some((p) => t.includes(p));
+}
+
 export interface ReplyPollResult {
   scanned: number;
   matched: number;
@@ -50,7 +65,7 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
       sentAt: { gte: cutoff, not: null },
       toAddress: { not: null },
     },
-    select: { id: true, toAddress: true, sentAt: true, matchId: true },
+    select: { id: true, toAddress: true, sentAt: true, matchId: true, match: { select: { employerId: true } } },
     orderBy: { sentAt: "desc" },
   });
 
@@ -127,6 +142,16 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
           where: { id: target.matchId },
           data: { status: "REPLIED" },
         }).catch(() => {});
+
+        // Auto opt-out: if the employer asked to be removed / isn't interested,
+        // flag them so we never send again (no more applications or follow-ups).
+        const employerId = target.match?.employerId;
+        if (employerId && isOptOutReply(`${subject} ${body}`)) {
+          await prisma.employer.update({
+            where: { id: employerId },
+            data: { optedOut: true },
+          }).catch(() => {});
+        }
 
         // Don't match the same outreach twice in this run
         const idx = candidates.indexOf(target);

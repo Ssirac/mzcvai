@@ -12,7 +12,7 @@ interface Reply {
   toAddress: string | null;
   match: {
     candidate: { id: string; name: string };
-    employer: { name: string };
+    employer: { id: string; name: string; optedOut: boolean };
     vacancy: { title: string; url: string | null };
   };
 }
@@ -27,6 +27,16 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
+
+  async function setOptOut(employerId: string, optedOut: boolean) {
+    setReplies((prev) => prev.map((r) =>
+      r.match.employer.id === employerId ? { ...r, match: { ...r.match, employer: { ...r.match.employer, optedOut } } } : r
+    ));
+    await fetch(`/api/employers/${employerId}/optout`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ optedOut }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     (async () => {
@@ -100,6 +110,9 @@ export default function InboxPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-white truncate">{r.match.employer.name}</span>
                           <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
+                          {r.match.employer.optedOut && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">🚫 əlaqə saxlanmır</span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5 truncate">
                           {r.replySubject || r.match.vacancy.title}
@@ -119,10 +132,19 @@ export default function InboxPage() {
                       <div className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed bg-gray-950/60 rounded-lg p-3 max-h-96 overflow-y-auto">
                         {r.replyText || "(mətn yoxdur)"}
                       </div>
-                      {r.match.vacancy.url && (
-                        <a href={r.match.vacancy.url} target="_blank" rel="noopener noreferrer"
-                          className="inline-block mt-2 text-xs text-blue-400 hover:underline">🔗 İş elanı</a>
-                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        {r.match.vacancy.url && (
+                          <a href={r.match.vacancy.url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-blue-400 hover:underline">🔗 İş elanı</a>
+                        )}
+                        {r.match.employer.optedOut ? (
+                          <button onClick={() => setOptOut(r.match.employer.id, false)}
+                            className="text-xs text-gray-400 hover:text-gray-200">↩ Əlaqəni bərpa et</button>
+                        ) : (
+                          <button onClick={() => setOptOut(r.match.employer.id, true)}
+                            className="text-xs text-red-400 hover:text-red-300">🚫 Bu şirkətə bir daha göndərmə</button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -21,7 +21,7 @@ export async function GET() {
         match: {
           select: {
             candidate: { select: { id: true, name: true } },
-            employer: { select: { name: true } },
+            employer: { select: { id: true, name: true, optedOut: true } },
             vacancy: { select: { title: true, url: true } },
           },
         },
