@@ -275,11 +275,17 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     throw new Error(`Daily outreach limit (${MAX_PER_DAY}) reached. Try again tomorrow.`);
   }
 
-  // Guard 5: Cooldown — same employer within COOLDOWN_DAYS
+  // Guard 5: Cooldown — same employer within COOLDOWN_DAYS, scoped PER CANDIDATE.
+  // Different candidates are different people, so each may apply to the same
+  // employer independently; only the SAME candidate is stopped from being sent
+  // to the same employer twice in the cooldown window.
   const cooldownDate = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
   const recentToSameEmployer = await prisma.outreach.findFirst({
     where: {
-      match: { employerId: outreach.match.employerId },
+      match: {
+        employerId: outreach.match.employerId,
+        candidateId: outreach.match.candidateId,
+      },
       status: "SENT",
       sentAt: { gte: cooldownDate },
     },

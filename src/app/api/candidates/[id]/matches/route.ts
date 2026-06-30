@@ -39,11 +39,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       },
     });
 
-    // Per-EMPLOYER cooldown: an employer contacted (for ANY candidate) within
-    // COOLDOWN_DAYS is blocked from re-send by outreach.ts. A different vacancy
-    // of that same employer would otherwise still show an active "send" button
-    // and fail on click, so we annotate each match with the employer's cooldown
-    // so the UI can show "already contacted" instead.
+    // Per-candidate, per-employer cooldown: THIS candidate can't be re-sent to an
+    // employer they were already sent to within COOLDOWN_DAYS. A different
+    // vacancy of that same employer would otherwise still show an active "send"
+    // button and fail on click, so we annotate each match so the UI can show
+    // "already contacted" instead. (Other candidates are unaffected — they may
+    // still apply to the same employer independently.)
     const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
     const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
     const employerIds = Array.from(new Set(matches.map((m) => m.employerId)));
@@ -51,7 +52,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       where: {
         status: "SENT",
         sentAt: { gte: cooldownCutoff },
-        match: { employerId: { in: employerIds } },
+        match: { employerId: { in: employerIds }, candidateId: params.id },
       },
       select: { sentAt: true, match: { select: { employerId: true } } },
       orderBy: { sentAt: "desc" },
