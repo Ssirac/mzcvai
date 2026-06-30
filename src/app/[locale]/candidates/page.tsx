@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BERUF_LIST, REGIONS_DE, GERMAN_LEVELS } from "@/lib/berufMap";
@@ -202,12 +202,26 @@ export default function CandidatesPage() {
     setCandidates((data.candidates as Candidate[]) ?? []);
   }
 
+  // Candidates we've already auto-run email discovery for this session, so
+  // revisiting a candidate doesn't burn API credits re-searching every time.
+  const autoEnrichedRef = useRef<Set<string>>(new Set());
+
   async function loadMatches(id: string) {
     setMatchesLoading(true);
     const res = await fetch(`/api/candidates/${id}/matches`);
     const data = await res.json();
-    setMatches(data.matches ?? []);
+    const list: Match[] = data.matches ?? [];
+    setMatches(list);
     setMatchesLoading(false);
+
+    // Automatically find emails the first time we see this candidate, for any
+    // matched employer that doesn't have one yet. Runs in the background; the
+    // list refreshes itself when done (findEmailsForMatches calls loadMatches).
+    const missing = list.some((m) => !m.employer.genericEmail);
+    if (missing && !autoEnrichedRef.current.has(id)) {
+      autoEnrichedRef.current.add(id);
+      findEmailsForMatches(id, { silent: true });
+    }
   }
 
   async function loadComms(id: string) {
@@ -581,22 +595,29 @@ export default function CandidatesPage() {
     }
   }
 
-  async function findEmailsForMatches() {
-    if (!selectedId) return;
+  async function findEmailsForMatches(candidateId?: string, opts?: { silent?: boolean }) {
+    const id = candidateId ?? selectedId;
+    if (!id) return;
+    const silent = opts?.silent ?? false;
     setEnrichingMatches(true);
     try {
-      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/enrich-matches`, {
+      const { ok, data } = await jsonFetch(`/api/candidates/${id}/enrich-matches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
       if (ok && data.ok) {
-        toast(
-          `${Number(data.found ?? 0)} yeni e-mail tapıldı (cəmi e-mailli: ${Number(data.found ?? 0) + Number(data.alreadyHad ?? 0)})`,
-          "success"
-        );
-        loadMatches(selectedId);
-      } else {
+        const found = Number(data.found ?? 0);
+        // Stay quiet on the automatic pass unless it actually found something.
+        if (!silent || found > 0) {
+          toast(
+            `${found} yeni e-mail tapıldı (cəmi e-mailli: ${found + Number(data.alreadyHad ?? 0)})`,
+            "success"
+          );
+        }
+        // Only refresh if this candidate is still the one on screen.
+        if (id === selectedId) loadMatches(id);
+      } else if (!silent) {
         toast(String(data.error ?? "error"), "error");
       }
     } finally {
@@ -1214,7 +1235,7 @@ export default function CandidatesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={findEmailsForMatches}
+                          onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
                           className="bg-gray-800 hover:bg-gray-700 active:bg-gray-900 disabled:opacity-50 text-gray-200 text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
                         >
