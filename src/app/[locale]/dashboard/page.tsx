@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const [expandedScore, setExpandedScore] = useState<string | null>(null);
   const [sources, setSources] = useState<{ id: string; label: string; category: string; available: boolean; reason: string | null }[]>([]);
   const [jobSearch, setJobSearch] = useState("");
+  const [bounce, setBounce] = useState<{ rate: number; count: number; sent: number } | null>(null);
 
   async function fetchStats() {
     setStatsLoading(true);
@@ -102,10 +103,21 @@ export default function DashboardPage() {
     } catch { /* non-fatal */ }
   }
 
+  async function fetchBounce() {
+    try {
+      const res = await fetch("/api/analytics");
+      const data = await res.json();
+      if (data?.funnel) {
+        setBounce({ rate: data.funnel.bounceRate ?? 0, count: data.funnel.bounced ?? 0, sent: data.funnel.sent ?? 0 });
+      }
+    } catch { /* non-fatal */ }
+  }
+
   useEffect(() => {
     fetchStats();
     fetchOutreaches();
     fetchSources();
+    fetchBounce();
   }, []);
 
   async function runIngest() {
@@ -200,6 +212,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
+
+        {/* Deliverability alert — high bounce rate threatens domain reputation */}
+        {bounce && bounce.sent >= 20 && bounce.rate >= 5 && (
+          <div className="flex items-start gap-3 bg-red-950/40 border border-red-800/50 rounded-2xl p-4">
+            <span className="text-xl leading-none">⚠️</span>
+            <div className="text-sm">
+              <div className="font-semibold text-red-300">Çatdırılma xəbərdarlığı — bounce faizi yüksəkdir ({bounce.rate}%)</div>
+              <p className="text-red-200/70 text-xs mt-0.5 leading-relaxed">
+                {bounce.count} / {bounce.sent} mail çatmadı. Yüksək bounce domeninizin reputasiyasını zədələyir və maillərin spam-a düşməsinə səbəb olur.
+                Email doğrulamanın açıq olduğundan (VERIFY_EMAILS=true) əmin olun və gündəlik göndərmə sayını azaldın.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">

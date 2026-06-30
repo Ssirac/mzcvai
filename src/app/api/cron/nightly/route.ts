@@ -11,6 +11,7 @@ import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/s
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies } from "@/services/cleanup";
+import { mergeDuplicateEmployers } from "@/services/dedup";
 import { prisma } from "@/lib/prisma";
 
 const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = [
@@ -95,6 +96,14 @@ export async function POST(req: NextRequest) {
       log.push(`Part-time purge: deleted ${pt.partTimeDeleted}`);
     } catch (err) {
       log.push(`Part-time purge FAILED: ${(err as Error).message}`);
+    }
+
+    // Step 5c: Merge duplicate employers from multiple sources.
+    try {
+      const dd = await mergeDuplicateEmployers();
+      log.push(`Dedup: merged ${dd.merged} across ${dd.groups} groups`);
+    } catch (err) {
+      log.push(`Dedup FAILED: ${(err as Error).message}`);
     }
 
     // Step 6: Detect employer replies (IMAP) BEFORE follow-ups, so we never
