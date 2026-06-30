@@ -81,6 +81,19 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
     (byAddress.get(a) ?? byAddress.set(a, []).get(a)!).push(o);
   }
 
+  // Map every contacted employer's domain → employerId (ANY outreach status), so
+  // an opt-out reply can flag the employer even if that thread was already
+  // marked REPLIED on an earlier poll.
+  const contacted = await prisma.outreach.findMany({
+    where: { sentAt: { gte: cutoff, not: null }, toAddress: { not: null } },
+    select: { toAddress: true, match: { select: { employerId: true } } },
+  });
+  const employerByDomain = new Map<string, string>();
+  for (const c of contacted) {
+    const d = domainOf(c.toAddress);
+    if (d && c.match?.employerId && !employerByDomain.has(d)) employerByDomain.set(d, c.match.employerId);
+  }
+
   const client = new ImapFlow({
     host, port, secure: port === 993,
     auth: { user, pass },
@@ -110,22 +123,35 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         const msgDate = msg.envelope?.date ?? new Date();
         if (!fromAddr) continue;
 
+        const senderDomain = domainOf(fromAddr) ?? "";
+
         // Find a still-open outreach this reply belongs to: exact address first,
         // then same-domain; only ones sent before the reply arrived.
         const candidates =
-          byAddress.get(fromAddr) ?? byDomain.get(domainOf(fromAddr) ?? "") ?? [];
+          byAddress.get(fromAddr) ?? byDomain.get(senderDomain) ?? [];
         const target = candidates.find((o) => o.sentAt && o.sentAt <= msgDate);
-        if (!target) continue;
 
-        // Parse the full message to capture the readable reply body for the
-        // in-app inbox. Fall back to the subject if parsing yields nothing.
+        // Parse the full message body (needed both for the inbox text and for
+        // opt-out phrase detection, including on already-replied threads).
         let body = "";
         try {
           if (msg.source) {
             const parsed = await simpleParser(msg.source);
             body = (parsed.text || parsed.subject || "").trim();
           }
-        } catch { /* keep body empty, fall back below */ }
+        } catch { /* keep body empty */ }
+
+        // Opt-out detection works even when there's no open target (e.g. the
+        // thread was already marked REPLIED): flag the employer by sender domain.
+        if (isOptOutReply(`${subject} ${body}`)) {
+          const empId = target?.match?.employerId ?? employerByDomain.get(senderDomain);
+          if (empId) {
+            await prisma.employer.update({ where: { id: empId }, data: { optedOut: true } }).catch(() => {});
+          }
+        }
+
+        if (!target) continue;
+
         const replyStored = `${subject}\n\n${body}`.trim().slice(0, 4000);
 
         await prisma.outreach.update({
@@ -142,16 +168,7 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
           where: { id: target.matchId },
           data: { status: "REPLIED" },
         }).catch(() => {});
-
-        // Auto opt-out: if the employer asked to be removed / isn't interested,
-        // flag them so we never send again (no more applications or follow-ups).
-        const employerId = target.match?.employerId;
-        if (employerId && isOptOutReply(`${subject} ${body}`)) {
-          await prisma.employer.update({
-            where: { id: employerId },
-            data: { optedOut: true },
-          }).catch(() => {});
-        }
+        // (opt-out already handled above, before the target check)
 
         // Don't match the same outreach twice in this run
         const idx = candidates.indexOf(target);
