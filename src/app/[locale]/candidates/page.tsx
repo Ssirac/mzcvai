@@ -1189,7 +1189,7 @@ export default function CandidatesPage() {
                   </div>
                 </div>
                 {/* Quick stats */}
-                <div className="flex items-center gap-6 mt-4 pt-4 border-t border-gray-800">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-4 pt-4 border-t border-gray-800">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-emerald-400">{matches.length}</span>
                     <span className="text-xs text-gray-500">{t("statMatches")}</span>
@@ -1203,9 +1203,16 @@ export default function CandidatesPage() {
                     <span className="text-xs text-gray-500">{t("commReplied")}</span>
                   </div>
                   {/* Mobile actions */}
-                  <div className="sm:hidden ml-auto flex gap-1.5">
-                    <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg">{t("edit")}</button>
-                    <button onClick={() => deleteCandidate(selectedCandidate.id)} className="text-xs text-red-400 bg-red-900/20 px-3 py-1.5 rounded-lg">✕</button>
+                  <div className="sm:hidden w-full flex items-center gap-1.5 pt-1">
+                    <select
+                      value={selectedCandidate.status}
+                      onChange={(e) => changeStatus(selectedCandidate.id, e.target.value)}
+                      className="bg-gray-800 text-white text-xs rounded-lg px-2 py-1.5 border border-gray-700 flex-1"
+                    >
+                      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{t(`status${s}`)}</option>)}
+                    </select>
+                    <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg shrink-0">{t("edit")}</button>
+                    <button onClick={() => deleteCandidate(selectedCandidate.id)} className="text-xs text-red-400 bg-red-900/20 px-3 py-1.5 rounded-lg shrink-0">✕</button>
                   </div>
                 </div>
               </div>
@@ -1272,11 +1279,11 @@ export default function CandidatesPage() {
                           <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
                         <button
                           onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
-                          className="bg-gray-800 hover:bg-gray-700 active:bg-gray-900 disabled:opacity-50 text-gray-200 text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          className="bg-gray-800 hover:bg-gray-700 active:bg-gray-900 disabled:opacity-50 text-gray-200 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
                         >
                           {enrichingMatches ? (
                             <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("findingEmails")}</>
@@ -1287,7 +1294,7 @@ export default function CandidatesPage() {
                         <button
                           onClick={sendAllOutreach}
                           disabled={sendingAll}
-                          className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
                         >
                           {sendingAll ? (
                             <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("sendingAll")}</>
