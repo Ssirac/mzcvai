@@ -97,7 +97,7 @@ export async function runFollowUps(): Promise<FollowUpResult> {
       const sendResult = await sendMail({
         to: o.toAddress!,
         subject,
-        text: followUpBody(candidateName, employerName, position, o.sentAt!) + "\n" + complianceFooter(o.match.employerId),
+        text: followUpBody(candidateName, employerName, position, o.sentAt!) + complianceFooter(o.match.employerId),
       });
 
       await prisma.outreach.update({

@@ -120,15 +120,18 @@ export function agencySignature(candidateName: string): string {
   ].filter(Boolean).join("\n");
 }
 
-// UWG/GDPR footer appended to every outgoing email: identifies the sender as a
-// business contact and gives a one-click opt-out. Without an employerId (no
-// stable opt-out target) it falls back to a "reply STOP" instruction.
+// Optional UWG/GDPR footer. OFF by default — an unsubscribe link makes a genuine
+// application look like marketing spam and can hurt reply rates. Enable with
+// COMPLIANCE_FOOTER=true if a legal opt-out line is required. The opt-out itself
+// (employer.optedOut + /api/unsubscribe) still works regardless.
 export function complianceFooter(employerId?: string): string {
+  if (process.env.COMPLIANCE_FOOTER !== "true") return "";
   const base = process.env.PUBLIC_APP_URL || "https://mzcvai-production.up.railway.app";
   const optOut = employerId
     ? `Wenn Sie keine weiteren Nachrichten wünschen, hier abmelden: ${base}/api/unsubscribe?id=${employerId}`
     : `Wenn Sie keine weiteren Nachrichten wünschen, antworten Sie bitte mit „STOP“.`;
   return [
+    "",
     "",
     "—",
     "Diese Nachricht wurde von MZ Personalvermittlung als geschäftliche Anfrage gesendet.",
@@ -344,7 +347,7 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   // The email looks exactly like the real application (no "Test" wording, so the
   // preview matches what an employer would receive). Test routing only changes
   // the recipient address, not the content.
-  const body = outreach.draftBody + "\n" + complianceFooter(outreach.match.employerId);
+  const body = outreach.draftBody + complianceFooter(outreach.match.employerId);
   const subject = outreach.subject ?? "Bewerbung";
 
   // Send via Resend (HTTPS API) when configured, else SMTP
