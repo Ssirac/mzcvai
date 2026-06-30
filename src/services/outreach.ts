@@ -76,8 +76,26 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
 
 // Guard: personal email detection (name.surname@ pattern)
 // We block these at write time to enforce GDPR default
+// Local-parts that belong to a company boss/owner, not an application inbox.
+// We never apply via these — a Geschäftsführer reacts badly to a cold pitch.
+// Exact matches (avoid false positives like "chefkoch" = head chef = valid).
+const EXEC_EXACT = new Set([
+  "ceo", "cto", "cfo", "coo", "gf", "inhaber", "inhaberin", "owner", "vorstand",
+  "direktor", "direktorin", "director", "boss", "praesident", "präsident", "president",
+  "geschaeftsfuehrer", "geschäftsführer", "geschaeftsleitung", "geschäftsleitung",
+]);
+// Substrings that unambiguously mark an executive address.
+const EXEC_CONTAINS = ["geschaeftsf", "geschäftsf", "geschaeftsleit", "geschäftsleit", "vorstand", "inhaber"];
+function isExecLocalpart(local: string): boolean {
+  const l = local.toLowerCase().replace(/[.\-_0-9]/g, "");
+  if (EXEC_EXACT.has(l)) return true;
+  return EXEC_CONTAINS.some((t) => l.includes(t));
+}
+
 function looksPersonal(email: string): boolean {
   const local = email.split("@")[0] ?? "";
+  // Boss/owner address → never send (avoids annoying the Geschäftsführer).
+  if (isExecLocalpart(local)) return true;
   // Patterns like firstname.lastname, f.lastname, firstname_lastname
   return /^[a-z]+[.\-_][a-z]+$/i.test(local) && !/^(info|bewerbung|jobs|karriere|hr|personal|kontakt|post|mail|office|bewerbungen|stelle|stellen|team)$/i.test(local);
 }
