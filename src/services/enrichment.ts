@@ -401,8 +401,15 @@ async function emailFromSearch(employerName: string, domain: string | null): Pro
  * when VERIFY_EMAILS is enabled.
  */
 async function verifyEmail(email: string): Promise<string | null> {
+  if (process.env.VERIFY_EMAILS !== "true") return null;
+  return hunterVerify(email);
+}
+
+// Raw Hunter verification (independent of the VERIFY_EMAILS gate) — used by the
+// pattern-guessing step, which must verify before trusting a guessed address.
+async function hunterVerify(email: string): Promise<string | null> {
   const key = process.env.HUNTER_API_KEY;
-  if (!key || process.env.VERIFY_EMAILS !== "true") return null;
+  if (!key) return null;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -414,6 +421,22 @@ async function verifyEmail(email: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// Common generic application mailboxes most German companies have. Tried in
+// preference order against the employer's domain and VERIFIED before use, so we
+// never send to a guessed address that doesn't exist.
+const GUESS_PREFIXES = ["bewerbung", "jobs", "karriere", "info", "kontakt", "personal", "office"];
+
+async function guessAndVerifyEmail(domain: string, skip: Set<string>): Promise<string | null> {
+  if (!process.env.HUNTER_API_KEY) return null; // can't guess safely without verification
+  for (const prefix of GUESS_PREFIXES) {
+    const candidate = `${prefix}@${domain}`;
+    if (skip.has(candidate)) continue;
+    const status = await hunterVerify(candidate);
+    if (status === "deliverable") return candidate;
+  }
+  return null;
 }
 
 /**
@@ -509,6 +532,17 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   if (fromSearch) {
     const ok = await accept(fromSearch, "google");
     if (ok) return ok;
+  }
+
+  // Step 3.5: guess common generic mailboxes (bewerbung@/info@/...) on the
+  // domain and VERIFY each — cheap HTTP, no browser, recovers many employers
+  // whose address isn't published anywhere scrapeable.
+  if (domain) {
+    const guessed = await guessAndVerifyEmail(domain, bounced);
+    if (guessed) {
+      const ok = await accept(guessed, "guess");
+      if (ok) return ok;
+    }
   }
 
   // Step 4: full website scraping (Impressum / Kontakt) — slowest, last resort

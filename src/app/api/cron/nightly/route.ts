@@ -14,14 +14,19 @@ import { deletePartTimeVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { prisma } from "@/lib/prisma";
 
-const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = [
-  { beruf: "Housekeeping", region: "NRW" },
-  { beruf: "Koch", region: "NRW" },
-  { beruf: "Service", region: "NRW" },
-  { beruf: "Rezeption", region: "NRW" },
-  { beruf: "Housekeeping", region: "Bayern" },
-  { beruf: "Koch", region: "Bayern" },
+// Broader nightly coverage = more vacancies found. Searches run across the
+// agency's core occupations in all of Germany (sources normalize the region),
+// so the candidate pool grows every night without manual ingests.
+const NIGHTLY_BERUFE = [
+  "Housekeeping", "Koch", "Beikoch", "Service", "Rezeption", "Restaurantfachmann",
+  "Hotelfachmann", "Küchenhilfe", "Spülkraft", "Reinigungskraft",
+  "Lagerhelfer", "Produktionshelfer", "Verpackungshelfer", "Staplerfahrer",
+  "LKW-Fahrer", "Pflegehelfer", "Bauhelfer",
 ];
+const NIGHTLY_REGIONS = ["Deutschland"];
+const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = NIGHTLY_BERUFE.flatMap(
+  (beruf) => NIGHTLY_REGIONS.map((region) => ({ beruf, region }))
+);
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret");
