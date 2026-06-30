@@ -63,26 +63,19 @@ export async function matchCandidateToVacancies(candidateId: string) {
   const regions = candidate.regionPrefs.length > 0 ? candidate.regionPrefs : ["Deutschland"];
   const allGermany = regions.includes("Deutschland");
 
-  // The candidate's search profile = current occupation + the position they are
-  // LOOKING FOR (desiredPosition). Both are searched so matches reflect what the
-  // worker actually wants, across all job fields.
-  const searchProfile = [candidate.beruf, candidate.desiredPosition]
-    .filter((x): x is string => !!x && x.trim().length > 0)
-    .join(" / ");
+  // Search profile drives which jobs are matched. If the recruiter filled in a
+  // desired position (Arzu olunan vəzifə), match STRICTLY against that — the
+  // candidate is looking for exactly that role. Only fall back to the general
+  // occupation (beruf) when no desired position is given.
+  const desired = candidate.desiredPosition?.trim();
+  const searchProfile = desired || candidate.beruf || "";
 
-  // Seniority window for matching:
-  //  - maxLevel (ceiling) = what the candidate is QUALIFIED for (their beruf).
-  //    We never match above this — no pushing a Fachkraft into management roles.
-  //  - preferredLevel = the level they are AIMING for (desiredPosition). Often
-  //    LOWER than the ceiling (e.g. a store manager willing to take entry-level
-  //    hospitality work for a visa). It never raises the ceiling.
-  //  - minLevel (floor) = a bit below the lowest of the two, so "a bit below" is
-  //    included but we don't flood a manager with helper jobs.
-  const maxLevel = seniorityLevel(candidate.beruf || candidate.desiredPosition || "");
-  const preferredLevel = candidate.desiredPosition?.trim()
-    ? seniorityLevel(candidate.desiredPosition)
-    : maxLevel;
-  const minLevel = Math.min(maxLevel, preferredLevel) - 1;
+  // Seniority window, derived from the effective search profile so the level
+  // tracks what we're actually searching for.
+  const profileLevel = seniorityLevel(searchProfile || candidate.beruf || "");
+  const maxLevel = profileLevel;
+  const preferredLevel = profileLevel;
+  const minLevel = profileLevel - 1;
 
   // Build a flexible filter: match the profile or any of its synonyms against
   // the vacancy beruf OR title (case-insensitive), free-text, all sectors.
