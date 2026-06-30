@@ -555,18 +555,29 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
  * yet. Listing-text mining runs first (fast, no browser), website scraping only
  * as fallback. Returns how many emails were newly found so the UI can report it.
  */
-export async function enrichMatchesForCandidate(candidateId: string): Promise<{
+export async function enrichMatchesForCandidate(
+  candidateId: string,
+  limit = 40
+): Promise<{
   found: number;
   alreadyHad: number;
   stillMissing: number;
   total: number;
+  processed: number;
 }> {
+  // A candidate can have hundreds of matches; website scraping is slow, so we
+  // can't enrich them all in one request. The user only sends ~20/day to the
+  // top-scored employers, so enrich in priority order (employer score, then fit)
+  // and cap the batch — the best matches get emails first, the rest on later
+  // passes (auto-enrich re-runs, nightly cron, or a repeat click).
   const matches = await prisma.match.findMany({
     where: { candidateId },
+    orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],
     select: { employer: { select: { id: true, genericEmail: true } } },
   });
 
-  // De-duplicate employers (a candidate can match the same employer twice)
+  // De-duplicate employers (a candidate can match the same employer twice),
+  // preserving the priority order above.
   const seen = new Set<string>();
   const employerIds: string[] = [];
   let alreadyHad = 0;
@@ -577,8 +588,9 @@ export async function enrichMatchesForCandidate(candidateId: string): Promise<{
     employerIds.push(m.employer.id);
   }
 
+  const batch = employerIds.slice(0, limit);
   let found = 0;
-  for (const id of employerIds) {
+  for (const id of batch) {
     try {
       const email = await enrichSingleEmployer(id);
       if (email) found++;
@@ -592,6 +604,7 @@ export async function enrichMatchesForCandidate(candidateId: string): Promise<{
     alreadyHad,
     stillMissing: employerIds.length - found,
     total: seen.size,
+    processed: batch.length,
   };
 }
 
