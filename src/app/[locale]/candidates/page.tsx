@@ -191,7 +191,7 @@ export default function CandidatesPage() {
   // Uploaded CV kept to attach on save; existingCvName = CV already on the candidate
   const [cvFile, setCvFile] = useState<{ base64: string; name: string; mime: string } | null>(null);
   const [existingCvName, setExistingCvName] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"matches" | "comms">("matches");
+  const [activeTab, setActiveTab] = useState<"matches" | "comms" | "replies">("matches");
   const [comms, setComms] = useState<OutreachItem[]>([]);
   const [commsLoading, setCommsLoading] = useState(false);
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
@@ -1249,7 +1249,11 @@ export default function CandidatesPage() {
 
               {/* Tabs */}
               <div className="flex gap-1 border-b border-gray-800 mb-4">
-                {([["matches", t("tabMatches"), pendingMatches.length], ["comms", t("tabComms"), comms.length]] as const).map(([key, label, count]) => (
+                {([
+                  ["matches", t("tabMatches"), pendingMatches.length],
+                  ["comms", t("tabComms"), comms.length],
+                  ["replies", t("tabReplies"), comms.filter((c) => c.repliedAt || c.status === "REPLIED").length],
+                ] as const).map(([key, label, count]) => (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
@@ -1591,6 +1595,39 @@ export default function CandidatesPage() {
                   </div>
                 )
               )}
+
+              {/* Replies tab — only the employer responses received for this candidate */}
+              {activeTab === "replies" && (() => {
+                const replies = comms.filter((c) => c.repliedAt || c.status === "REPLIED");
+                if (commsLoading) return <div className="text-gray-500 text-sm">{t("searching")}</div>;
+                if (replies.length === 0) return (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+                    <div className="text-gray-400 text-sm mb-2">Hələ cavab gəlməyib.</div>
+                    <div className="text-gray-500 text-xs">İşəgötürən cavab verəndə burada görünəcək.</div>
+                  </div>
+                );
+                return (
+                  <div className="space-y-3">
+                    {replies.map((o) => (
+                      <div key={o.id} className="bg-gray-900 border border-green-900/40 rounded-2xl p-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white">{o.match.employer.name}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
+                          <span className="text-xs text-gray-500 ml-auto">{fmtDate(o.repliedAt)}</span>
+                        </div>
+                        <div className="text-sm text-gray-400 mt-0.5">{o.match.vacancy.title}</div>
+                        {o.replyFrom && <div className="text-xs text-gray-500 mt-1"><span className="text-gray-600">Kimdən:</span> {o.replyFrom}</div>}
+                        {o.replySubject && <div className="text-sm text-green-200/90 font-medium mt-2">{o.replySubject}</div>}
+                        {o.replyText && (
+                          <div className="mt-2 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-950/50 rounded-lg p-3 max-h-72 overflow-y-auto">
+                            {o.replyText}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
