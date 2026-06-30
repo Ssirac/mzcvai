@@ -16,7 +16,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { agencySignature } from "@/services/outreach";
+import { agencySignature, complianceFooter } from "@/services/outreach";
 
 export interface FollowUpResult {
   eligible: number;
@@ -62,8 +62,9 @@ export async function runFollowUps(): Promise<FollowUpResult> {
       id: true, toAddress: true, subject: true, sentAt: true, followUpCount: true,
       match: {
         select: {
+          employerId: true,
           candidate: { select: { name: true } },
-          employer: { select: { name: true } },
+          employer: { select: { name: true, optedOut: true } },
           vacancy: { select: { title: true, beruf: true } },
         },
       },
@@ -83,6 +84,9 @@ export async function runFollowUps(): Promise<FollowUpResult> {
 
   for (const o of eligible) {
     try {
+      // Respect opt-out — never chase an employer who unsubscribed.
+      if (o.match.employer?.optedOut) { result.skipped++; continue; }
+
       const candidateName = o.match.candidate.name;
       const employerName = o.match.employer?.name ?? "";
       const position = o.match.vacancy?.title || o.match.vacancy?.beruf || "die ausgeschriebene Stelle";
@@ -93,7 +97,7 @@ export async function runFollowUps(): Promise<FollowUpResult> {
       const sendResult = await sendMail({
         to: o.toAddress!,
         subject,
-        text: followUpBody(candidateName, employerName, position, o.sentAt!),
+        text: followUpBody(candidateName, employerName, position, o.sentAt!) + "\n" + complianceFooter(o.match.employerId),
       });
 
       await prisma.outreach.update({

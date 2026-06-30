@@ -129,6 +129,7 @@ model Employer {
   emailSource        String?           // where genericEmail came from: listing|hunter|apollo|google|website
   emailStatus        String?           // verification result: deliverable|risky|undeliverable|unknown
   bouncedEmails      String[]          @default([]) // addresses that hard-bounced — never reuse
+  optedOut           Boolean           @default(false) // employer asked to stop (UWG opt-out)
   applyFormUrl       String?
   phone              String?
   sponsorshipSignal  SponsorshipSignal @default(UNKNOWN)

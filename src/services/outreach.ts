@@ -120,6 +120,22 @@ export function agencySignature(candidateName: string): string {
   ].filter(Boolean).join("\n");
 }
 
+// UWG/GDPR footer appended to every outgoing email: identifies the sender as a
+// business contact and gives a one-click opt-out. Without an employerId (no
+// stable opt-out target) it falls back to a "reply STOP" instruction.
+export function complianceFooter(employerId?: string): string {
+  const base = process.env.PUBLIC_APP_URL || "https://mzcvai-production.up.railway.app";
+  const optOut = employerId
+    ? `Wenn Sie keine weiteren Nachrichten wünschen, hier abmelden: ${base}/api/unsubscribe?id=${employerId}`
+    : `Wenn Sie keine weiteren Nachrichten wünschen, antworten Sie bitte mit „STOP“.`;
+  return [
+    "",
+    "—",
+    "Diese Nachricht wurde von MZ Personalvermittlung als geschäftliche Anfrage gesendet.",
+    optOut,
+  ].join("\n");
+}
+
 interface LetterCandidate {
   name: string; beruf: string; languages: string[]; needsSponsorship: boolean;
   yearsExperience: number | null; skills: string[]; experience: unknown; nationality: string | null;
@@ -260,6 +276,11 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     throw new Error(`GDPR block: ${outreach.toAddress} appears personal. Refusing to send.`);
   }
 
+  // Guard 3b: Respect opt-out (UWG) — never email an employer who unsubscribed.
+  if (outreach.match.employer.optedOut) {
+    throw new Error(`Employer ${outreach.match.employer.name} opted out. Refusing to send.`);
+  }
+
   // Guard 4: Daily rate limit — counted PER CANDIDATE (each candidate gets their
   // own MAX_PER_DAY allowance), not a single shared pool.
   const todayStart = new Date();
@@ -323,7 +344,7 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   // The email looks exactly like the real application (no "Test" wording, so the
   // preview matches what an employer would receive). Test routing only changes
   // the recipient address, not the content.
-  const body = outreach.draftBody;
+  const body = outreach.draftBody + "\n" + complianceFooter(outreach.match.employerId);
   const subject = outreach.subject ?? "Bewerbung";
 
   // Send via Resend (HTTPS API) when configured, else SMTP
