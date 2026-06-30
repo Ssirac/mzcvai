@@ -53,7 +53,14 @@
     "running": "İşləyir...",
     "noData": "Məlumat yoxdur",
     "matchedFor": "üçün uyğun işəgötürənlər",
-    "fitScore": "Uyğunluq balı"
+    "fitScore": "Uyğunluq balı",
+    "recentJobs": "Son tapılan işlər",
+    "recentJobsHint": "yalnız tam ştat (full-time)",
+    "viewListing": "Elana bax",
+    "emailReady": "e-mail hazır",
+    "noEmailYet": "e-mail yox",
+    "searchJobs": "İş, şirkət, region axtar...",
+    "allBerufs": "Bütün peşələr"
   },
   "nav": {
     "dashboard": "İdarə paneli",

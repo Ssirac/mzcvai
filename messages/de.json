@@ -53,7 +53,14 @@
     "running": "Läuft...",
     "noData": "Keine Daten",
     "matchedFor": "passende Arbeitgeber für",
-    "fitScore": "Passgenauigkeit"
+    "fitScore": "Passgenauigkeit",
+    "recentJobs": "Zuletzt gefundene Stellen",
+    "recentJobsHint": "nur Vollzeit",
+    "viewListing": "Stelle ansehen",
+    "emailReady": "E-Mail vorhanden",
+    "noEmailYet": "keine E-Mail",
+    "searchJobs": "Stelle, Firma, Region suchen...",
+    "allBerufs": "Alle Berufe"
   },
   "nav": {
     "dashboard": "Dashboard",

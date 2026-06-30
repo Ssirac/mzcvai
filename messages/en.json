@@ -53,7 +53,14 @@
     "running": "Running...",
     "noData": "No data",
     "matchedFor": "matched employers for",
-    "fitScore": "Fit score"
+    "fitScore": "Fit score",
+    "recentJobs": "Recently found jobs",
+    "recentJobsHint": "full-time only",
+    "viewListing": "View listing",
+    "emailReady": "email ready",
+    "noEmailYet": "no email",
+    "searchJobs": "Search job, company, region...",
+    "allBerufs": "All occupations"
   },
   "nav": {
     "dashboard": "Dashboard",

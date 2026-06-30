@@ -21,6 +21,16 @@ interface Stats {
     scoreBreakdown: Record<string, unknown> | null;
     _count: { vacancies: number };
   }[];
+  recentVacancies: {
+    id: string;
+    title: string;
+    beruf: string;
+    region: string;
+    url: string | null;
+    source: string;
+    foundAt: string;
+    employer: { name: string; genericEmail: string | null; sponsorshipSignal: string };
+  }[];
 }
 
 interface OutreachItem {
@@ -65,6 +75,7 @@ export default function DashboardPage() {
   const [enrichLoading, setEnrichLoading] = useState(false);
   const [expandedScore, setExpandedScore] = useState<string | null>(null);
   const [sources, setSources] = useState<{ id: string; label: string; category: string; available: boolean; reason: string | null }[]>([]);
+  const [jobSearch, setJobSearch] = useState("");
 
   async function fetchStats() {
     setStatsLoading(true);
@@ -181,9 +192,12 @@ export default function DashboardPage() {
       <TopNav active="dashboard" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-lg font-bold text-white">{t("title")}</h1>
-          <p className="text-sm text-gray-500">{t("subtitle")}</p>
+        <div className="flex items-center gap-3">
+          <span className="w-1 h-9 rounded-full bg-gradient-to-b from-emerald-400 to-teal-600" />
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{t("title")}</h1>
+            <p className="text-sm text-gray-500">{t("subtitle")}</p>
+          </div>
         </div>
 
 
@@ -360,6 +374,83 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Recently found jobs — full-time listings with direct links */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-200">{t("recentJobs")}</h3>
+              <p className="text-[11px] text-gray-600">{t("recentJobsHint")}</p>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                value={jobSearch}
+                onChange={(e) => setJobSearch(e.target.value)}
+                placeholder={t("searchJobs")}
+                className="w-full bg-gray-950 border border-gray-800 focus:border-emerald-600/50 focus:outline-none text-white rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-gray-600"
+              />
+            </div>
+          </div>
+
+          {statsLoading ? (
+            <div className="text-gray-500 text-sm py-6 text-center">{t("running")}</div>
+          ) : (() => {
+            const q = jobSearch.trim().toLowerCase();
+            const jobs = (stats?.recentVacancies ?? []).filter((v) =>
+              !q ||
+              v.title.toLowerCase().includes(q) ||
+              v.employer.name.toLowerCase().includes(q) ||
+              (v.region ?? "").toLowerCase().includes(q) ||
+              (v.beruf ?? "").toLowerCase().includes(q)
+            );
+            if (jobs.length === 0) {
+              return <div className="text-gray-500 text-sm py-6 text-center">{t("noData")}</div>;
+            }
+            return (
+              <ul className="divide-y divide-gray-800/70 -mx-1">
+                {jobs.map((v) => (
+                  <li key={v.id} className="group flex items-center gap-3 px-1 py-2.5 hover:bg-gray-800/30 rounded-lg transition-colors">
+                    {/* email-availability dot */}
+                    <span
+                      className={`shrink-0 w-2 h-2 rounded-full ${v.employer.genericEmail ? "bg-emerald-400" : "bg-gray-600"}`}
+                      title={v.employer.genericEmail ? t("emailReady") : t("noEmailYet")}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-white truncate max-w-full">{v.title}</span>
+                        {v.employer.sponsorshipSignal === "YES" && (
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">★ Sponsor</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {v.employer.name} · {v.region}
+                        <span className="text-gray-700"> — {v.beruf}</span>
+                      </div>
+                    </div>
+                    {v.url ? (
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-blue-300 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-600/25 rounded-lg px-2.5 py-1.5 transition-colors"
+                      >
+                        {t("viewListing")}
+                        <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M7 17 17 7M7 7h10v10" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <span className="shrink-0 text-[11px] text-gray-600">{t("noData")}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
         </div>
 
         {/* Top employers table */}
