@@ -4,8 +4,16 @@ import { prisma } from "@/lib/prisma";
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Hide stale listings (30+ days old) even before the background sweep
+    // deletes them, so the candidate only ever sees currently-open jobs.
+    const EXPIRY_DAYS = 30;
+    const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
     const matches = await prisma.match.findMany({
-      where: { candidateId: params.id },
+      where: {
+        candidateId: params.id,
+        vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff } },
+      },
       orderBy: [
         { employer: { score: "desc" } },
         { fitScore: "desc" },
