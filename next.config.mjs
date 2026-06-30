@@ -51,7 +51,7 @@ const nextConfig = {
     // of the webpack graph so it's required at runtime in the Node server and
     // never dragged into the edge/instrumentation bundle.
     config.externals = config.externals || [];
-    config.externals.push({ imapflow: "commonjs imapflow" });
+    config.externals.push({ imapflow: "commonjs imapflow", mailparser: "commonjs mailparser" });
     return config;
   },
 };

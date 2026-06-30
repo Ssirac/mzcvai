@@ -15,6 +15,7 @@
  */
 
 import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
 
 function domainOf(email: string | null | undefined): string | null {
@@ -86,9 +87,10 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
       const uids = await client.search({ since }, { uid: true });
       if (!uids || uids.length === 0) return result;
 
-      for await (const msg of client.fetch(uids, { envelope: true }, { uid: true })) {
+      for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
         result.scanned++;
         const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
+        const fromName = msg.envelope?.from?.[0]?.name ?? "";
         const subject = msg.envelope?.subject ?? "";
         const msgDate = msg.envelope?.date ?? new Date();
         if (!fromAddr) continue;
@@ -100,12 +102,25 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         const target = candidates.find((o) => o.sentAt && o.sentAt <= msgDate);
         if (!target) continue;
 
+        // Parse the full message to capture the readable reply body for the
+        // in-app inbox. Fall back to the subject if parsing yields nothing.
+        let body = "";
+        try {
+          if (msg.source) {
+            const parsed = await simpleParser(msg.source);
+            body = (parsed.text || parsed.subject || "").trim();
+          }
+        } catch { /* keep body empty, fall back below */ }
+        const replyStored = `${subject}\n\n${body}`.trim().slice(0, 4000);
+
         await prisma.outreach.update({
           where: { id: target.id },
           data: {
             status: "REPLIED",
             repliedAt: msgDate,
-            replyText: subject.slice(0, 500),
+            replyFrom: fromName ? `${fromName} <${fromAddr}>` : fromAddr,
+            replySubject: subject.slice(0, 300),
+            replyText: replyStored,
           },
         });
         await prisma.match.update({

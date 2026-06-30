@@ -256,6 +256,8 @@ model Outreach {
   openCount    Int       @default(0)
   // Reply capture (IMAP poll of the IONOS inbox)
   replyText    String?   @db.Text
+  replyFrom    String?   // sender of the reply ("Name <email>")
+  replySubject String?   // reply subject line
   // Follow-up sequence
   followUpCount  Int       @default(0)
   lastFollowUpAt DateTime?
