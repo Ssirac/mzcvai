@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ingestJobs } from "@/services/arbeitsagentur";
 import { enrichPendingEmployers } from "@/services/enrichment";
 import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/scoring";
+import { pollReplies } from "@/services/replies";
+import { runFollowUps } from "@/services/followup";
 import { prisma } from "@/lib/prisma";
 
 const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = [
@@ -84,6 +86,23 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       log.push(`Cleanup FAILED: ${(err as Error).message}`);
+    }
+
+    // Step 6: Detect employer replies (IMAP) BEFORE follow-ups, so we never
+    // chase someone who already answered.
+    try {
+      const r = await pollReplies();
+      log.push(`Replies: ${r.matched} matched / ${r.scanned} scanned${r.errors.length ? ` (${r.errors.join("; ")})` : ""}`);
+    } catch (err) {
+      log.push(`Replies FAILED: ${(err as Error).message}`);
+    }
+
+    // Step 7: Send follow-ups for unanswered applications past the wait window.
+    try {
+      const f = await runFollowUps();
+      log.push(`Follow-ups: ${f.sent} sent / ${f.eligible} eligible${f.errors.length ? ` (${f.errors.join("; ")})` : ""}`);
+    } catch (err) {
+      log.push(`Follow-ups FAILED: ${(err as Error).message}`);
     }
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);

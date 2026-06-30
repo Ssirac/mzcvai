@@ -104,7 +104,7 @@ function standardClosing(needsVisa: boolean): string {
 
 // Agency signature appended to EVERY letter — so the employer knows MZ sent it
 // and how to reply. Name + phone are always shown (set AGENCY_PHONE in .env).
-function agencySignature(candidateName: string): string {
+export function agencySignature(candidateName: string): string {
   const name = process.env.AGENCY_NAME || "MZ Personalvermittlung";
   const phone = process.env.AGENCY_PHONE || "";
   const email = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "info@mz-personalvermittlung.de";
