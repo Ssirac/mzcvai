@@ -13,6 +13,7 @@ import { ingestJobs } from "@/services/arbeitsagentur";
 import { ingestArbeitnow } from "@/services/arbeitnow";
 import { ingestAdzuna } from "@/services/adzuna";
 import { ingestJooble } from "@/services/jooble";
+import { ingestCareerjet } from "@/services/careerjet";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 export interface JobSource {
@@ -75,6 +76,15 @@ const jooble: JobSource = {
   ingest: (o) => ingestJooble(o),
 };
 
+const careerjet: JobSource = {
+  id: "careerjet",
+  label: "Careerjet (Aggregator — inkl. LinkedIn/Indeed-Crossposts)",
+  category: "general",
+  available: () => !!process.env.CAREERJET_AFFID,
+  unavailableReason: "CAREERJET_AFFID erforderlich (kostenlos)",
+  ingest: (o) => ingestCareerjet(o),
+};
+
 /**
  * Registry order follows the user's priority: hospitality platforms first,
  * then the big boards, then the live aggregators that already work.
@@ -94,6 +104,7 @@ export const SOURCES: JobSource[] = [
   adzuna,
   arbeitnow,
   jooble,
+  careerjet,
 ];
 
 export function getSource(id: string): JobSource | undefined {
