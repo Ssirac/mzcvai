@@ -127,7 +127,7 @@ export async function ingestAdzuna(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job, keywords)) continue;
-          if (isPartTimeJob(job.title, job.contract_time ? [job.contract_time] : [])) continue;
+          if (isPartTimeJob(job.title, job.contract_time ? [job.contract_time] : [], job.description ?? "")) continue;
 
           const sourceRef = `adzuna:${job.id}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });

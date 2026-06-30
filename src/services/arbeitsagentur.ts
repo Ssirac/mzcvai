@@ -394,7 +394,7 @@ async function processJob(
   }
 
   // Skip part-time and mini-job listings — MZ only places full-time candidates
-  if (isPartTimeJob(job.titel ?? "", job.arbeitszeitmodelle ?? [])) {
+  if (isPartTimeJob(job.titel ?? "", job.arbeitszeitmodelle ?? [], detail?.stellenbeschreibung ?? "")) {
     return;
   }
 

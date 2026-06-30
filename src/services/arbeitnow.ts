@@ -141,7 +141,7 @@ export async function ingestArbeitnow(opts: IngestOptions): Promise<IngestResult
       for (const job of jobs) {
         try {
           if (!matchesKeyword(job, keywords)) continue;
-          if (isPartTimeJob(job.title, job.job_types ?? [])) continue;
+          if (isPartTimeJob(job.title, job.job_types ?? [], job.description ?? "")) continue;
 
           const region = normalizeRegion(job.location ?? "");
           if (!allGermany && region !== opts.region && region !== "Deutschland") continue;

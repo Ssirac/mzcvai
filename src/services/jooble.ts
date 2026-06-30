@@ -97,7 +97,7 @@ export async function ingestJooble(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job.title, keywords)) continue;
-          if (isPartTimeJob(job.title, job.type ? [job.type] : [])) continue;
+          if (isPartTimeJob(job.title, job.type ? [job.type] : [], job.snippet ?? "")) continue;
           const sourceRef = `jooble:${job.id ?? job.link}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
           if (existing) { result.vacanciesUpdated++; continue; }

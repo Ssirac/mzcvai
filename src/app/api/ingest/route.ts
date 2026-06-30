@@ -3,7 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { scoreEmployersForSearch } from "@/services/scoring";
 import { SOURCES, availableSources, getSource } from "@/services/sources/registry";
 import { prisma } from "@/lib/prisma";
-import { PART_TIME_TITLE_KEYWORDS } from "@/lib/berufMap";
+import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
 
 // POST /api/ingest
 // Body: { beruf, region, maxPages?, source? }  — source = a module id or "all".
@@ -62,9 +62,14 @@ export async function POST(req: NextRequest) {
     // Remove any part-time / mini-job vacancies that slipped in (title-based cleanup).
     // Must delete child Match rows first to avoid FK violation.
     const partTimeWhere = {
-      OR: PART_TIME_TITLE_KEYWORDS.map((kw) => ({
-        title: { contains: kw, mode: "insensitive" as const },
-      })),
+      OR: [
+        ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({
+          title: { contains: kw, mode: "insensitive" as const },
+        })),
+        ...PART_TIME_HARD_KEYWORDS.map((kw) => ({
+          description: { contains: kw, mode: "insensitive" as const },
+        })),
+      ],
     };
     const ptVacancies = await prisma.vacancy.findMany({ where: partTimeWhere, select: { id: true } });
     const ptIds = ptVacancies.map((v) => v.id);

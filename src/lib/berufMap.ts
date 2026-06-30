@@ -269,14 +269,27 @@ const PART_TIME_TYPE_KEYWORDS = [
   "teilzeit", "geringfügig",
 ];
 
+// Unambiguous mini-job / marginal-employment signals. If any of these appears
+// ANYWHERE (incl. the description), the job is part-time — there is no full-time
+// version of a "Minijob" or a "520-Euro-Job". Bare "Teilzeit" is intentionally
+// NOT here, because listings often say "Vollzeit oder Teilzeit" (full-time too).
+export const PART_TIME_HARD_KEYWORDS = [
+  "minijob", "mini-job", "mini job", "geringfügig", "geringfugig",
+  "520-euro", "520 euro", "520€", "450-euro", "450 euro", "450€",
+  "400-euro", "400 euro", "nebenjob", "midijob", "midi-job",
+  "auf 520", "auf 538", "538-euro", "538 euro", "538€",
+];
+
 /**
  * Returns true if a job should be SKIPPED because it is part-time / mini-job.
  * @param title  Job title
  * @param types  Optional list of employment-type strings from the API (e.g. job_types, contract_time)
+ * @param description  Optional job description text (scanned for HARD signals only)
  */
-export function isPartTimeJob(title: string, types?: string[]): boolean {
+export function isPartTimeJob(title: string, types?: string[], description?: string): boolean {
   const t = (title ?? "").toLowerCase();
   if (PART_TIME_TITLE_KEYWORDS.some((kw) => t.includes(kw))) return true;
+
   if (types && types.length > 0) {
     const combined = types.join(" ").toLowerCase();
     if (PART_TIME_TYPE_KEYWORDS.some((kw) => combined.includes(kw))) {
@@ -285,5 +298,14 @@ export function isPartTimeJob(title: string, types?: string[]): boolean {
       if (!hasFullTime) return true;
     }
   }
+
+  // Description: only unambiguous mini-job signals (a Minijob is never full-time).
+  if (description) {
+    const d = description.toLowerCase();
+    if (PART_TIME_HARD_KEYWORDS.some((kw) => d.includes(kw))) return true;
+    // "ausschließlich/nur in Teilzeit" = part-time only, no full-time option.
+    if (/\b(nur|ausschlie(ß|ss)lich)\s+(in\s+)?teilzeit\b/.test(d)) return true;
+  }
+
   return false;
 }
