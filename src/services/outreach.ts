@@ -327,12 +327,13 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   const subject = outreach.subject ?? "Bewerbung";
 
   // Send via Resend (HTTPS API) when configured, else SMTP
-  await sendMail({ to: recipient, subject, text: body, attachments: cvAttachment });
+  const sendResult = await sendMail({ to: recipient, subject, text: body, attachments: cvAttachment });
 
-  // Mark sent + log behavior signal
+  // Mark sent + log behavior signal. providerId lets Resend webhooks
+  // (delivered/opened/bounced) update this record later.
   await prisma.outreach.update({
     where: { id: outreachId },
-    data: { status: "SENT", sentAt: new Date() },
+    data: { status: "SENT", sentAt: new Date(), providerId: sendResult.id },
   });
 
   await prisma.employerSignalLog.create({

@@ -11,6 +11,7 @@ const LOCALES = routing.locales as readonly string[];
 function isPublic(pathname: string): boolean {
   if (pathname.startsWith("/api/auth")) return true;     // login/logout
   if (pathname.startsWith("/api/cron")) return true;     // protected by its own secret
+  if (pathname.startsWith("/api/webhooks")) return true; // signed/secret-guarded provider callbacks
   if (pathname === "/api/health") return true;           // monitoring/uptime check
   if (/^\/(?:[a-z]{2}\/)?login$/.test(pathname)) return true; // login page (with/without locale)
   return false;

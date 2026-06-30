@@ -246,8 +246,20 @@ model Outreach {
   openedAt   DateTime?
   repliedAt  DateTime?
   bouncedAt  DateTime?
+  // Delivery/engagement tracking (Resend webhooks)
+  providerId   String?   // Resend message id, to match webhook events
+  deliveredAt  DateTime?
+  openCount    Int       @default(0)
+  // Reply capture (IMAP poll of the IONOS inbox)
+  replyText    String?   @db.Text
+  // Follow-up sequence
+  followUpCount  Int       @default(0)
+  lastFollowUpAt DateTime?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
+
+  @@index([status, sentAt])
+  @@index([providerId])
 }
 
 model EmployerSignalLog {
