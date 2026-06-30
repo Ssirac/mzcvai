@@ -1507,20 +1507,24 @@ export default function CandidatesPage() {
                                 💬 <span className="text-green-400/70">Cavab:</span> {o.replyText}
                               </div>
                             )}
-                            {/* Placement pipeline — advance the application's stage */}
+                            {/* Placement pipeline — advance the application's stage.
+                                Click the active stage again to clear it. */}
                             <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
                               <span className="text-[10px] text-gray-600 uppercase tracking-wide mr-0.5">Mərhələ:</span>
                               {PIPELINE_STAGES.map((s) => {
                                 const isActive = o.match.status === s.key;
+                                // Toggle off: clicking the active stage reverts to replied/sent base.
+                                const target = isActive ? (o.repliedAt ? "REPLIED" : "SENT") : s.key;
                                 return (
                                   <button
                                     key={s.key}
-                                    onClick={() => setMatchStage(o.matchId, s.key)}
+                                    onClick={() => setMatchStage(o.matchId, target)}
+                                    title={isActive ? "Seçimi ləğv et" : s.label}
                                     className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
                                       isActive ? s.active : "bg-gray-800/40 text-gray-500 border-gray-700/50 hover:text-gray-300 hover:border-gray-600"
                                     }`}
                                   >
-                                    {s.label}
+                                    {s.label}{isActive && <span className="ml-1 opacity-60">✕</span>}
                                   </button>
                                 );
                               })}
