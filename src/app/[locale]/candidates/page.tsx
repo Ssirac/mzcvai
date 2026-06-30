@@ -59,6 +59,8 @@ interface OutreachItem {
   openCount: number;
   repliedAt: string | null;
   replyText: string | null;
+  replyFrom: string | null;
+  replySubject: string | null;
   bouncedAt: string | null;
   followUpCount: number;
   lastFollowUpAt: string | null;
@@ -196,6 +198,16 @@ export default function CandidatesPage() {
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
   const [enrichingMatches, setEnrichingMatches] = useState(false);
+  // Per-candidate unread-reply counts → green dot in the candidate list.
+  const [unreadByCandidate, setUnreadByCandidate] = useState<Record<string, number>>({});
+
+  async function loadUnread() {
+    try {
+      const res = await fetch("/api/inbox/unread");
+      const data = await res.json();
+      setUnreadByCandidate(data.byCandidate ?? {});
+    } catch { /* non-fatal */ }
+  }
 
   // Pending = not yet contacted. Surface employers that already have a found
   // email first (those can be mailed immediately), keeping score order within each group.
@@ -271,7 +283,7 @@ export default function CandidatesPage() {
     if (!res.ok && selectedId) loadComms(selectedId);
   }
 
-  useEffect(() => { loadCandidates(); }, []);
+  useEffect(() => { loadCandidates(); loadUnread(); }, []);
 
   function selectCandidate(id: string) {
     setSelectedId(id);
@@ -281,6 +293,17 @@ export default function CandidatesPage() {
     setMobileView("detail");
     loadMatches(id);
     loadComms(id);
+    // Opening a candidate marks their replies seen, clearing their dot + the
+    // global badge contribution.
+    if (unreadByCandidate[id]) {
+      fetch("/api/inbox/read", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId: id }),
+      }).then(() => {
+        setUnreadByCandidate((prev) => { const n = { ...prev }; delete n[id]; return n; });
+        window.dispatchEvent(new Event("inbox-read"));
+      }).catch(() => {});
+    }
   }
 
   function startNewCandidate() {
@@ -773,7 +796,14 @@ export default function CandidatesPage() {
               className={`w-full text-left p-3 rounded-lg transition-colors ${selectedId === c.id ? "bg-blue-600/20 border border-blue-600/40" : "hover:bg-gray-800/50"}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-white text-sm truncate">{c.name}</span>
+                <span className="font-medium text-white text-sm truncate flex items-center gap-1.5">
+                  {c.name}
+                  {unreadByCandidate[c.id] > 0 && (
+                    <span className="shrink-0 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold" title={`${unreadByCandidate[c.id]} yeni cavab`}>
+                      {unreadByCandidate[c.id]}
+                    </span>
+                  )}
+                </span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${STATUS_COLOR[c.status]}`}>{t(`status${c.status}`)}</span>
               </div>
               <div className="text-xs text-gray-400 mt-0.5">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
@@ -1502,9 +1532,18 @@ export default function CandidatesPage() {
                                 </span>
                               )}
                             </div>
-                            {o.replyText && (
-                              <div className="mt-2 text-xs text-green-200/80 bg-green-900/15 border border-green-800/30 rounded-lg px-2.5 py-1.5">
-                                💬 <span className="text-green-400/70">Cavab:</span> {o.replyText}
+                            {(o.replyText || o.repliedAt) && (
+                              <div className="mt-2 text-xs bg-green-900/15 border border-green-800/30 rounded-lg px-2.5 py-2">
+                                <div className="flex items-center gap-1.5 text-green-300 font-medium mb-1">
+                                  💬 {t("commReplied")}
+                                  {o.replyFrom && <span className="text-green-400/60 font-normal">· {o.replyFrom}</span>}
+                                </div>
+                                {o.replySubject && <div className="text-green-200/90 font-medium mb-1">{o.replySubject}</div>}
+                                {o.replyText && (
+                                  <div className="text-green-100/70 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                                    {o.replyText}
+                                  </div>
+                                )}
                               </div>
                             )}
                             {/* Placement pipeline — advance the application's stage.

@@ -41,6 +41,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         openCount: true,
         repliedAt: true,
         replyText: true,
+        replyFrom: true,
+        replySubject: true,
         bouncedAt: true,
         followUpCount: true,
         lastFollowUpAt: true,

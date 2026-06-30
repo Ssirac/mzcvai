@@ -258,6 +258,7 @@ model Outreach {
   replyText    String?   @db.Text
   replyFrom    String?   // sender of the reply ("Name <email>")
   replySubject String?   // reply subject line
+  replyRead    Boolean   @default(false) // has the user seen this reply (inbox badge)
   // Follow-up sequence
   followUpCount  Int       @default(0)
   lastFollowUpAt DateTime?

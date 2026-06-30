@@ -2,6 +2,7 @@
 
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
 const LOCALES = ["az", "de", "en"] as const;
 
@@ -42,6 +43,24 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations("nav");
+
+  // Unread-reply badge on the inbox tab. Refreshes on mount, every 60s, and when
+  // the inbox marks replies read (custom event).
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch("/api/inbox/unread")
+        .then((r) => r.json())
+        .then((d) => { if (alive) setUnread(Number(d?.count ?? 0)); })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    // After replies are marked read (inbox opened or a candidate viewed),
+    // re-fetch so the badge reflects the true remaining count.
+    window.addEventListener("inbox-read", load);
+    return () => { alive = false; clearInterval(id); window.removeEventListener("inbox-read", load); };
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -87,7 +106,14 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                     : "text-gray-400 hover:text-white hover:bg-gray-800/60"
                 }`}
               >
-                {tab.icon}
+                <span className="relative">
+                  {tab.icon}
+                  {tab.key === "inbox" && unread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </span>
                 <span className={isActive ? "inline" : "hidden md:inline"}>{tab.label}</span>
               </a>
             );

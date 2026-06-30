@@ -34,6 +34,10 @@ export default function InboxPage() {
         const res = await fetch("/api/inbox");
         const data = await res.json();
         setReplies(data.replies ?? []);
+        // Seeing the inbox clears the notification badge.
+        fetch("/api/inbox/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+          .then(() => window.dispatchEvent(new Event("inbox-read")))
+          .catch(() => {});
       } finally {
         setLoading(false);
       }
