@@ -1199,8 +1199,8 @@ export default function CandidatesPage() {
                     <span className="text-xs text-gray-500">{t("statSent")}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-amber-400">{comms.filter((c) => c.status === "DRAFT").length}</span>
-                    <span className="text-xs text-gray-500">{t("draft")}</span>
+                    <span className="text-2xl font-bold text-green-400">{comms.filter((c) => c.status === "REPLIED" || c.repliedAt).length}</span>
+                    <span className="text-xs text-gray-500">{t("commReplied")}</span>
                   </div>
                   {/* Mobile actions */}
                   <div className="sm:hidden ml-auto flex gap-1.5">
