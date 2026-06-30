@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
 
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -9,10 +10,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const EXPIRY_DAYS = 30;
     const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
+    // Never SHOW part-time / mini-job listings, even if some slipped into the DB
+    // before the ingest filter — full-time only.
+    const partTimeOr = [
+      ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({ title: { contains: kw, mode: "insensitive" as const } })),
+      ...PART_TIME_HARD_KEYWORDS.map((kw) => ({ description: { contains: kw, mode: "insensitive" as const } })),
+    ];
+
     const matches = await prisma.match.findMany({
       where: {
         candidateId: params.id,
-        vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff } },
+        vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff }, NOT: { OR: partTimeOr } },
       },
       orderBy: [
         { employer: { score: "desc" } },

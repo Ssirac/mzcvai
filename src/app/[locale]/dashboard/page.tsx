@@ -138,6 +138,23 @@ export default function DashboardPage() {
     }
   }
 
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  async function cleanupPartTime() {
+    setCleanupLoading(true);
+    try {
+      const res = await fetch("/api/cleanup-parttime", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        toast(`${data.partTimeDeleted ?? 0} part-time / mini-job elanı silindi`, "success");
+        fetchStats();
+      } else {
+        toast(data.error ?? "error", "error");
+      }
+    } finally {
+      setCleanupLoading(false);
+    }
+  }
+
   async function approveOutreach(id: string) {
     await fetch(`/api/outreach/${id}`, {
       method: "PATCH",
@@ -286,6 +303,14 @@ export default function DashboardPage() {
                   {enrichLoading ? t("running") : t("enrich")}
                 </button>
               </div>
+              <button
+                onClick={cleanupPartTime}
+                disabled={cleanupLoading || ingestLoading}
+                title="Mövcud bazadan bütün part-time / mini-job elanlarını silir"
+                className="w-full bg-red-900/30 hover:bg-red-900/50 border border-red-800/40 disabled:opacity-50 text-red-300 rounded px-3 py-2 text-xs font-medium"
+              >
+                {cleanupLoading ? t("running") : "🧹 Part-time / Mini-job elanlarını sil"}
+              </button>
               {ingestResult && (
                 <div className={`text-xs p-2 rounded ${ingestResult.startsWith("⚠") ? "bg-red-900/30 text-red-400" : "bg-emerald-900/30 text-emerald-400"}`}>
                   {ingestResult}
