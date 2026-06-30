@@ -41,6 +41,16 @@ async function sendViaResend(params: SendMailParams): Promise<SendMailResult> {
     text: params.text,
   };
 
+  // Employer replies should land in a real inbox you watch (IONOS). Defaults to
+  // the from-address; override with REPLY_TO.
+  const replyTo = process.env.REPLY_TO || process.env.MAIL_REPLY_TO;
+  if (replyTo) body.reply_to = replyTo;
+
+  // Optional self-copy so every sent application also shows up in your own inbox
+  // (Resend bypasses IONOS, so the IONOS "Sent" folder stays empty otherwise).
+  const bcc = process.env.MAIL_BCC;
+  if (bcc) body.bcc = bcc.split(",").map((s) => s.trim()).filter(Boolean);
+
   if (params.attachments && params.attachments.length > 0) {
     body.attachments = params.attachments.map((a) => ({
       filename: a.filename,
@@ -90,6 +100,8 @@ async function sendViaSmtp(params: SendMailParams): Promise<SendMailResult> {
   const info = await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: Array.isArray(params.to) ? params.to.join(", ") : params.to,
+    replyTo: process.env.REPLY_TO || process.env.MAIL_REPLY_TO || undefined,
+    bcc: process.env.MAIL_BCC || undefined,
     subject: params.subject,
     text: params.text,
     attachments: params.attachments,
