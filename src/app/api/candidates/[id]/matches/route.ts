@@ -39,7 +39,36 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       },
     });
 
-    return NextResponse.json({ matches });
+    // Per-EMPLOYER cooldown: an employer contacted (for ANY candidate) within
+    // COOLDOWN_DAYS is blocked from re-send by outreach.ts. A different vacancy
+    // of that same employer would otherwise still show an active "send" button
+    // and fail on click, so we annotate each match with the employer's cooldown
+    // so the UI can show "already contacted" instead.
+    const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
+    const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+    const employerIds = Array.from(new Set(matches.map((m) => m.employerId)));
+    const recentSends = await prisma.outreach.findMany({
+      where: {
+        status: "SENT",
+        sentAt: { gte: cooldownCutoff },
+        match: { employerId: { in: employerIds } },
+      },
+      select: { sentAt: true, match: { select: { employerId: true } } },
+      orderBy: { sentAt: "desc" },
+    });
+    const cooldownByEmployer = new Map<string, string>();
+    for (const r of recentSends) {
+      if (r.match?.employerId && r.sentAt && !cooldownByEmployer.has(r.match.employerId)) {
+        cooldownByEmployer.set(r.match.employerId, r.sentAt.toISOString());
+      }
+    }
+
+    const annotated = matches.map((m) => ({
+      ...m,
+      employerLastSentAt: cooldownByEmployer.get(m.employerId) ?? null,
+    }));
+
+    return NextResponse.json({ matches: annotated });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

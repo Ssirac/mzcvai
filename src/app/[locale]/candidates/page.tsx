@@ -42,6 +42,7 @@ interface Match {
     applyFormUrl: string | null; website: string | null;
   };
   outreach: { id: string; status: string }[];
+  employerLastSentAt: string | null;
 }
 
 interface OutreachItem {
@@ -1348,6 +1349,13 @@ export default function CandidatesPage() {
                                 {m.outreach.some((o) => o.status === "SENT") ? (
                                   <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR["SENT"] ?? "bg-gray-700 text-gray-300"}`}>
                                     SENT
+                                  </span>
+                                ) : m.employerLastSentAt ? (
+                                  <span
+                                    className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-900/20 text-amber-400 border border-amber-800/30"
+                                    title={`Bu işəgötürənə artıq müraciət göndərilib: ${new Date(m.employerLastSentAt).toLocaleDateString()}`}
+                                  >
+                                    ✓ artıq göndərilib
                                   </span>
                                 ) : (
                                   <div className="flex flex-col items-stretch sm:items-end gap-1">
