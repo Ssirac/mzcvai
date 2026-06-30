@@ -165,14 +165,14 @@ export default function DashboardPage() {
   async function cleanupPartTime() {
     setCleanupLoading(true);
     try {
-      const res = await fetch("/api/cleanup-parttime", { method: "POST" });
-      const data = await res.json();
-      if (data.ok) {
-        toast(`${data.partTimeDeleted ?? 0} part-time / mini-job elanı silindi`, "success");
-        fetchStats();
-      } else {
-        toast(data.error ?? "error", "error");
-      }
+      const [ptRes, exRes] = await Promise.all([
+        fetch("/api/cleanup-parttime", { method: "POST" }).then((r) => r.json()),
+        fetch("/api/cleanup-expired", { method: "POST" }).then((r) => r.json()),
+      ]);
+      const pt = Number(ptRes?.partTimeDeleted ?? 0);
+      const ex = Number(exRes?.expiredDeleted ?? 0);
+      toast(`${pt} part-time/mini-job + ${ex} köhnə elan silindi`, "success");
+      fetchStats();
     } finally {
       setCleanupLoading(false);
     }
@@ -346,10 +346,10 @@ export default function DashboardPage() {
               <button
                 onClick={cleanupPartTime}
                 disabled={cleanupLoading || ingestLoading}
-                title="Mövcud bazadan bütün part-time / mini-job elanlarını silir"
+                title="Part-time / mini-job və 30 gündən köhnə elanları bazadan silir"
                 className="w-full bg-red-900/30 hover:bg-red-900/50 border border-red-800/40 disabled:opacity-50 text-red-300 rounded px-3 py-2 text-xs font-medium"
               >
-                {cleanupLoading ? t("running") : "🧹 Part-time / Mini-job elanlarını sil"}
+                {cleanupLoading ? t("running") : "🧹 Part-time + köhnə elanları sil"}
               </button>
               {ingestResult && (
                 <div className={`text-xs p-2 rounded ${ingestResult.startsWith("⚠") ? "bg-red-900/30 text-red-400" : "bg-emerald-900/30 text-emerald-400"}`}>

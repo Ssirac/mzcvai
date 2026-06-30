@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
-import { deletePartTimeVacancies } from "@/services/cleanup";
+import { deletePartTimeVacancies, deleteExpiredVacancies } from "@/services/cleanup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,9 +23,10 @@ export async function POST(req: NextRequest) {
     if (job === "replies" || job === "all") {
       log.replies = await pollReplies();
     }
-    // Keep the DB full-time-only on every pass.
+    // Keep the DB full-time-only and free of stale postings on every pass.
     if (job === "cleanup" || job === "replies" || job === "all") {
-      log.cleanup = await deletePartTimeVacancies();
+      log.partTime = await deletePartTimeVacancies();
+      log.expired = await deleteExpiredVacancies();
     }
     if (job === "followups" || job === "all") {
       // Make sure replies are current right before follow-ups, so we never chase
