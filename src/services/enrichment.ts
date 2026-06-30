@@ -427,12 +427,15 @@ async function verifyEmail(email: string): Promise<string | null> {
 export async function enrichSingleEmployer(employerId: string): Promise<string | null> {
   const employer = await prisma.employer.findUnique({
     where: { id: employerId },
-    select: { id: true, website: true, name: true, genericEmail: true, sponsorshipSignal: true },
+    select: { id: true, website: true, name: true, genericEmail: true, sponsorshipSignal: true, bouncedEmails: true },
   });
   if (!employer) return null;
 
   // Already has an email — nothing to do
   if (employer.genericEmail) return employer.genericEmail;
+
+  // Addresses that previously hard-bounced must never be picked again.
+  const bounced = new Set((employer.bouncedEmails ?? []).map((e) => e.toLowerCase()));
 
   // Chain detection (sets sponsorship signal but won't produce an email)
   if (employer.sponsorshipSignal === "UNKNOWN") {
@@ -459,6 +462,7 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   // If verification says "undeliverable", reject it and let the caller try the
   // next source by returning null.
   const accept = async (email: string, source: string): Promise<string | null> => {
+    if (bounced.has(email.toLowerCase())) return null; // skip known-dead addresses
     const status = await verifyEmail(email);
     if (status === "undeliverable") return null;
     await prisma.employer.update({
@@ -530,6 +534,14 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     select: { genericEmail: true },
   });
   if (refreshed?.genericEmail) {
+    // The website path saves directly; if it landed on a known-bad address, undo.
+    if (bounced.has(refreshed.genericEmail.toLowerCase())) {
+      await prisma.employer.update({
+        where: { id: employer.id },
+        data: { genericEmail: null, emailSource: null, emailStatus: "undeliverable" },
+      });
+      return null;
+    }
     await prisma.employer.update({
       where: { id: employer.id },
       data: { emailSource: "website" },

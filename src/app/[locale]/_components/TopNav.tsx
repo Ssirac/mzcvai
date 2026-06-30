@@ -21,8 +21,16 @@ function IconUsers() {
     </svg>
   );
 }
+function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="11" width="3" height="7" rx="1" />
+      <rect x="10.5" y="7" width="3" height="11" rx="1" /><rect x="16" y="13" width="3" height="5" rx="1" />
+    </svg>
+  );
+}
 
-export default function TopNav({ active }: { active: "dashboard" | "candidates" }) {
+export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" }) {
   const { locale } = useParams() as { locale: string };
   const pathname = usePathname();
   const router = useRouter();
@@ -36,6 +44,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
   const tabs = [
     { key: "dashboard" as const, href: `/${locale}/dashboard`, label: t("dashboard"), icon: <IconGrid /> },
     { key: "candidates" as const, href: `/${locale}/candidates`, label: t("candidates"), icon: <IconUsers /> },
+    { key: "analytics" as const, href: `/${locale}/analytics`, label: t("analytics"), icon: <IconChart /> },
   ];
 
   // Preserve current page when switching language

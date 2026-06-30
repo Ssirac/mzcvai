@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
 
   const outreach = await prisma.outreach.findFirst({
     where: { providerId: emailId },
-    select: { id: true, status: true },
+    select: {
+      id: true, status: true, toAddress: true,
+      match: { select: { employerId: true } },
+    },
   });
   if (!outreach) return NextResponse.json({ ok: true, skipped: "unknown email_id" });
 
@@ -61,12 +64,38 @@ export async function POST(req: NextRequest) {
       break;
 
     case "email.bounced":
-    case "email.complained":
+    case "email.complained": {
       await prisma.outreach.update({
         where: { id: outreach.id },
         data: { bouncedAt: now, status: "BOUNCED" },
       });
+      // Recover the lost employer: remember the bad address, clear it, and let
+      // re-enrichment (matches load / nightly) find an alternative that isn't on
+      // the bounced list. Only on hard bounce, not spam complaint.
+      const bad = outreach.toAddress?.toLowerCase();
+      const employerId = outreach.match?.employerId;
+      if (type === "email.bounced" && bad && employerId) {
+        const emp = await prisma.employer.findUnique({
+          where: { id: employerId },
+          select: { genericEmail: true, bouncedEmails: true },
+        });
+        if (emp) {
+          const bouncedEmails = Array.from(new Set([...(emp.bouncedEmails ?? []), bad]));
+          await prisma.employer.update({
+            where: { id: employerId },
+            data: {
+              bouncedEmails,
+              // Drop the dead address so the employer re-qualifies for enrichment
+              ...(emp.genericEmail?.toLowerCase() === bad
+                ? { genericEmail: null, emailStatus: "undeliverable", emailSource: null }
+                : {}),
+              lastEnrichedAt: null,
+            },
+          });
+        }
+      }
       break;
+    }
 
     default:
       // sent / clicked / scheduled etc. — nothing to persist for now
