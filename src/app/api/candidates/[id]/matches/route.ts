@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
             score: true, scoreBreakdown: true, sponsorshipSignal: true,
             genericEmail: true, emailSource: true, emailStatus: true,
             applyFormUrl: true, phone: true,
-            website: true,
+            website: true, optedOut: true,
           },
         },
         outreach: {

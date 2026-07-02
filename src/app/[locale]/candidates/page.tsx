@@ -40,6 +40,7 @@ interface Match {
     score: number; sponsorshipSignal: string; scoreBreakdown: Record<string, unknown> | null;
     genericEmail: string | null; emailSource: string | null; emailStatus: string | null;
     applyFormUrl: string | null; website: string | null; phone: string | null;
+    optedOut: boolean;
   };
   outreach: { id: string; status: string }[];
   employerLastSentAt: string | null;
@@ -704,7 +705,7 @@ export default function CandidatesPage() {
         toast(
           t("bulkResult", {
             sent: Number(data.sent ?? 0),
-            skipped: Number(data.skippedNoEmail ?? 0) + Number(data.skippedCooldown ?? 0) + Number(data.alreadySent ?? 0),
+            skipped: Number(data.skippedNoEmail ?? 0) + Number(data.skippedCooldown ?? 0) + Number(data.alreadySent ?? 0) + Number(data.skippedOptedOut ?? 0),
           }),
           "success"
         );
@@ -1445,6 +1446,13 @@ export default function CandidatesPage() {
                                 {m.outreach.some((o) => o.status === "SENT") ? (
                                   <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR["SENT"] ?? "bg-gray-700 text-gray-300"}`}>
                                     SENT
+                                  </span>
+                                ) : m.employer.optedOut ? (
+                                  <span
+                                    className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-900/20 text-red-400 border border-red-800/30"
+                                    title="Bu şirkət əlaqə istəmədiyini bildirib — göndərilmir"
+                                  >
+                                    🚫 əlaqə saxlanmır
                                   </span>
                                 ) : m.employerLastSentAt ? (
                                   <span

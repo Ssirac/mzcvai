@@ -80,7 +80,7 @@ export default function AnalyticsPage() {
 
         {loading ? (
           <div className="text-gray-500 text-sm">Yüklənir...</div>
-        ) : !data || data.funnel.sent === 0 ? (
+        ) : !data?.funnel || data.funnel.sent === 0 ? (
           <div className="text-gray-500 text-sm bg-gray-900 border border-gray-800 rounded-2xl p-6">
             Hələ göndərilmiş müraciət yoxdur. Müraciət göndərdikcə statistika burada görünəcək.
           </div>
@@ -98,8 +98,8 @@ export default function AnalyticsPage() {
 
             {/* Placement pipeline */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Stat label="Müsahibə" value={data.pipeline.interviews} color="text-violet-300" sub="aktiv mərhələ" />
-              <Stat label="İşə düzəldi" value={data.pipeline.placed} color="text-emerald-300" sub="yerləşdirmə" />
+              <Stat label="Müsahibə" value={data.pipeline?.interviews ?? 0} color="text-violet-300" sub="aktiv mərhələ" />
+              <Stat label="İşə düzəldi" value={data.pipeline?.placed ?? 0} color="text-emerald-300" sub="yerləşdirmə" />
               <Stat label="Son 30 gün — cavab faizi" value={`${data.last30.replyRate}%`} sub={`${data.last30.replied}/${data.last30.sent}`} color="text-green-300" />
             </div>
 

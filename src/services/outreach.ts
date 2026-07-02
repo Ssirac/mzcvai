@@ -393,6 +393,7 @@ export interface BulkSendResult {
   alreadySent: number;
   skippedNoEmail: number;
   skippedCooldown: number;
+  skippedOptedOut: number;
   failed: number;
   limitReached: boolean;
   errors: string[];
@@ -422,7 +423,7 @@ export async function sendAllForCandidate(
   });
 
   const result: BulkSendResult = {
-    sent: 0, alreadySent: 0, skippedNoEmail: 0, skippedCooldown: 0, failed: 0, limitReached: false, errors: [],
+    sent: 0, alreadySent: 0, skippedNoEmail: 0, skippedCooldown: 0, skippedOptedOut: 0, failed: 0, limitReached: false, errors: [],
   };
   const testMode = !!process.env.OUTREACH_TEST_RECIPIENT?.trim();
 
@@ -430,6 +431,8 @@ export async function sendAllForCandidate(
     let createdOutreachId: string | null = null;
     try {
       if (match.outreach.some((o) => o.status === "SENT")) { result.alreadySent++; continue; }
+      // Opted-out employer (asked to stop / wrong company) — skip silently.
+      if (match.employer.optedOut) { result.skippedOptedOut++; continue; }
       // Without test mode we can only email employers that expose a generic address
       if (!match.employer.genericEmail && !testMode) { result.skippedNoEmail++; continue; }
 
