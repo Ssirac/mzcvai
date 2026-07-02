@@ -150,24 +150,44 @@ function signalFromChainName(name: string): SponsorshipSignal | null {
   return null;
 }
 
-// Try to guess employer website from company name (heuristic)
+// Try to guess employer website from company name (heuristic).
+// DANGER: a short generic single-word name ("Gloria") almost certainly resolves
+// to an UNRELATED company's domain (gloria.de = fire extinguishers, not the
+// Gloria restaurant) — a cook application then goes to the wrong business.
+// So guessing is only allowed for specific-enough names: multi-word, or one
+// long distinctive word. Guessed sites are additionally city-verified below.
 function guessWebsite(name: string): string | null {
   // Remove legal suffixes and trim
   const clean = name
     .toLowerCase()
     .replace(/\b(gmbh|ag|kg|ohg|mbh|co\.|ug|e\.v\.|mbh|&|co|kgaa|gmbh\s*&\s*co\.?\s*kg?)\b/gi, "")
     .replace(/[^a-z0-9äöüß\s\-]/g, "")
-    .trim()
+    .trim();
+
+  const tokens = clean.split(/\s+/).filter(Boolean);
+  // Single short word = too ambiguous to guess a domain from.
+  if (tokens.length === 1 && tokens[0].length < 9) return null;
+
+  const slug = clean
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/[äöüß]/g, (c) => ({ ä: "ae", ö: "oe", ü: "ue", ß: "ss" }[c] ?? c));
 
-  if (!clean || clean.length < 3) return null;
-  return `https://${clean}.de`;
+  if (!slug || slug.length < 3) return null;
+  return `https://${slug}.de`;
 }
 
-// Enrich a single employer website
-async function enrichEmployer(employerId: string, website: string): Promise<void> {
+// The employer's city (first part, aggregators append region junk after commas).
+function cityToken(city: string | null | undefined): string | null {
+  const c = (city ?? "").split(",")[0]?.trim().toLowerCase();
+  return c && c.length >= 3 ? c : null;
+}
+
+// Enrich a single employer website.
+// verifyCity: set when the URL was GUESSED from the company name — the scraped
+// site must mention the employer's city (Impressum has the address) or we treat
+// it as the wrong company and refuse to store its email.
+async function enrichEmployer(employerId: string, website: string, verifyCity?: string | null): Promise<void> {
   const baseUrl = website.startsWith("http") ? website : `https://${website}`;
 
   const allowed = await isAllowedByRobots(baseUrl);
@@ -223,6 +243,24 @@ async function enrichEmployer(employerId: string, website: string): Promise<void
     }
 
     const fullText = homeText + " " + innerText;
+
+    // Guessed-URL safety: the site must mention the employer's city, otherwise
+    // it's almost certainly a different company that shares the name (e.g.
+    // gloria.de fire extinguishers vs. the Gloria restaurant in Regensburg).
+    if (verifyCity) {
+      const cityLower = verifyCity.toLowerCase();
+      const haystack = (fullText + " " + homeHtml + " " + innerHtml).toLowerCase();
+      if (!haystack.includes(cityLower)) {
+        await prisma.employer.update({
+          where: { id: employerId },
+          data: {
+            enrichmentError: `Guessed website ${baseUrl} failed city check (${verifyCity}) — likely a different company`,
+            lastEnrichedAt: new Date(),
+          },
+        });
+        return;
+      }
+    }
 
     // Extract data — emails from homepage + Impressum/Kontakt/careers pages
     const genericEmails = extractGenericEmails(homeHtml + " " + innerHtml + " " + innerText);
@@ -450,7 +488,7 @@ async function guessAndVerifyEmail(domain: string, skip: Set<string>): Promise<s
 export async function enrichSingleEmployer(employerId: string): Promise<string | null> {
   const employer = await prisma.employer.findUnique({
     where: { id: employerId },
-    select: { id: true, website: true, name: true, genericEmail: true, sponsorshipSignal: true, bouncedEmails: true },
+    select: { id: true, website: true, name: true, city: true, genericEmail: true, sponsorshipSignal: true, bouncedEmails: true },
   });
   if (!employer) return null;
 
@@ -471,11 +509,18 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     }
   }
 
-  const website = employer.website ?? guessWebsite(employer.name);
+  // KNOWN website (from the listing / employer record) vs GUESSED from the name.
+  // A guessed domain may belong to an unrelated company that shares the name, so
+  // domain-based sources (Hunter/Apollo/pattern-guessing) must NOT run on it —
+  // they'd confidently return the WRONG company's email (the Gloria case). A
+  // guessed site is only usable via the city-verified website scrape.
+  const knownWebsite = employer.website;
+  const guessedWebsite = knownWebsite ? null : guessWebsite(employer.name);
+  const website = knownWebsite ?? guessedWebsite;
   let domain: string | null = null;
-  if (website) {
+  if (knownWebsite) {
     try {
-      domain = new URL(website.startsWith("http") ? website : `https://${website}`).hostname.replace(/^www\./, "");
+      domain = new URL(knownWebsite.startsWith("http") ? knownWebsite : `https://${knownWebsite}`).hostname.replace(/^www\./, "");
     } catch {
       domain = null;
     }
@@ -496,7 +541,6 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
         emailStatus: status,
         lastEnrichedAt: new Date(),
         enrichmentError: null,
-        ...(website && !employer.website ? { website } : {}),
       },
     });
     return email;
@@ -527,11 +571,15 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     }
   }
 
-  // Step 3: search-engine scraping (no API key, uses the headless browser)
-  const fromSearch = await emailFromSearch(employer.name, domain);
-  if (fromSearch) {
-    const ok = await accept(fromSearch, "google");
-    if (ok) return ok;
+  // Step 3: search-engine scraping (no API key, uses the headless browser).
+  // Only trusted with a KNOWN domain — with a name-only query the top result can
+  // easily be an unrelated same-named company.
+  if (domain) {
+    const fromSearch = await emailFromSearch(employer.name, domain);
+    if (fromSearch) {
+      const ok = await accept(fromSearch, "google");
+      if (ok) return ok;
+    }
   }
 
   // Step 3.5: guess common generic mailboxes (bewerbung@/info@/...) on the
@@ -545,7 +593,9 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     }
   }
 
-  // Step 4: full website scraping (Impressum / Kontakt) — slowest, last resort
+  // Step 4: full website scraping (Impressum / Kontakt) — slowest, last resort.
+  // A guessed URL must pass the city check inside enrichEmployer before any of
+  // its emails are stored.
   if (!website) {
     await prisma.employer.update({
       where: { id: employer.id },
@@ -555,10 +605,7 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   }
 
   try {
-    await enrichEmployer(employer.id, website);
-    if (!employer.website) {
-      await prisma.employer.update({ where: { id: employer.id }, data: { website } });
-    }
+    await enrichEmployer(employer.id, website, guessedWebsite ? cityToken(employer.city) : null);
   } catch {
     // enrichEmployer already records its own error; just fall through
   }
@@ -578,7 +625,12 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     }
     await prisma.employer.update({
       where: { id: employer.id },
-      data: { emailSource: "website" },
+      data: {
+        emailSource: "website",
+        // Persist a guessed URL only now — after the scrape (incl. city check)
+        // actually confirmed it belongs to this employer.
+        ...(guessedWebsite && !employer.website ? { website } : {}),
+      },
     });
   }
   return refreshed?.genericEmail ?? null;
@@ -659,7 +711,7 @@ export async function enrichPendingEmployers(limit = 20): Promise<{
         { lastEnrichedAt: { lt: cutoff }, enrichmentError: { not: null } },
       ],
     },
-    select: { id: true, website: true, name: true, sponsorshipSignal: true },
+    select: { id: true, website: true, name: true, city: true, sponsorshipSignal: true },
     take: limit,
   });
 
@@ -691,10 +743,16 @@ export async function enrichPendingEmployers(limit = 20): Promise<{
     }
 
     try {
-      await enrichEmployer(employer.id, website);
-      // Save guessed website if it worked and we didn't have one
-      if (!employer.website) {
-        await prisma.employer.update({ where: { id: employer.id }, data: { website } });
+      // City check applies only when the URL was guessed from the name.
+      const wasGuessed = !employer.website;
+      await enrichEmployer(employer.id, website, wasGuessed ? cityToken(employer.city) : null);
+      // Save a guessed website only if the scrape confirmed it (found an email —
+      // i.e. it passed the city check and belongs to this employer).
+      if (wasGuessed) {
+        const check = await prisma.employer.findUnique({ where: { id: employer.id }, select: { genericEmail: true } });
+        if (check?.genericEmail) {
+          await prisma.employer.update({ where: { id: employer.id }, data: { website } });
+        }
       }
       result.enriched++;
     } catch (err) {

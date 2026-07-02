@@ -33,6 +33,10 @@ const OPT_OUT_PHRASES = [
   "kein interesse", "nicht kontaktieren", "nicht mehr kontaktieren", "bitte abmelden", "abmelden",
   "unsubscribe", "remove us", "stop sending", "do not contact", "keine zusammenarbeit",
   "wir benötigen keine", "wir benoetigen keine", "no thanks", "kein bedarf", "keinen bedarf",
+  // Wrong-target notices ("we don't operate a restaurant", "wrong address") —
+  // the listing was misattributed to this company; never contact them again.
+  "betreiben kein", "betreiben keine", "falsche adresse", "falscher empfänger", "falscher empfaenger",
+  "nicht der richtige ansprechpartner", "sind kein restaurant", "sind kein hotel", "verwechslung",
 ];
 function isOptOutReply(text: string): boolean {
   const t = text.toLowerCase();
