@@ -5,28 +5,41 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ingestJobs } from "@/services/arbeitsagentur";
 import { enrichPendingEmployers } from "@/services/enrichment";
 import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/scoring";
+import { availableSources } from "@/services/sources/registry";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { prisma } from "@/lib/prisma";
 
-// Broader nightly coverage = more vacancies found. Searches run across the
-// agency's core occupations in all of Germany (sources normalize the region),
-// so the candidate pool grows every night without manual ingests.
-const NIGHTLY_BERUFE = [
+// Core occupations always covered nightly.
+const CORE_BERUFE = [
   "Housekeeping", "Koch", "Beikoch", "Service", "Rezeption", "Restaurantfachmann",
   "Hotelfachmann", "Küchenhilfe", "Spülkraft", "Reinigungskraft",
   "Lagerhelfer", "Produktionshelfer", "Verpackungshelfer", "Staplerfahrer",
   "LKW-Fahrer", "Pflegehelfer", "Bauhelfer",
 ];
-const NIGHTLY_REGIONS = ["Deutschland"];
-const NIGHTLY_SEARCHES: { beruf: string; region: string }[] = NIGHTLY_BERUFE.flatMap(
-  (beruf) => NIGHTLY_REGIONS.map((region) => ({ beruf, region }))
-);
+
+// The nightly search list = core occupations + what ACTIVE candidates actually
+// need (their beruf and desired position). A candidate outside the core list
+// (e.g. Vertrieb / Social Media) gets fresh jobs every night automatically.
+async function buildNightlySearches(): Promise<{ beruf: string; region: string }[]> {
+  const candidates = await prisma.candidate.findMany({
+    where: { status: { in: ["ACTIVE", "PENDING"] } },
+    select: { beruf: true, desiredPosition: true },
+  });
+  const berufe = new Set<string>(CORE_BERUFE);
+  for (const c of candidates) {
+    for (const raw of [c.desiredPosition, c.beruf]) {
+      const b = raw?.trim();
+      if (b && b.length >= 3) berufe.add(b);
+    }
+  }
+  // Cap the matrix so the run stays within a sane duration.
+  return Array.from(berufe).slice(0, 30).map((beruf) => ({ beruf, region: "Deutschland" }));
+}
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret");
@@ -38,13 +51,23 @@ export async function POST(req: NextRequest) {
   const start = Date.now();
 
   try {
-    // Step 1: Ingest from Arbeitsagentur
+    const NIGHTLY_SEARCHES = await buildNightlySearches();
+    log.push(`Search matrix: ${NIGHTLY_SEARCHES.length} occupations (core + candidates)`);
+
+    // Step 1: Ingest from ALL available sources (Bundesagentur, Adzuna,
+    // Arbeitnow, Jooble, Careerjet — whichever have keys), not just one.
+    const sources = availableSources();
+    log.push(`Sources: ${sources.map((s) => s.id).join(", ")}`);
     for (const search of NIGHTLY_SEARCHES) {
-      try {
-        const r = await ingestJobs({ beruf: search.beruf, region: search.region, maxPages: 3 });
-        log.push(`Ingest ${search.beruf}/${search.region}: +${r.vacanciesNew} vac, +${r.employersNew} emp`);
-      } catch (err) {
-        log.push(`Ingest ${search.beruf}/${search.region} FAILED: ${(err as Error).message}`);
+      for (const src of sources) {
+        try {
+          const r = await src.ingest({ beruf: search.beruf, region: search.region, maxPages: 2 });
+          if (r.vacanciesNew > 0 || r.employersNew > 0) {
+            log.push(`${src.id} ${search.beruf}: +${r.vacanciesNew} vac, +${r.employersNew} emp`);
+          }
+        } catch (err) {
+          log.push(`${src.id} ${search.beruf} FAILED: ${(err as Error).message}`);
+        }
       }
     }
 
