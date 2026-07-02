@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
+import { matchCandidateToVacancies } from "@/services/scoring";
+
+export const maxDuration = 120;
 
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -17,35 +20,48 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       ...PART_TIME_HARD_KEYWORDS.map((kw) => ({ description: { contains: kw, mode: "insensitive" as const } })),
     ];
 
-    const matches = await prisma.match.findMany({
-      where: {
-        candidateId: params.id,
-        vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff }, NOT: { OR: partTimeOr } },
-      },
-      orderBy: [
-        { employer: { score: "desc" } },
-        { fitScore: "desc" },
-      ],
-      include: {
-        vacancy: {
-          select: { title: true, beruf: true, region: true, applyChannel: true, applyValue: true, postedAt: true, url: true, source: true },
+    const query = () =>
+      prisma.match.findMany({
+        where: {
+          candidateId: params.id,
+          vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff }, NOT: { OR: partTimeOr } },
         },
-        employer: {
-          select: {
-            name: true, city: true, region: true, stars: true, rooms: true,
-            score: true, scoreBreakdown: true, sponsorshipSignal: true,
-            genericEmail: true, emailSource: true, emailStatus: true,
-            applyFormUrl: true, phone: true,
-            website: true, optedOut: true,
+        orderBy: [
+          { employer: { score: "desc" } },
+          { fitScore: "desc" },
+        ],
+        include: {
+          vacancy: {
+            select: { title: true, beruf: true, region: true, applyChannel: true, applyValue: true, postedAt: true, url: true, source: true },
+          },
+          employer: {
+            select: {
+              name: true, city: true, region: true, stars: true, rooms: true,
+              score: true, scoreBreakdown: true, sponsorshipSignal: true,
+              genericEmail: true, emailSource: true, emailStatus: true,
+              applyFormUrl: true, phone: true,
+              website: true, optedOut: true,
+            },
+          },
+          outreach: {
+            select: { id: true, status: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 1,
           },
         },
-        outreach: {
-          select: { id: true, status: true, createdAt: true },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
-      },
-    });
+      });
+
+    let matches = await query();
+
+    // Self-healing: zero matches often just means matching hasn't re-run since
+    // criteria/thresholds changed or new vacancies arrived. Re-match once on
+    // view so the user never stares at an unexplained empty list.
+    if (matches.length === 0) {
+      try {
+        await matchCandidateToVacancies(params.id);
+        matches = await query();
+      } catch { /* keep the empty list if rematch fails */ }
+    }
 
     // Per-candidate, per-employer cooldown: THIS candidate can't be re-sent to an
     // employer they were already sent to within COOLDOWN_DAYS. A different
