@@ -85,8 +85,8 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
       <div className="px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
         {/* Brand */}
         <a href={`/${locale}/dashboard`} className="flex items-center gap-2 shrink-0">
-          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow">MZ</span>
-          <span className="hidden md:block text-white font-semibold text-sm">Talent Intelligence</span>
+          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow">GCC</span>
+          <span className="hidden md:block text-white font-semibold text-sm">Germany Career Center</span>
         </a>
 
         {/* Primary tabs — prominent. On phones only the active tab shows its

@@ -107,7 +107,7 @@ function buildHeaders() {
   return {
     "X-API-Key": API_KEY,
     "Accept": "application/json",
-    "User-Agent": "MZPersonal-CompanyFinder/1.0 (contact@mzpersonal.de)",
+    "User-Agent": "GCC-JobFinder/1.0",
   };
 }
 
