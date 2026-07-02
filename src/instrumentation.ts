@@ -27,7 +27,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups") => {
+  const fire = async (job: "replies" | "followups" | "refresh") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -42,11 +42,15 @@ export async function register() {
 
   const HOUR = 60 * 60 * 1000;
   let lastFollowUpDay = "";
+  let tickCount = 0;
 
-  // One tick per hour: always poll replies; once per day around 08:00 also run
-  // the follow-up sequence (guarded so it fires at most once that day).
+  // One tick per hour: always poll replies; every 4th tick refresh jobs from all
+  // sources for the candidates' occupations (new vacancies land intraday); once
+  // per day around 08:00 run the follow-up sequence.
   const tick = () => {
     void fire("replies");
+    if (tickCount % 4 === 0) void fire("refresh");
+    tickCount++;
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     if (now.getHours() === 8 && lastFollowUpDay !== today) {
@@ -59,5 +63,5 @@ export async function register() {
   setTimeout(tick, 30_000);
   setInterval(tick, HOUR);
 
-  console.log("[scheduler] in-process scheduler started (replies hourly, follow-ups ~08:00)");
+  console.log("[scheduler] started (replies hourly, job refresh every 4h, follow-ups ~08:00)");
 }
