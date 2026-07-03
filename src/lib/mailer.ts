@@ -22,11 +22,74 @@ export interface SendMailParams {
 }
 
 export interface SendMailResult {
-  provider: "resend" | "smtp";
+  provider: "resend" | "smtp" | "gmail";
   id: string | null;
 }
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
+
+/**
+ * Send via the Gmail API (HTTPS — works on Railway where raw SMTP is blocked).
+ * The mail genuinely comes FROM the Gmail account, so the recipient sees
+ * germanycareercenter1@gmail.com as the sender.
+ *
+ * Requires (Railway env): GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET,
+ * GMAIL_REFRESH_TOKEN (OAuth2, gmail.send scope), GMAIL_SENDER (the address).
+ * Note: Google caps free-account sending (~100–500/day) and Resend
+ * delivered/opened webhooks don't apply to Gmail-sent mail.
+ */
+async function sendViaGmail(params: SendMailParams): Promise<SendMailResult> {
+  const clientId = process.env.GMAIL_CLIENT_ID!;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET!;
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN!;
+  const sender = process.env.GMAIL_SENDER || "germanycareercenter1@gmail.com";
+  const fromName = process.env.MAIL_FROM_NAME || "Germany Career Center";
+
+  // 1) Refresh token → short-lived access token
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  const tokenData = (await tokenRes.json()) as { access_token?: string; error_description?: string };
+  if (!tokenRes.ok || !tokenData.access_token) {
+    throw new Error(`Gmail OAuth failed: ${tokenData.error_description || tokenRes.status}`);
+  }
+
+  // 2) Build the raw RFC822 message (nodemailer's streamTransport composes
+  //    without sending — gives us the full MIME incl. the CV attachment).
+  const composer = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: "unix" });
+  const composed = await composer.sendMail({
+    from: `${fromName} <${sender}>`,
+    to: Array.isArray(params.to) ? params.to.join(", ") : params.to,
+    replyTo: process.env.REPLY_TO || process.env.MAIL_REPLY_TO || undefined,
+    bcc: process.env.MAIL_BCC || undefined,
+    subject: params.subject,
+    text: params.text,
+    attachments: params.attachments,
+  });
+  const raw = (composed.message as Buffer).toString("base64url");
+
+  // 3) Send through the Gmail API
+  const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw }),
+  });
+  const sendData = (await sendRes.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+  if (!sendRes.ok) {
+    throw new Error(`Gmail send failed: ${sendData.error?.message || sendRes.status}`);
+  }
+  return { provider: "gmail", id: sendData.id ?? null };
+}
 
 // Send via Resend HTTPS API
 async function sendViaResend(params: SendMailParams): Promise<SendMailResult> {
@@ -111,6 +174,11 @@ async function sendViaSmtp(params: SendMailParams): Promise<SendMailResult> {
 }
 
 export async function sendMail(params: SendMailParams): Promise<SendMailResult> {
+  // Gmail API first when configured — mail then really comes FROM the Gmail
+  // address. Falls back to Resend, then raw SMTP.
+  if (process.env.GMAIL_REFRESH_TOKEN && process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET) {
+    return sendViaGmail(params);
+  }
   if (process.env.RESEND_API_KEY) {
     return sendViaResend(params);
   }
