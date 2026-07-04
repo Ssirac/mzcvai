@@ -1,6 +1,6 @@
 {
   "dashboard": {
-    "title": "Germany Career Center",
+    "title": "MZ Talent Intelligence",
     "subtitle": "Company Finder AI",
     "tonight": "Heute Nacht",
     "newEmployers": "Neue Arbeitgeber",
@@ -73,7 +73,7 @@
   },
   "login": {
     "title": "Anmeldung",
-    "subtitle": "Germany Career Center — Verwaltungskonsole",
+    "subtitle": "MZ Talent Intelligence — Verwaltungskonsole",
     "username": "Benutzername",
     "password": "Passwort",
     "signIn": "Anmelden",

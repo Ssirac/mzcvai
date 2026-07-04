@@ -112,7 +112,7 @@ export async function ingestAdzuna(opts: IngestOptions): Promise<IngestResult> {
             ...(allGermany ? {} : { where: opts.region }),
             "content-type": "application/json",
           },
-          headers: { "User-Agent": "GCC-JobFinder/1.0" },
+          headers: { "User-Agent": "MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)" },
           timeout: 15000,
         });
         resp = res.data;

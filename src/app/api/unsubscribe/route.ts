@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     await prisma.employer.update({ where: { id }, data: { optedOut: true } });
     return page(
       "Sie wurden abgemeldet",
-      "Sie erhalten keine weiteren Nachrichten von Germany Career Center. Vielen Dank."
+      "Sie erhalten keine weiteren Nachrichten von MZ Personalvermittlung. Vielen Dank."
     );
   } catch {
     return page(

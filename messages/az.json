@@ -1,6 +1,6 @@
 {
   "dashboard": {
-    "title": "Germany Career Center",
+    "title": "MZ Talent Intelligence",
     "subtitle": "Şirkət Axtarıcı AI",
     "tonight": "Bu gecə",
     "newEmployers": "Yeni işəgötürən",
@@ -73,7 +73,7 @@
   },
   "login": {
     "title": "Giriş",
-    "subtitle": "Germany Career Center — idarəetmə paneli",
+    "subtitle": "MZ Talent Intelligence — idarəetmə paneli",
     "username": "İstifadəçi adı",
     "password": "Şifrə",
     "signIn": "Daxil ol",

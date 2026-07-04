@@ -24,7 +24,7 @@ const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
  * Send a REAL-looking application email (no "Test" wording) for a candidate to
  * the given recipients, with the candidate's CV attached. The letter is written
  * for the candidate's TOP-matching employer (company name + position), sent via
- * the agency signature (Germany Career Center). Used to preview exactly what
+ * MZ Personalvermittlung with the agency signature. Used to preview exactly what
  * an employer would receive.
  */
 export async function sendCandidateTestLetter(candidateId: string, recipients: string[]): Promise<{ subject: string; sentTo: string[]; employer: string | null; body: string }> {
@@ -47,7 +47,7 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
     body = letter.body;
     employerName = match.employer.name;
   } else {
-    // No match yet — generic initiative application, still via the agency + signature
+    // No match yet — generic initiative application, still via MZ + signature
     const letter = await composeApplicationLetter(c, { name: "Ihr Unternehmen", city: null, region: null, sponsorshipSignal: "UNKNOWN" }, { title: c.beruf });
     subject = `Initiativbewerbung – ${c.name}`;
     body = letter.body;
@@ -100,37 +100,41 @@ function looksPersonal(email: string): boolean {
   return /^[a-z]+[.\-_][a-z]+$/i.test(local) && !/^(info|bewerbung|jobs|karriere|hr|personal|kontakt|post|mail|office|bewerbungen|stelle|stellen|team)$/i.test(local);
 }
 
-// Agency identity — HARDCODED (not env) so a stale AGENCY_* variable can never
-// resurface the old brand. Email comes from env because it must match the real
-// sending mailbox; update AGENCY_CONTACT_EMAIL when the new address exists.
-export const AGENCY_NAME = "Germany Career Center";
-export const AGENCY_PHONE = "+49 163 6800130";
-
 // Standard service paragraphs appended to EVERY employer letter (before the
-// signature): who the agency is, full process coverage (documents → interviews
-// → visa → start of work), and the cost-free & non-binding terms.
-function standardClosing(): string {
-  return [
-    `${AGENCY_NAME} unterstützt qualifizierte Fachkräfte bei der Vorbereitung ihrer Bewerbungsunterlagen und begleitet sie auf dem Weg zu einer Beschäftigung in Deutschland.`,
-    `Von der Vorbereitung der Bewerbungsunterlagen über die Organisation von Online-Vorstellungsgesprächen bis hin zur Unterstützung im Visumverfahren und der Begleitung des Kandidaten bis zum Arbeitsbeginn in Deutschland werden alle organisatorischen Schritte durch ${AGENCY_NAME} koordiniert.`,
-    "Für Ihr Unternehmen entstehen dadurch keinerlei Kosten, Vermittlungsgebühren oder vertragliche Verpflichtungen. Unser Service ist für Arbeitgeber vollständig kostenfrei und unverbindlich.",
-    "Gerne organisieren wir kurzfristig ein Online-Vorstellungsgespräch mit dem Kandidaten und stehen Ihnen für Rückfragen jederzeit persönlich zur Verfügung.",
-  ].join("\n\n");
+// signature): visa/process support, the cost-free & non-binding presentation +
+// first online interview, and the offer to arrange one. The visa paragraph is
+// only shown when the candidate actually needs sponsorship.
+function standardClosing(needsVisa: boolean): string {
+  const parts: string[] = [];
+  if (needsVisa) {
+    parts.push(
+      "Sollte für den Kandidaten ein Visum erforderlich sein, begleitet MZ Personalvermittlung den gesamten Bewerbungsprozess und unterstützt sowohl den Kandidaten als auch Ihr Unternehmen bei den organisatorischen Abläufen bis zum Arbeitsbeginn."
+    );
+  }
+  parts.push(
+    "Die Vorstellung des Kandidaten sowie ein erstes Online-Vorstellungsgespräch sind für Ihr Unternehmen selbstverständlich unverbindlich und kostenfrei."
+  );
+  parts.push(
+    "Gerne organisieren wir kurzfristig ein Online-Vorstellungsgespräch mit dem Kandidaten und stehen Ihnen für Rückfragen jederzeit persönlich zur Verfügung."
+  );
+  return parts.join("\n\n");
 }
 
-// Agency signature appended to EVERY letter — so the employer knows who sent it
-// and how to reply.
+// Agency signature appended to EVERY letter — so the employer knows MZ sent it
+// and how to reply. Name + phone are always shown (set AGENCY_PHONE in .env).
 export function agencySignature(candidateName: string): string {
-  const email = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "";
-  const web = process.env.AGENCY_WEBSITE || "";
+  const name = process.env.AGENCY_NAME || "MZ Personalvermittlung";
+  const phone = process.env.AGENCY_PHONE || "";
+  const email = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "info@mz-personalvermittlung.de";
+  const web = process.env.AGENCY_WEBSITE || "https://mz-personalvermittlung.de";
   return [
     "Mit freundlichen Grüßen",
     "",
-    AGENCY_NAME,
+    name,
     `– im Auftrag von ${candidateName} –`,
-    `Tel.: ${AGENCY_PHONE}`,
-    email ? `E-Mail: ${email}` : "",
-    web ? `Web: ${web}` : "",
+    phone ? `Tel.: ${phone}` : "",
+    `E-Mail: ${email}`,
+    `Web: ${web}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -148,7 +152,7 @@ export function complianceFooter(employerId?: string): string {
     "",
     "",
     "—",
-    `Diese Nachricht wurde von ${AGENCY_NAME} als geschäftliche Anfrage gesendet.`,
+    "Diese Nachricht wurde von MZ Personalvermittlung als geschäftliche Anfrage gesendet.",
     optOut,
   ].join("\n");
 }
@@ -160,7 +164,7 @@ interface LetterCandidate {
 interface LetterEmployer { name: string; city: string | null; region: string | null; sponsorshipSignal: string }
 
 // Compose a company-specific application letter (subject + body). The letter
-// names the employer + position, states it is sent via the agency
+// names the employer + position, states it is sent via MZ Personalvermittlung
 // on the candidate's behalf, and ends with the agency signature. Never says "Test".
 export async function composeApplicationLetter(
   candidate: LetterCandidate,
@@ -172,13 +176,13 @@ export async function composeApplicationLetter(
   // Excerpt of the actual job posting so the letter can address its requirements
   const jobText = (vacancy.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1500);
 
-  const prompt = `Du schreibst im Namen der Personalvermittlung "${AGENCY_NAME}" eine konkrete Bewerbung für einen Kandidaten — ZUGESCHNITTEN auf diese eine Stellenanzeige.
+  const prompt = `Du schreibst im Namen der Personalvermittlung "MZ Personalvermittlung" eine konkrete Bewerbung für einen Kandidaten — ZUGESCHNITTEN auf diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
 - Sprich den Arbeitgeber NAMENTLICH an: "${employer.name}".
 - Nenne die konkrete Stelle ausdrücklich: "${vacancy.title}".
 - Gehe auf die ANFORDERUNGEN der Stellenanzeige ein und verbinde sie mit der Erfahrung/den Fähigkeiten des Kandidaten (zeige die Passung konkret auf).
-- Mache deutlich, dass die Bewerbung über die Personalvermittlung "${AGENCY_NAME}" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an ${AGENCY_NAME} gehen.
+- Mache deutlich, dass die Bewerbung über die Personalvermittlung "MZ Personalvermittlung" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an MZ Personalvermittlung gehen.
 - Schreibe KEINE Grußformel und KEINE Unterschrift am Ende (wird separat ergänzt).
 - Erwähne NICHT die Themen Visum/Visabegleitung, Kostenfreiheit/Unverbindlichkeit der Vorstellung oder das Angebot eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
 - Verwende NIEMALS das Wort "Test".
@@ -206,7 +210,7 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
   let body = message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
   body = body.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
   body = body.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
-  body = `${body}\n\n${standardClosing()}\n\n${agencySignature(candidate.name)}`;
+  body = `${body}\n\n${standardClosing(candidate.needsSponsorship)}\n\n${agencySignature(candidate.name)}`;
   const subject = `Bewerbung als ${vacancy.title} – ${candidate.name}`;
   return { subject, body };
 }

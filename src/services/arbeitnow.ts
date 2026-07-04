@@ -126,7 +126,7 @@ export async function ingestArbeitnow(opts: IngestOptions): Promise<IngestResult
       try {
         const res = await axios.get<ArbeitnowResponse>(API_URL, {
           params: { page },
-          headers: { "User-Agent": "GCC-JobFinder/1.0" },
+          headers: { "User-Agent": "MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)" },
           timeout: 15000,
         });
         resp = res.data;

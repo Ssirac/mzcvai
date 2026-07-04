@@ -203,7 +203,7 @@ async function enrichEmployer(employerId: string, website: string, verifyCity?: 
 
   try {
     const page = await browser.newPage();
-    await page.setUserAgent("GCC-JobFinder/1.0");
+    await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de; +https://mz-personalvermittlung.de)");
     await page.setDefaultTimeout(15000);
 
     // Load homepage
@@ -414,7 +414,7 @@ async function emailFromSearch(employerName: string, domain: string | null): Pro
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
-    await page.setUserAgent("GCC-JobFinder/1.0");
+    await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)");
     await page.setDefaultTimeout(15000);
     await page.goto(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { waitUntil: "domcontentloaded" });
     const text = await page.evaluate(() => document.body.innerText);

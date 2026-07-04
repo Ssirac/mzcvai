@@ -100,7 +100,7 @@ export async function ingestCareerjet(opts: IngestOptions): Promise<IngestResult
             pagesize: 50,
             page,
             user_ip: "127.0.0.1",
-            user_agent: "GCC-JobFinder/1.0",
+            user_agent: "MZPersonal-CompanyFinder/1.0",
           },
           timeout: 15000,
         });

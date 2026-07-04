@@ -15,11 +15,11 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "Germany Career Center",
-    template: "%s · Germany Career Center",
+    default: "MZ Talent Intelligence",
+    template: "%s · MZ Talent Intelligence",
   },
-  description: "Germany Career Center — ixtisaslı işçiləri alman işəgötürənlərlə birləşdirir.",
-  applicationName: "Germany Career Center",
+  description: "Company Finder AI — MZ Personalvermittlung. Azərbaycanlı işçiləri sponsorluq edən alman işəgötürənlərlə birləşdirir.",
+  applicationName: "MZ Talent Intelligence",
   robots: { index: false, follow: false }, // internal admin tool — keep out of search engines
   formatDetection: { telephone: false, email: false, address: false },
 };
