@@ -33,6 +33,12 @@ const OPT_OUT_PHRASES = [
   "kein interesse", "nicht kontaktieren", "nicht mehr kontaktieren", "bitte abmelden", "abmelden",
   "unsubscribe", "remove us", "stop sending", "do not contact", "keine zusammenarbeit",
   "wir benötigen keine", "wir benoetigen keine", "no thanks", "kein bedarf", "keinen bedarf",
+  // "please refrain from further emails" — common formal phrasings that don't
+  // use "keine" (this is what expertum GmbH used and it slipped through).
+  "abzusehen", "von weiteren e-mails absehen", "von weiteren mails absehen",
+  "von weiteren zusendungen", "keine weiteren zusendungen", "keine e-mails mehr",
+  "keine mails mehr", "keine werbung", "werbung untersagt", "bitten wir sie, von",
+  "bitten sie, von", "verweisen nochmals", "widersprechen der nutzung",
   // Wrong-target notices ("we don't operate a restaurant", "wrong address") —
   // the listing was misattributed to this company; never contact them again.
   "betreiben kein", "betreiben keine", "falsche adresse", "falscher empfänger", "falscher empfaenger",
