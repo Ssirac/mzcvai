@@ -14,6 +14,7 @@ import { ingestArbeitnow } from "@/services/arbeitnow";
 import { ingestAdzuna } from "@/services/adzuna";
 import { ingestJooble } from "@/services/jooble";
 import { ingestCareerjet } from "@/services/careerjet";
+import { ingestJSearch } from "@/services/jsearch";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 export interface JobSource {
@@ -85,6 +86,15 @@ const careerjet: JobSource = {
   ingest: (o) => ingestCareerjet(o),
 };
 
+const jsearch: JobSource = {
+  id: "jsearch",
+  label: "JSearch / Google for Jobs (inkl. LinkedIn, Indeed, StepStone)",
+  category: "general",
+  available: () => !!process.env.RAPIDAPI_KEY,
+  unavailableReason: "RAPIDAPI_KEY erforderlich (kostenloser Plan verfügbar)",
+  ingest: (o) => ingestJSearch(o),
+};
+
 /**
  * Registry order follows the user's priority: hospitality platforms first,
  * then the big boards, then the live aggregators that already work.
@@ -105,6 +115,7 @@ export const SOURCES: JobSource[] = [
   arbeitnow,
   jooble,
   careerjet,
+  jsearch,
 ];
 
 export function getSource(id: string): JobSource | undefined {
