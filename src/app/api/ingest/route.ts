@@ -121,7 +121,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/ingest — list all source modules and their availability (for the UI)
+// GET /api/ingest — list all source modules and their availability (for the UI).
+// Also reports which source API keys the running server actually sees (booleans
+// only, never the values) so a "locked" source can be diagnosed instantly.
 export async function GET() {
   return NextResponse.json({
     sources: SOURCES.map((s) => ({
@@ -131,5 +133,12 @@ export async function GET() {
       available: s.available(),
       reason: s.available() ? null : s.unavailableReason ?? null,
     })),
+    envDetected: {
+      ADZUNA_APP_ID: !!process.env.ADZUNA_APP_ID,
+      ADZUNA_APP_KEY: !!process.env.ADZUNA_APP_KEY,
+      JOOBLE_API_KEY: !!process.env.JOOBLE_API_KEY,
+      CAREERJET_AFFID: !!process.env.CAREERJET_AFFID,
+      RAPIDAPI_KEY: !!process.env.RAPIDAPI_KEY,
+    },
   });
 }
