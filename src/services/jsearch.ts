@@ -113,7 +113,9 @@ export async function ingestJSearch(opts: IngestOptions): Promise<IngestResult> 
         });
         jobs = res.data.data ?? [];
       } catch (err) {
-        result.errors.push(`JSearch page ${page}: ${(err as Error).message}`);
+        const ax = err as { response?: { status?: number; data?: unknown }; message?: string };
+        const body = ax.response?.data ? JSON.stringify(ax.response.data).slice(0, 200) : "";
+        result.errors.push(`JSearch page ${page}: ${ax.message}${body ? ` | ${body}` : ""}`);
         break;
       }
       if (jobs.length === 0) break;
