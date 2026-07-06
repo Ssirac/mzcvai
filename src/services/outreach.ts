@@ -317,6 +317,17 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     throw new Error(`Daily outreach limit (${MAX_PER_DAY}) reached. Try again tomorrow.`);
   }
 
+  // Guard 4b: GLOBAL daily cap across ALL candidates — protects the sending
+  // domain's reputation. With many candidates auto-piloting at 20/day each, the
+  // total could spike into spam-filter territory; this caps the whole system.
+  const GLOBAL_CAP = parseInt(process.env.GLOBAL_DAILY_CAP ?? "60");
+  const sentTodayGlobal = await prisma.outreach.count({
+    where: { status: "SENT", sentAt: { gte: todayStart } },
+  });
+  if (sentTodayGlobal >= GLOBAL_CAP) {
+    throw new Error(`Daily outreach limit (global ${GLOBAL_CAP}) reached. Try again tomorrow.`);
+  }
+
   // Guard 5: Cooldown — same employer within COOLDOWN_DAYS, scoped PER CANDIDATE.
   // Different candidates are different people, so each may apply to the same
   // employer independently; only the SAME candidate is stopped from being sent

@@ -4,6 +4,7 @@ import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies } from "@/services/cleanup";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
+import { runAutoSend } from "@/services/autopilot";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -80,8 +81,13 @@ export async function POST(req: NextRequest) {
       log.followups = await runFollowUps();
     }
     // Intraday job refresh — new vacancies land within hours, not next day.
+    // Auto-pilot then sends applications for the fresh matches immediately.
     if (job === "refresh") {
       log.refresh = await refreshJobs();
+      log.autoSend = await runAutoSend();
+    }
+    if (job === "autosend") {
+      log.autoSend = await runAutoSend();
     }
     return NextResponse.json({ ok: true, job, ...log });
   } catch (err) {

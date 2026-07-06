@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoIngestForBeruf } from "@/services/autoIngest";
+import { sendAllForCandidate } from "@/services/outreach";
 
 // GET /api/candidates
 export async function GET() {
@@ -152,6 +153,23 @@ export async function POST(req: NextRequest) {
       autoIngest = await autoIngestForBeruf(profile, region);
       if (autoIngest.vacanciesNew > 0) {
         matchResult = await matchCandidateToVacancies(candidate.id);
+      }
+    }
+
+    // Auto-pilot: once the candidate is saved WITH a CV on file, applications to
+    // their matched jobs go out automatically in the background (all daily caps,
+    // cooldowns and opt-outs enforced in the send path). Fire-and-forget so the
+    // save request returns immediately; Railway runs a persistent server, so the
+    // background work completes after the response.
+    if (process.env.AUTO_SEND_ENABLED !== "false" && candidate.status === "ACTIVE") {
+      const hasCv = await prisma.candidate.findUnique({
+        where: { id: candidate.id },
+        select: { cvData: true },
+      });
+      if (hasCv?.cvData) {
+        void sendAllForCandidate(candidate.id, "auto-pilot").catch((e) =>
+          console.error("[auto-pilot] send after save failed:", (e as Error).message)
+        );
       }
     }
 

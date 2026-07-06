@@ -10,6 +10,7 @@ import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/s
 import { availableSources } from "@/services/sources/registry";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
+import { runAutoSend } from "@/services/autopilot";
 import { deletePartTimeVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { prisma } from "@/lib/prisma";
@@ -90,6 +91,19 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         log.push(`Match ${candidate.name} FAILED: ${(err as Error).message}`);
       }
+    }
+
+    // Step 4b: Auto-pilot — send applications for the newly matched jobs
+    // (per-candidate + global daily caps, cooldown, opt-out all enforced).
+    try {
+      const a = await runAutoSend();
+      log.push(
+        a.disabled
+          ? "Auto-send: disabled (AUTO_SEND_ENABLED=false)"
+          : `Auto-send: ${a.sent} sent across ${a.candidates} candidates (${a.skipped} skipped)${a.capReached ? " — global cap reached" : ""}`
+      );
+    } catch (err) {
+      log.push(`Auto-send FAILED: ${(err as Error).message}`);
     }
 
     // Step 5: Delete stale vacancies (30+ days old). Keep any tied to a SENT
