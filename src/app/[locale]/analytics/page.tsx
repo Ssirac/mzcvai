@@ -18,17 +18,17 @@ interface Analytics {
 
 function Stat({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-2xl font-bold mt-1 ${color ?? "text-white"}`}>{value}</div>
-      {sub && <div className="text-xs text-gray-500 mt-0.5">{sub}</div>}
+    <div className="bg-card border border-line rounded-2xl p-4">
+      <div className="text-xs text-ink-3">{label}</div>
+      <div className={`text-2xl font-bold mt-1 ${color ?? "text-ink"}`}>{value}</div>
+      {sub && <div className="text-xs text-ink-3 mt-0.5">{sub}</div>}
     </div>
   );
 }
 
 function Bar({ rate }: { rate: number }) {
   return (
-    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden w-full">
+    <div className="h-1.5 bg-card-2 rounded-full overflow-hidden w-full">
       <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(rate, 100)}%` }} />
     </div>
   );
@@ -37,18 +37,18 @@ function Bar({ rate }: { rate: number }) {
 function Table({ title, rows, labelKey }: { title: string; rows: Row[]; labelKey: "name" | "key" }) {
   if (rows.length === 0) return null;
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
+    <div className="bg-card border border-line rounded-2xl p-4">
+      <h3 className="text-sm font-semibold text-ink mb-3">{title}</h3>
       <div className="space-y-2.5">
         {rows.map((r) => (
           <div key={r.key} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 items-center">
             <div className="min-w-0">
-              <div className="text-sm text-gray-200 truncate">{labelKey === "name" ? r.name : r.key}</div>
+              <div className="text-sm text-ink truncate">{labelKey === "name" ? r.name : r.key}</div>
               <Bar rate={r.replyRate} />
             </div>
             <div className="text-right text-xs whitespace-nowrap">
               <span className="text-green-400 font-semibold">{r.replyRate}%</span>
-              <span className="text-gray-500"> · {r.replied}/{r.sent}</span>
+              <span className="text-ink-3"> · {r.replied}/{r.sent}</span>
             </div>
           </div>
         ))}
@@ -73,15 +73,15 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-surface">
       <TopNav active="analytics" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
-        <h1 className="text-xl font-bold text-white">Analitika</h1>
+        <h1 className="text-xl font-bold text-ink">Analitika</h1>
 
         {loading ? (
-          <div className="text-gray-500 text-sm">Yüklənir...</div>
+          <div className="text-ink-3 text-sm">Yüklənir...</div>
         ) : !data?.funnel || data.funnel.sent === 0 ? (
-          <div className="text-gray-500 text-sm bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <div className="text-ink-3 text-sm bg-card border border-line rounded-2xl p-6">
             Hələ göndərilmiş müraciət yoxdur. Müraciət göndərdikcə statistika burada görünəcək.
           </div>
         ) : (
@@ -110,7 +110,7 @@ export default function AnalyticsPage() {
               <Table title="Namizəd üzrə cavab faizi" rows={data.byCandidate} labelKey="name" />
             </div>
 
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-ink-3">
               Cavab faizi = cavab verən işəgötürənlər / göndərilən müraciətlər. Açılma izləmə Resend tracking subdomain aktivləşəndən sonra dəqiqləşir.
             </p>
           </>

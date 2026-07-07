@@ -131,7 +131,7 @@ function initials(name: string) {
 const SIGNAL_COLOR: Record<string, string> = {
   YES: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40",
   LIKELY: "bg-blue-500/20 text-blue-300 border border-blue-500/40",
-  UNKNOWN: "bg-gray-600/30 text-gray-400 border border-gray-600/40",
+  UNKNOWN: "bg-line-strong/30 text-ink-2 border border-line-strong/40",
   NO: "bg-red-500/20 text-red-400 border border-red-500/40",
 };
 
@@ -139,14 +139,14 @@ const STATUS_COLOR: Record<string, string> = {
   ACTIVE: "bg-blue-500/20 text-blue-300 border border-blue-500/40",
   PENDING: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40",
   PLACED: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40",
-  ARCHIVED: "bg-gray-600/30 text-gray-400 border border-gray-600/40",
+  ARCHIVED: "bg-line-strong/30 text-ink-2 border border-line-strong/40",
 };
 
 const STATUS_ORDER: Record<string, number> = { ACTIVE: 0, PENDING: 1, PLACED: 2, ARCHIVED: 3 };
 const STATUS_OPTIONS = ["ACTIVE", "PENDING", "PLACED", "ARCHIVED"] as const;
 
 const SCORE_COLOR = (s: number) =>
-  s >= 80 ? "text-emerald-400" : s >= 60 ? "text-blue-400" : s >= 40 ? "text-yellow-400" : "text-gray-400";
+  s >= 80 ? "text-emerald-400" : s >= 60 ? "text-blue-400" : s >= 40 ? "text-yellow-400" : "text-ink-2";
 
 const BLANK_FORM = {
   name: "", email: "", phone: "", beruf: "Housekeeping",
@@ -163,10 +163,10 @@ const BLANK_FORM = {
   education: [] as EducationRow[],
 };
 
-const inputCls = "w-full bg-gray-800 text-white rounded px-3 py-2 text-sm mt-1 border border-transparent focus:border-blue-500 focus:outline-none";
-const labelCls = "text-xs text-gray-500";
-const cardCls = "bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3";
-const sectionTitle = "text-sm font-semibold text-gray-400 uppercase tracking-wide";
+const inputCls = "w-full bg-card-2 text-ink rounded px-3 py-2 text-sm mt-1 border border-transparent focus:border-blue-500 focus:outline-none";
+const labelCls = "text-xs text-ink-3";
+const cardCls = "bg-card border border-line rounded-2xl p-4 space-y-3";
+const sectionTitle = "text-sm font-semibold text-ink-2 uppercase tracking-wide";
 
 export default function CandidatesPage() {
   const { locale } = useParams() as { locale: string };
@@ -738,12 +738,12 @@ export default function CandidatesPage() {
     .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="min-h-screen bg-surface text-ink">
       <TopNav active="candidates" />
 
       {/* Sub-header */}
-      <div className="border-b border-gray-800 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
-        <span className="font-semibold text-white text-sm">{t("title")}</span>
+      <div className="border-b border-line px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+        <span className="font-semibold text-ink text-sm">{t("title")}</span>
         <button
           onClick={startNewCandidate}
           className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium"
@@ -754,20 +754,20 @@ export default function CandidatesPage() {
 
       <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-110px)]">
         {/* Left — candidate list */}
-        <div className={`w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-gray-800 overflow-y-auto p-3 space-y-1 shrink-0 ${mobileView === "detail" ? "hidden lg:block" : ""}`}>
+        <div className={`w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-line overflow-y-auto p-3 space-y-1 shrink-0 ${mobileView === "detail" ? "hidden lg:block" : ""}`}>
           {/* Search + status filter / sort */}
           {candidates.length > 0 && (
-            <div className="pb-2 mb-1 border-b border-gray-800 sticky top-0 bg-gray-950 z-10 space-y-2">
+            <div className="pb-2 mb-1 border-b border-line sticky top-0 bg-surface z-10 space-y-2">
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3 text-xs">🔍</span>
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t("searchPlaceholder")}
-                  className="w-full bg-gray-900 text-white rounded-lg pl-7 pr-7 py-1.5 text-xs border border-gray-700 focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-card text-ink rounded-lg pl-7 pr-7 py-1.5 text-xs border border-line-strong focus:border-blue-500 focus:outline-none"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs">✕</button>
+                  <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink text-xs">✕</button>
                 )}
               </div>
               <div className="flex flex-wrap gap-1">
@@ -775,29 +775,29 @@ export default function CandidatesPage() {
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
-                    className={`px-2 py-1 rounded text-[11px] font-medium ${statusFilter === s ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
+                    className={`px-2 py-1 rounded text-[11px] font-medium ${statusFilter === s ? "bg-blue-600 text-white" : "bg-card-2 text-ink-2 hover:bg-line"}`}
                   >
                     {s === "ALL" ? t("filterAll") : t(`status${s}`)}
                   </button>
                 ))}
               </div>
-              <div className="text-[10px] text-gray-600">{t("candidateCount", { shown: visibleCandidates.length, total: candidates.length })}</div>
+              <div className="text-[10px] text-ink-3">{t("candidateCount", { shown: visibleCandidates.length, total: candidates.length })}</div>
             </div>
           )}
           {candidates.length === 0 && (
-            <div className="text-gray-500 text-sm p-3">{t("noCandidates")}</div>
+            <div className="text-ink-3 text-sm p-3">{t("noCandidates")}</div>
           )}
           {candidates.length > 0 && visibleCandidates.length === 0 && (
-            <div className="text-gray-500 text-xs p-3">{t("noSearchResults")}</div>
+            <div className="text-ink-3 text-xs p-3">{t("noSearchResults")}</div>
           )}
           {visibleCandidates.map((c) => (
             <button
               key={c.id}
               onClick={() => selectCandidate(c.id)}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${selectedId === c.id ? "bg-blue-600/20 border border-blue-600/40" : "hover:bg-gray-800/50"}`}
+              className={`w-full text-left p-3 rounded-lg transition-colors ${selectedId === c.id ? "bg-blue-600/20 border border-blue-600/40" : "hover:bg-card-2/50"}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-white text-sm truncate flex items-center gap-1.5">
+                <span className="font-medium text-ink text-sm truncate flex items-center gap-1.5">
                   {c.name}
                   {unreadByCandidate[c.id] > 0 && (
                     <span className="shrink-0 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold" title={`${unreadByCandidate[c.id]} yeni cavab`}>
@@ -807,13 +807,13 @@ export default function CandidatesPage() {
                 </span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${STATUS_COLOR[c.status]}`}>{t(`status${c.status}`)}</span>
               </div>
-              <div className="text-xs text-gray-400 mt-0.5">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
+              <div className="text-xs text-ink-2 mt-0.5">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
               {(c.currentCity || c.phone) && (
-                <div className="text-xs text-gray-600 mt-0.5 truncate">
+                <div className="text-xs text-ink-3 mt-0.5 truncate">
                   {[c.currentCity, c.phone].filter(Boolean).join(" · ")}
                 </div>
               )}
-              <div className="text-xs text-gray-500 mt-0.5">
+              <div className="text-xs text-ink-3 mt-0.5">
                 {t("matchCount", { count: c._count.matches })}
                 {c.needsSponsorship && <span className="ml-2 text-yellow-500">{t("needsSponsorshipShort")}</span>}
               </div>
@@ -825,7 +825,7 @@ export default function CandidatesPage() {
         <div className={`flex-1 overflow-y-auto p-4 sm:p-6 ${mobileView === "list" ? "hidden lg:block" : ""}`}>
           <button
             onClick={() => setMobileView("list")}
-            className="lg:hidden mb-4 flex items-center gap-1.5 text-sm text-gray-400 hover:text-white"
+            className="lg:hidden mb-4 flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink"
           >
             {t("backToList")}
           </button>
@@ -833,14 +833,14 @@ export default function CandidatesPage() {
           {/* Add candidate form */}
           {showForm && (
             <div className="max-w-3xl mx-auto lg:mx-0">
-              <h2 className="text-lg font-bold text-white mb-5">{t("cvData")}</h2>
+              <h2 className="text-lg font-bold text-ink mb-5">{t("cvData")}</h2>
 
               {/* CV import → Claude auto-fills the form (PDF or pasted text) */}
               <div className="mb-4 bg-gradient-to-r from-blue-600/15 to-purple-600/15 border border-blue-600/30 rounded-xl p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white">✨ {t("uploadCV")}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{t("uploadHint")}</div>
+                    <div className="text-sm font-semibold text-ink">✨ {t("uploadCV")}</div>
+                    <div className="text-xs text-ink-2 mt-0.5">{t("uploadHint")}</div>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <label className={`cursor-pointer ${parsingCV ? "opacity-60 pointer-events-none" : ""} bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm px-4 py-2.5 rounded-lg font-medium text-center`}>
@@ -857,7 +857,7 @@ export default function CandidatesPage() {
                       type="button"
                       onClick={() => setShowPaste((v) => !v)}
                       disabled={parsingCV}
-                      className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 text-sm px-4 py-2.5 rounded-lg font-medium disabled:opacity-60"
+                      className="bg-card-2 hover:bg-line border border-line-strong text-ink text-sm px-4 py-2.5 rounded-lg font-medium disabled:opacity-60"
                     >
                       📋 {t("pasteText")}
                     </button>
@@ -871,7 +871,7 @@ export default function CandidatesPage() {
                       onChange={(e) => setCvText(e.target.value)}
                       rows={6}
                       placeholder={t("pasteHint")}
-                      className="w-full bg-gray-900 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:border-blue-500 focus:outline-none resize-y"
+                      className="w-full bg-card text-ink rounded-lg px-3 py-2 text-sm border border-line-strong focus:border-blue-500 focus:outline-none resize-y"
                     />
                     <div className="flex justify-end gap-2">
                       <button
@@ -896,9 +896,9 @@ export default function CandidatesPage() {
                       )}
                     </span>
                   ) : (
-                    <span className="text-gray-500">{t("noCvYet")}</span>
+                    <span className="text-ink-3">{t("noCvYet")}</span>
                   )}
-                  <label className="cursor-pointer text-gray-400 hover:text-white underline">
+                  <label className="cursor-pointer text-ink-2 hover:text-ink underline">
                     {existingCvName ? t("replaceCv") : t("attachCv")}
                     <input type="file" accept="application/pdf" className="hidden"
                       onChange={(e) => { const f = e.target.files?.[0]; if (f) attachCvOnly(f); e.target.value = ""; }} />
@@ -912,14 +912,14 @@ export default function CandidatesPage() {
                 {editingId && (
                   <div className={`${cardCls} sm:flex sm:items-center sm:justify-between gap-3 space-y-3 sm:space-y-0`}>
                     <div>
-                      <label className="text-xs text-gray-500 block mb-1.5">{t("statusLabel")}</label>
+                      <label className="text-xs text-ink-3 block mb-1.5">{t("statusLabel")}</label>
                       <div className="flex flex-wrap gap-2">
                         {STATUS_OPTIONS.map((s) => (
                           <button
                             key={s}
                             type="button"
                             onClick={() => set("status", s)}
-                            className={`px-3 py-1.5 rounded text-xs font-medium border ${form.status === s ? STATUS_COLOR[s] : "bg-gray-800 text-gray-400 border-transparent hover:bg-gray-700"}`}
+                            className={`px-3 py-1.5 rounded text-xs font-medium border ${form.status === s ? STATUS_COLOR[s] : "bg-card-2 text-ink-2 border-transparent hover:bg-line"}`}
                           >
                             {t(`status${s}`)}
                           </button>
@@ -1010,11 +1010,11 @@ export default function CandidatesPage() {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-white">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-ink">
                       <input type="checkbox" checked={form.needsSponsorship} onChange={(e) => set("needsSponsorship", e.target.checked)} className="w-4 h-4" />
                       {t("needsSponsorship")}
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-white">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-ink">
                       <input type="checkbox" checked={form.willingToRelocate} onChange={(e) => set("willingToRelocate", e.target.checked)} className="w-4 h-4" />
                       {t("willingToRelocate")}
                     </label>
@@ -1026,7 +1026,7 @@ export default function CandidatesPage() {
                   <h3 className={sectionTitle}>{t("professionalInfo")}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className={labelCls}>{t("occupation")} * <span className="text-gray-600">({t("occupationManual")})</span></label>
+                      <label className={labelCls}>{t("occupation")} * <span className="text-ink-3">({t("occupationManual")})</span></label>
                       <input list="cand-beruf" value={form.beruf} onChange={(e) => set("beruf", e.target.value)} className={inputCls} placeholder="Schweißer, Pflege..." />
                       <datalist id="cand-beruf">{BERUF_LIST.map((b) => <option key={b} value={b} />)}</datalist>
                     </div>
@@ -1040,11 +1040,11 @@ export default function CandidatesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1.5">{t("preferredRegions")}</label>
+                    <label className="text-xs text-ink-3 block mb-1.5">{t("preferredRegions")}</label>
                     <div className="flex flex-wrap gap-2">
                       {REGIONS_DE.map((r) => (
                         <button key={r} onClick={() => toggleArr("regionPrefs", r)} type="button"
-                          className={`px-2.5 py-1.5 rounded text-xs font-medium ${form.regionPrefs.includes(r) ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>
+                          className={`px-2.5 py-1.5 rounded text-xs font-medium ${form.regionPrefs.includes(r) ? "bg-blue-600 text-white" : "bg-card-2 text-ink-2 hover:bg-line"}`}>
                           {r === "Deutschland" ? t("allGermany") : r}
                         </button>
                       ))}
@@ -1062,10 +1062,10 @@ export default function CandidatesPage() {
                     <h3 className={sectionTitle}>{t("workExperience")}</h3>
                     <button type="button" onClick={addExp} className="text-xs text-blue-400 hover:text-blue-300">{t("addEntry")}</button>
                   </div>
-                  {form.experience.length === 0 && <div className="text-xs text-gray-600">{t("noExperience")}</div>}
+                  {form.experience.length === 0 && <div className="text-xs text-ink-3">{t("noExperience")}</div>}
                   {form.experience.map((exp, i) => (
-                    <div key={i} className="bg-gray-800/40 rounded-lg p-3 space-y-2 relative">
-                      <button type="button" onClick={() => delExp(i)} className="absolute top-2 right-2 text-gray-500 hover:text-red-400 text-xs">{t("delete")}</button>
+                    <div key={i} className="bg-card-2/40 rounded-lg p-3 space-y-2 relative">
+                      <button type="button" onClick={() => delExp(i)} className="absolute top-2 right-2 text-ink-3 hover:text-red-400 text-xs">{t("delete")}</button>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input value={exp.company} onChange={(e) => updExp(i, "company", e.target.value)} className={inputCls} placeholder={t("company")} />
                         <input value={exp.title} onChange={(e) => updExp(i, "title", e.target.value)} className={inputCls} placeholder={t("position")} />
@@ -1083,10 +1083,10 @@ export default function CandidatesPage() {
                     <h3 className={sectionTitle}>{t("education")}</h3>
                     <button type="button" onClick={addEdu} className="text-xs text-blue-400 hover:text-blue-300">{t("addEntry")}</button>
                   </div>
-                  {form.education.length === 0 && <div className="text-xs text-gray-600">{t("noEducation")}</div>}
+                  {form.education.length === 0 && <div className="text-xs text-ink-3">{t("noEducation")}</div>}
                   {form.education.map((edu, i) => (
-                    <div key={i} className="bg-gray-800/40 rounded-lg p-3 space-y-2 relative">
-                      <button type="button" onClick={() => delEdu(i)} className="absolute top-2 right-2 text-gray-500 hover:text-red-400 text-xs">{t("delete")}</button>
+                    <div key={i} className="bg-card-2/40 rounded-lg p-3 space-y-2 relative">
+                      <button type="button" onClick={() => delEdu(i)} className="absolute top-2 right-2 text-ink-3 hover:text-red-400 text-xs">{t("delete")}</button>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input value={edu.school} onChange={(e) => updEdu(i, "school", e.target.value)} className={inputCls} placeholder={t("school")} />
                         <input value={edu.degree} onChange={(e) => updEdu(i, "degree", e.target.value)} className={inputCls} placeholder={t("degree")} />
@@ -1112,11 +1112,11 @@ export default function CandidatesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1.5">{t("otherLanguages")}</label>
+                    <label className="text-xs text-ink-3 block mb-1.5">{t("otherLanguages")}</label>
                     <div className="flex flex-wrap gap-2">
                       {["az", "en", "ru", "tr", "ar", "uk", "fa"].map((l) => (
                         <button key={l} onClick={() => toggleArr("languages", l)} type="button"
-                          className={`px-2.5 py-1.5 rounded text-xs font-medium uppercase ${form.languages.includes(l) ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>
+                          className={`px-2.5 py-1.5 rounded text-xs font-medium uppercase ${form.languages.includes(l) ? "bg-blue-600 text-white" : "bg-card-2 text-ink-2 hover:bg-line"}`}>
                           {l}
                         </button>
                       ))}
@@ -1155,7 +1155,7 @@ export default function CandidatesPage() {
                     {saving ? t("saving") : t("save")}
                   </button>
                   <button onClick={() => { setShowForm(false); setSaveMsg(null); setEditingId(null); }}
-                    className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm">
+                    className="bg-card-2 hover:bg-line text-ink-2 px-4 py-2.5 rounded-lg text-sm">
                     {t("cancel")}
                   </button>
                 </div>
@@ -1167,23 +1167,23 @@ export default function CandidatesPage() {
           {selectedCandidate && !showForm && (
             <div>
               {/* Profile header */}
-              <div className="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-900/30 border border-gray-800 rounded-2xl p-5 mb-5">
+              <div className="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-900/30 border border-line rounded-2xl p-5 mb-5">
                 <div className="flex items-start gap-4">
                   <div className={`shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${avatarGradient(selectedCandidate.name)} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
                     {initials(selectedCandidate.name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl font-bold text-white truncate">{selectedCandidate.name}</h2>
+                      <h2 className="text-xl font-bold text-ink truncate">{selectedCandidate.name}</h2>
                       <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${STATUS_COLOR[selectedCandidate.status]}`}>{t(`status${selectedCandidate.status}`)}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-gray-800 text-gray-200 border border-gray-700/60 font-medium">{selectedCandidate.beruf}</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-gray-800 text-gray-300 border border-gray-700/60">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-card-2 text-ink border border-line-strong/60 font-medium">{selectedCandidate.beruf}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-card-2 text-ink-2 border border-line-strong/60">
                         {selectedCandidate.regionPrefs.length > 0 ? selectedCandidate.regionPrefs.join(", ") : t("allGermany")}
                       </span>
                       {selectedCandidate.languages.map((l) => (
-                        <span key={l} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-gray-800 text-gray-400 border border-gray-700/60 uppercase">{l}</span>
+                        <span key={l} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-card-2 text-ink-2 border border-line-strong/60 uppercase">{l}</span>
                       ))}
                       {selectedCandidate.needsSponsorship && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">★ {t("needsSponsorshipShort")}</span>
@@ -1192,12 +1192,12 @@ export default function CandidatesPage() {
                   {(selectedCandidate.phone || selectedCandidate.email) && (
                     <div className="mt-2 flex flex-wrap gap-4 text-xs">
                       {selectedCandidate.phone && (
-                        <a href={`tel:${selectedCandidate.phone}`} className="flex items-center gap-1 text-gray-400 hover:text-white">
+                        <a href={`tel:${selectedCandidate.phone}`} className="flex items-center gap-1 text-ink-2 hover:text-ink">
                           📞 {selectedCandidate.phone}
                         </a>
                       )}
                       {selectedCandidate.email && (
-                        <a href={`mailto:${selectedCandidate.email}`} className="flex items-center gap-1 text-gray-400 hover:text-white">
+                        <a href={`mailto:${selectedCandidate.email}`} className="flex items-center gap-1 text-ink-2 hover:text-ink">
                           ✉️ {selectedCandidate.email}
                         </a>
                       )}
@@ -1208,48 +1208,48 @@ export default function CandidatesPage() {
                     <select
                       value={selectedCandidate.status}
                       onChange={(e) => changeStatus(selectedCandidate.id, e.target.value)}
-                      className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 border border-gray-700"
+                      className="bg-card-2 text-ink text-xs rounded-lg px-2.5 py-1.5 border border-line-strong"
                     >
                       {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{t(`status${s}`)}</option>)}
                     </select>
                     <div className="flex gap-1.5">
                       <button onClick={sendTestLetter} disabled={testLetterLoading} className="text-xs text-violet-300 hover:text-violet-200 bg-violet-900/20 hover:bg-violet-900/40 disabled:opacity-50 px-3 py-1.5 rounded-lg">{testLetterLoading ? t("preparing") : t("testLetter")}</button>
-                      <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg">{t("edit")}</button>
+                      <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line px-3 py-1.5 rounded-lg">{t("edit")}</button>
                       <button onClick={() => deleteCandidate(selectedCandidate.id)} className="text-xs text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 px-3 py-1.5 rounded-lg">{t("deleteCandidate")}</button>
                     </div>
                   </div>
                 </div>
                 {/* Quick stats */}
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-4 pt-4 border-t border-gray-800">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-4 pt-4 border-t border-line">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-emerald-400">{matches.length}</span>
-                    <span className="text-xs text-gray-500">{t("statMatches")}</span>
+                    <span className="text-xs text-ink-3">{t("statMatches")}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-blue-400">{comms.filter((c) => c.status === "SENT" || c.sentAt).length}</span>
-                    <span className="text-xs text-gray-500">{t("statSent")}</span>
+                    <span className="text-xs text-ink-3">{t("statSent")}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-green-400">{comms.filter((c) => c.status === "REPLIED" || c.repliedAt).length}</span>
-                    <span className="text-xs text-gray-500">{t("commReplied")}</span>
+                    <span className="text-xs text-ink-3">{t("commReplied")}</span>
                   </div>
                   {/* Mobile actions */}
                   <div className="sm:hidden w-full flex items-center gap-1.5 pt-1">
                     <select
                       value={selectedCandidate.status}
                       onChange={(e) => changeStatus(selectedCandidate.id, e.target.value)}
-                      className="bg-gray-800 text-white text-xs rounded-lg px-2 py-1.5 border border-gray-700 flex-1"
+                      className="bg-card-2 text-ink text-xs rounded-lg px-2 py-1.5 border border-line-strong flex-1"
                     >
                       {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{t(`status${s}`)}</option>)}
                     </select>
-                    <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg shrink-0">{t("edit")}</button>
+                    <button onClick={() => startEdit(selectedCandidate.id)} className="text-xs text-ink-2 bg-card-2 px-3 py-1.5 rounded-lg shrink-0">{t("edit")}</button>
                     <button onClick={() => deleteCandidate(selectedCandidate.id)} className="text-xs text-red-400 bg-red-900/20 px-3 py-1.5 rounded-lg shrink-0">✕</button>
                   </div>
                 </div>
               </div>
 
               {/* Tabs */}
-              <div className="flex gap-1 border-b border-gray-800 mb-4">
+              <div className="flex gap-1 border-b border-line mb-4">
                 {([
                   ["matches", t("tabMatches"), pendingMatches.length],
                   ["comms", t("tabComms"), comms.length],
@@ -1258,10 +1258,10 @@ export default function CandidatesPage() {
                   <button
                     key={key}
                     onClick={() => setActiveTab(key)}
-                    className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === key ? "text-white" : "text-gray-500 hover:text-gray-300"}`}
+                    className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === key ? "text-ink" : "text-ink-3 hover:text-ink-2"}`}
                   >
                     {label}
-                    <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded ${activeTab === key ? "bg-blue-600/30 text-blue-200" : "bg-gray-800 text-gray-500"}`}>{count}</span>
+                    <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded ${activeTab === key ? "bg-blue-600/30 text-blue-200" : "bg-card-2 text-ink-3"}`}>{count}</span>
                     {activeTab === key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />}
                   </button>
                 ))}
@@ -1270,17 +1270,17 @@ export default function CandidatesPage() {
               {/* Matches tab */}
               {activeTab === "matches" && (
                 matchesLoading ? (
-                  <div className="text-gray-500 text-sm">{t("searching")}</div>
+                  <div className="text-ink-3 text-sm">{t("searching")}</div>
                 ) : pendingMatches.length === 0 ? (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
-                    <div className="text-gray-400 text-sm mb-3">{comms.length > 0 ? t("allSent") : t("noVacancyTitle")}</div>
-                    <div className="text-gray-500 text-xs">{comms.length > 0 ? t("allSentHint") : t("noVacancyHint")}</div>
+                  <div className="bg-card border border-line rounded-2xl p-8 text-center">
+                    <div className="text-ink-2 text-sm mb-3">{comms.length > 0 ? t("allSent") : t("noVacancyTitle")}</div>
+                    <div className="text-ink-3 text-xs">{comms.length > 0 ? t("allSentHint") : t("noVacancyHint")}</div>
                   </div>
                 ) : (
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                        <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer select-none">
                           <input
                             type="checkbox"
                             checked={selectedMatchIds.size === pendingMatches.length && pendingMatches.length > 0}
@@ -1296,7 +1296,7 @@ export default function CandidatesPage() {
                               key={n}
                               onClick={() => selectFirstN(n)}
                               disabled={pendingMatches.length === 0}
-                              className="text-xs px-2 py-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40"
+                              className="text-xs px-2 py-1 rounded-md bg-card-2 text-ink-2 hover:bg-line disabled:opacity-40"
                             >
                               {n}
                             </button>
@@ -1304,21 +1304,21 @@ export default function CandidatesPage() {
                           {selectedMatchIds.size > 0 && (
                             <button
                               onClick={() => setSelectedMatchIds(new Set())}
-                              className="text-xs px-2 py-1 rounded-md text-gray-500 hover:text-gray-300"
+                              className="text-xs px-2 py-1 rounded-md text-ink-3 hover:text-ink-2"
                             >
                               ✕
                             </button>
                           )}
                         </div>
-                        <div className="text-sm text-gray-400">
-                          <span className="text-white font-bold text-lg">{pendingMatches.length}</span> {t("found")}
+                        <div className="text-sm text-ink-2">
+                          <span className="text-ink font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
                         <button
                           onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
-                          className="bg-gray-800 hover:bg-gray-700 active:bg-gray-900 disabled:opacity-50 text-gray-200 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          className="bg-card-2 hover:bg-line active:bg-card disabled:opacity-50 text-ink text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
                         >
                           {enrichingMatches ? (
                             <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("findingEmails")}</>
@@ -1346,7 +1346,7 @@ export default function CandidatesPage() {
                         const jobLink = m.vacancy.url
                           || (m.vacancy.applyValue && /^https?:\/\//.test(m.vacancy.applyValue) ? m.vacancy.applyValue : null);
                         return (
-                          <div key={m.id} className={`group bg-gray-900 border rounded-2xl p-4 transition-colors ${selectedMatchIds.has(m.id) ? "border-emerald-600/60" : "border-gray-800 hover:border-gray-700"}`}>
+                          <div key={m.id} className={`group bg-card border rounded-2xl p-4 transition-colors ${selectedMatchIds.has(m.id) ? "border-emerald-600/60" : "border-line hover:border-line-strong"}`}>
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                               <input
                                 type="checkbox"
@@ -1356,37 +1356,37 @@ export default function CandidatesPage() {
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-semibold text-white">{m.employer.name}</span>
+                                  <span className="font-semibold text-ink">{m.employer.name}</span>
                                   {m.employer.stars && <span className="text-amber-400 text-xs">{"★".repeat(m.employer.stars)}</span>}
                                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SIGNAL_COLOR[m.employer.sponsorshipSignal]}`}>
                                     {m.employer.sponsorshipSignal === "YES" ? t("sponsorshipYes") :
                                       m.employer.sponsorshipSignal === "LIKELY" ? t("sponsorshipLikely") :
                                         m.employer.sponsorshipSignal === "NO" ? t("sponsorshipNo") : t("sponsorshipUnknown")}
                                   </span>
-                                  {m.vacancy.source && <span className="text-[10px] text-gray-600 uppercase tracking-wide">{m.vacancy.source}</span>}
+                                  {m.vacancy.source && <span className="text-[10px] text-ink-3 uppercase tracking-wide">{m.vacancy.source}</span>}
                                 </div>
-                                <div className="text-sm text-gray-400 mt-0.5">
+                                <div className="text-sm text-ink-2 mt-0.5">
                                   {m.employer.city}, {m.employer.region} · {m.vacancy.title}
                                 </div>
 
                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-gray-500 w-24">{t("totalScore")}</span>
-                                    <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                                    <span className="text-ink-3 w-24">{t("totalScore")}</span>
+                                    <div className="flex-1 bg-card-2 rounded-full h-1.5">
                                       <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${m.employer.score}%` }} />
                                     </div>
                                     <span className={`font-bold w-6 text-right ${SCORE_COLOR(m.employer.score)}`}>{m.employer.score}</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-gray-500 w-24">{t("fitScore")}</span>
-                                    <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                                    <span className="text-ink-3 w-24">{t("fitScore")}</span>
+                                    <div className="flex-1 bg-card-2 rounded-full h-1.5">
                                       <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${m.fitScore}%` }} />
                                     </div>
                                     <span className={`font-bold w-6 text-right ${SCORE_COLOR(m.fitScore)}`}>{m.fitScore}</span>
                                   </div>
                                 </div>
 
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-2">
                                   {jobLink && (
                                     <a href={jobLink} target="_blank" rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 bg-blue-600/15 text-blue-300 border border-blue-600/30 hover:bg-blue-600/25 px-2.5 py-1 rounded-md font-medium">
@@ -1401,7 +1401,7 @@ export default function CandidatesPage() {
                                         ✉ {m.employer.genericEmail}
                                       </a>
                                       {m.employer.emailSource && (
-                                        <span className="text-[9px] uppercase tracking-wide text-gray-500" title="Mənbə">
+                                        <span className="text-[9px] uppercase tracking-wide text-ink-3" title="Mənbə">
                                           {m.employer.emailSource}
                                         </span>
                                       )}
@@ -1433,7 +1433,7 @@ export default function CandidatesPage() {
                                       </a>
                                       <a href={`tel:+${phoneDigits(m.employer.phone)}`}
                                         title={`Zəng: ${m.employer.phone}`}
-                                        className="inline-flex items-center gap-1 bg-gray-700/40 text-gray-300 border border-gray-600/40 hover:bg-gray-700/60 px-2 py-1 rounded-md font-medium">
+                                        className="inline-flex items-center gap-1 bg-line/40 text-ink-2 border border-line-strong/40 hover:bg-line/60 px-2 py-1 rounded-md font-medium">
                                         <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                         {m.employer.phone}
                                       </a>
@@ -1444,7 +1444,7 @@ export default function CandidatesPage() {
 
                               <div className="shrink-0 sm:text-right">
                                 {m.outreach.some((o) => o.status === "SENT") ? (
-                                  <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR["SENT"] ?? "bg-gray-700 text-gray-300"}`}>
+                                  <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${OUTREACH_COLOR["SENT"] ?? "bg-line text-ink-2"}`}>
                                     SENT
                                   </span>
                                 ) : m.employer.optedOut ? (
@@ -1485,17 +1485,17 @@ export default function CandidatesPage() {
               {/* Communication tab — which employers were contacted, what was sent */}
               {activeTab === "comms" && (
                 commsLoading ? (
-                  <div className="text-gray-500 text-sm">{t("searching")}</div>
+                  <div className="text-ink-3 text-sm">{t("searching")}</div>
                 ) : comms.length === 0 ? (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
-                    <div className="text-gray-400 text-sm mb-2">{t("noOutreach")}</div>
-                    <div className="text-gray-500 text-xs">{t("noOutreachHint")}</div>
+                  <div className="bg-card border border-line rounded-2xl p-8 text-center">
+                    <div className="text-ink-2 text-sm mb-2">{t("noOutreach")}</div>
+                    <div className="text-ink-3 text-xs">{t("noOutreachHint")}</div>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm text-gray-400">
-                        <span className="text-white font-bold">{comms.length}</span> {t("statSent")}
+                      <div className="text-sm text-ink-2">
+                        <span className="text-ink font-bold">{comms.length}</span> {t("statSent")}
                       </div>
                       <button
                         onClick={resetOutreach}
@@ -1505,20 +1505,20 @@ export default function CandidatesPage() {
                       </button>
                     </div>
                     {comms.map((o) => (
-                      <div key={o.id} className="relative bg-gray-900 border border-gray-800 rounded-2xl pl-5 pr-4 py-4 overflow-hidden">
+                      <div key={o.id} className="relative bg-card border border-line rounded-2xl pl-5 pr-4 py-4 overflow-hidden">
                         {/* status spine */}
-                        <span className={`absolute left-0 top-0 bottom-0 w-1 ${OUTREACH_DOT[o.status] ?? "bg-gray-600"}`} />
+                        <span className={`absolute left-0 top-0 bottom-0 w-1 ${OUTREACH_DOT[o.status] ?? "bg-line-strong"}`} />
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold text-white">{o.match.employer.name}</span>
-                              <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${OUTREACH_COLOR[o.status] ?? "bg-gray-700 text-gray-300"}`}>{o.status}</span>
+                              <span className="font-semibold text-ink">{o.match.employer.name}</span>
+                              <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${OUTREACH_COLOR[o.status] ?? "bg-line text-ink-2"}`}>{o.status}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] ${SIGNAL_COLOR[o.match.employer.sponsorshipSignal]}`}>{o.match.employer.sponsorshipSignal}</span>
                             </div>
-                            <div className="text-sm text-gray-400 mt-0.5">{o.match.vacancy.title}</div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                              <span><span className="text-gray-600">{t("commTo")}:</span> {o.toAddress ?? "—"}</span>
-                              <span><span className="text-gray-600">{t("commCreated")}:</span> {fmtDate(o.createdAt)}</span>
+                            <div className="text-sm text-ink-2 mt-0.5">{o.match.vacancy.title}</div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-ink-3">
+                              <span><span className="text-ink-3">{t("commTo")}:</span> {o.toAddress ?? "—"}</span>
+                              <span><span className="text-ink-3">{t("commCreated")}:</span> {fmtDate(o.createdAt)}</span>
                               {o.sentAt && <span className="text-emerald-400">{t("commSent")}: {fmtDate(o.sentAt)}</span>}
                               {o.repliedAt && <span className="text-green-400">{t("commReplied")}: {fmtDate(o.repliedAt)}</span>}
                             </div>
@@ -1561,7 +1561,7 @@ export default function CandidatesPage() {
                             {/* Placement pipeline — advance the application's stage.
                                 Click the active stage again to clear it. */}
                             <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                              <span className="text-[10px] text-gray-600 uppercase tracking-wide mr-0.5">Mərhələ:</span>
+                              <span className="text-[10px] text-ink-3 uppercase tracking-wide mr-0.5">Mərhələ:</span>
                               {PIPELINE_STAGES.map((s) => {
                                 const isActive = o.match.status === s.key;
                                 // Toggle off: clicking the active stage reverts to replied/sent base.
@@ -1572,7 +1572,7 @@ export default function CandidatesPage() {
                                     onClick={() => setMatchStage(o.matchId, target)}
                                     title={isActive ? "Seçimi ləğv et" : s.label}
                                     className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
-                                      isActive ? s.active : "bg-gray-800/40 text-gray-500 border-gray-700/50 hover:text-gray-300 hover:border-gray-600"
+                                      isActive ? s.active : "bg-card-2/40 text-ink-3 border-line-strong/50 hover:text-ink-2 hover:border-line-strong"
                                     }`}
                                   >
                                     {s.label}{isActive && <span className="ml-1 opacity-60">✕</span>}
@@ -1580,7 +1580,7 @@ export default function CandidatesPage() {
                                 );
                               })}
                             </div>
-                            {o.subject && <div className="mt-2 text-sm text-gray-300"><span className="text-gray-600 text-xs">{t("commSubject")}:</span> {o.subject}</div>}
+                            {o.subject && <div className="mt-2 text-sm text-ink-2"><span className="text-ink-3 text-xs">{t("commSubject")}:</span> {o.subject}</div>}
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
                             {o.match.vacancy.url && (
@@ -1588,13 +1588,13 @@ export default function CandidatesPage() {
                                 className="text-xs text-blue-400 hover:underline">🔗</a>
                             )}
                             <button onClick={() => setExpandedComm(expandedComm === o.id ? null : o.id)}
-                              className="text-xs text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg">
+                              className="text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line px-3 py-1.5 rounded-lg">
                               {expandedComm === o.id ? t("commHideMessage") : t("commViewMessage")}
                             </button>
                           </div>
                         </div>
                         {expandedComm === o.id && (
-                          <div className="mt-3 pt-3 border-t border-gray-800 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-950/50 rounded-lg p-3">
+                          <div className="mt-3 pt-3 border-t border-line text-sm text-ink-2 whitespace-pre-wrap leading-relaxed bg-surface/50 rounded-lg p-3">
                             {o.draftBody}
                           </div>
                         )}
@@ -1607,27 +1607,27 @@ export default function CandidatesPage() {
               {/* Replies tab — only the employer responses received for this candidate */}
               {activeTab === "replies" && (() => {
                 const replies = comms.filter((c) => c.repliedAt || c.status === "REPLIED");
-                if (commsLoading) return <div className="text-gray-500 text-sm">{t("searching")}</div>;
+                if (commsLoading) return <div className="text-ink-3 text-sm">{t("searching")}</div>;
                 if (replies.length === 0) return (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
-                    <div className="text-gray-400 text-sm mb-2">Hələ cavab gəlməyib.</div>
-                    <div className="text-gray-500 text-xs">İşəgötürən cavab verəndə burada görünəcək.</div>
+                  <div className="bg-card border border-line rounded-2xl p-8 text-center">
+                    <div className="text-ink-2 text-sm mb-2">Hələ cavab gəlməyib.</div>
+                    <div className="text-ink-3 text-xs">İşəgötürən cavab verəndə burada görünəcək.</div>
                   </div>
                 );
                 return (
                   <div className="space-y-3">
                     {replies.map((o) => (
-                      <div key={o.id} className="bg-gray-900 border border-green-900/40 rounded-2xl p-4">
+                      <div key={o.id} className="bg-card border border-green-900/40 rounded-2xl p-4">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-white">{o.match.employer.name}</span>
+                          <span className="font-semibold text-ink">{o.match.employer.name}</span>
                           <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
-                          <span className="text-xs text-gray-500 ml-auto">{fmtDate(o.repliedAt)}</span>
+                          <span className="text-xs text-ink-3 ml-auto">{fmtDate(o.repliedAt)}</span>
                         </div>
-                        <div className="text-sm text-gray-400 mt-0.5">{o.match.vacancy.title}</div>
-                        {o.replyFrom && <div className="text-xs text-gray-500 mt-1"><span className="text-gray-600">Kimdən:</span> {o.replyFrom}</div>}
+                        <div className="text-sm text-ink-2 mt-0.5">{o.match.vacancy.title}</div>
+                        {o.replyFrom && <div className="text-xs text-ink-3 mt-1"><span className="text-ink-3">Kimdən:</span> {o.replyFrom}</div>}
                         {o.replySubject && <div className="text-sm text-green-200/90 font-medium mt-2">{o.replySubject}</div>}
                         {o.replyText && (
-                          <div className="mt-2 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-950/50 rounded-lg p-3 max-h-72 overflow-y-auto">
+                          <div className="mt-2 text-sm text-ink-2 whitespace-pre-wrap leading-relaxed bg-surface/50 rounded-lg p-3 max-h-72 overflow-y-auto">
                             {o.replyText}
                           </div>
                         )}
@@ -1642,7 +1642,7 @@ export default function CandidatesPage() {
           {/* Empty state */}
           {!selectedCandidate && !showForm && (
             <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center">
-              <div className="text-gray-500 text-sm mb-4">{t("selectOrAdd")}</div>
+              <div className="text-ink-3 text-sm mb-4">{t("selectOrAdd")}</div>
               <button onClick={startNewCandidate}
                 className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">
                 {t("addFirst")}

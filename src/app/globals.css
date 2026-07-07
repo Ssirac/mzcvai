@@ -2,21 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-/* MZ Talent Intelligence — dark admin console baseline */
-html {
+/*
+ * MZ Talent Intelligence — design system
+ * Token-driven so the whole app flips between dark (default) and light by
+ * toggling the `.light` class on <html>. Components read semantic tokens only;
+ * no page hardcodes raw grays. The signature look: an "instrument readout" —
+ * data set in a mono face on quiet, precise surfaces, with emerald reserved for
+ * the money signals (replies, sends, sponsorship).
+ */
+
+:root {
+  /* Dark — the default theme */
+  --surface: 8 11 15;        /* page background */
+  --surface-2: 13 17 23;
+  --card: 18 24 31;          /* raised panels */
+  --card-2: 23 30 39;        /* inset rows / nested */
+  --line: 34 43 54;          /* hairline borders */
+  --line-strong: 46 57 71;
+  --ink: 232 237 243;        /* primary text */
+  --ink-2: 155 168 181;      /* secondary text */
+  --ink-3: 101 113 126;      /* muted / labels */
+  --accent: 52 211 153;      /* emerald-400 */
+  --accent-strong: 16 185 129;
+  --shadow-rgb: 0 0 0;
+  --shadow-a: 0.45;
   color-scheme: dark;
+}
+
+.light {
+  --surface: 243 246 249;
+  --surface-2: 235 240 245;
+  --card: 255 255 255;
+  --card-2: 247 250 252;
+  --line: 224 230 237;
+  --line-strong: 202 212 224;
+  --ink: 15 23 32;
+  --ink-2: 71 85 101;
+  --ink-3: 130 143 157;
+  --accent: 5 150 105;       /* emerald-600 — readable on white */
+  --accent-strong: 4 120 87;
+  --shadow-rgb: 20 40 65;
+  --shadow-a: 0.10;
+  color-scheme: light;
+}
+
+html {
+  background: rgb(var(--surface));
 }
 
 body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  color: rgb(var(--ink));
+  background: rgb(var(--surface));
+}
+
+/* Smoothly cross-fade colors when the theme flips */
+:root:not(.no-theme-anim) * {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
 }
 
 /* Accessibility: clear keyboard focus ring everywhere */
 :focus-visible {
-  outline: 2px solid #34d399; /* emerald-400 */
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 /* Respect users who prefer reduced motion */
@@ -31,33 +83,133 @@ body {
   }
 }
 
-/* Subtle, on-brand scrollbars */
+/* On-brand scrollbars, theme-aware */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #374151 transparent;
+  scrollbar-color: rgb(var(--line-strong)) transparent;
 }
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: rgb(var(--line-strong));
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-*::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
-  background-clip: content-box;
-}
+*::-webkit-scrollbar-thumb:hover { background: rgb(var(--ink-3)); background-clip: content-box; }
 
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes shimmer {
+  0% { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+@keyframes barGrow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+  /* Instrument-readout numerals: mono + tabular so figures align and read as data */
+  .tabular {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  /* Surfaces */
+  .surface { background: rgb(var(--surface)); }
+  .card {
+    background: rgb(var(--card));
+    border: 1px solid rgb(var(--line));
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / calc(var(--shadow-a) * 0.5));
+  }
+  /* Cards that respond to hover — a subtle lift + accent-tinted border */
+  .card-lift {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--accent) / 0.35);
+    box-shadow: 0 10px 30px -12px rgb(var(--shadow-rgb) / var(--shadow-a));
+  }
+
+  /* Text roles */
+  .ink { color: rgb(var(--ink)); }
+  .ink-2 { color: rgb(var(--ink-2)); }
+  .ink-3 { color: rgb(var(--ink-3)); }
+
+  /* Eyebrow label — small, spaced, muted */
+  .eyebrow {
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-3));
+    font-weight: 600;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    border-radius: 0.625rem; font-weight: 600; font-size: 0.875rem;
+    padding: 0.625rem 0.9rem; transition: background-color 150ms ease, transform 80ms ease, opacity 150ms ease;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: rgb(var(--accent-strong)); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: rgb(var(--accent)); }
+  .btn-ghost {
+    background: rgb(var(--card-2)); color: rgb(var(--ink));
+    border: 1px solid rgb(var(--line-strong));
+  }
+  .btn-ghost:hover:not(:disabled) { background: rgb(var(--line)); }
+
+  /* Form controls */
+  .field {
+    width: 100%; background: rgb(var(--card-2)); color: rgb(var(--ink));
+    border: 1px solid rgb(var(--line)); border-radius: 0.625rem;
+    padding: 0.5rem 0.7rem; font-size: 0.875rem;
+  }
+  .field:focus { outline: none; border-color: rgb(var(--accent) / 0.6); }
+  .field::placeholder { color: rgb(var(--ink-3)); }
+
+  /* Status pills — theme-aware via color-mix against the current surface.
+     One class per state so pages reference meaning, not raw colors. */
+  .pill {
+    display: inline-flex; align-items: center; white-space: nowrap;
+    padding: 0.1rem 0.5rem; border-radius: 9999px;
+    font-size: 0.6875rem; font-weight: 600; border: 1px solid transparent;
+  }
+  .pill-emerald { color: rgb(var(--accent)); background: rgb(var(--accent) / 0.14); border-color: rgb(var(--accent) / 0.3); }
+  .pill-blue   { color: #60a5fa; background: rgb(96 165 250 / 0.14); border-color: rgb(96 165 250 / 0.3); }
+  .pill-violet { color: #a78bfa; background: rgb(167 139 250 / 0.14); border-color: rgb(167 139 250 / 0.3); }
+  .pill-amber  { color: #fbbf24; background: rgb(251 191 36 / 0.14); border-color: rgb(251 191 36 / 0.3); }
+  .pill-purple { color: #c084fc; background: rgb(192 132 252 / 0.14); border-color: rgb(192 132 252 / 0.3); }
+  .pill-red    { color: #f87171; background: rgb(248 113 113 / 0.14); border-color: rgb(248 113 113 / 0.3); }
+  .pill-gray   { color: rgb(var(--ink-2)); background: rgb(var(--ink-3) / 0.14); border-color: rgb(var(--ink-3) / 0.3); }
+  /* Light theme needs darker text on the tints to stay legible */
+  .light .pill-blue   { color: #2563eb; }
+  .light .pill-violet { color: #7c3aed; }
+  .light .pill-amber  { color: #b45309; }
+  .light .pill-purple { color: #9333ea; }
+  .light .pill-red    { color: #dc2626; }
+
+  /* Skeleton shimmer for loading states */
+  .skeleton {
+    border-radius: 0.5rem;
+    background: linear-gradient(
+      90deg,
+      rgb(var(--card-2)) 0%,
+      rgb(var(--line)) 50%,
+      rgb(var(--card-2)) 100%
+    );
+    background-size: 1200px 100%;
+    animation: shimmer 1.6s infinite linear;
   }
 }

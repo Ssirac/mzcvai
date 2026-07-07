@@ -65,34 +65,34 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-surface">
       <TopNav active="inbox" />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="w-1 h-8 rounded-full bg-gradient-to-b from-green-400 to-emerald-600" />
             <div>
-              <h1 className="text-xl font-bold text-white">Gələn maillər</h1>
-              <p className="text-xs text-gray-500">İşəgötürənlərdən gələn cavablar</p>
+              <h1 className="text-xl font-bold text-ink">Gələn maillər</h1>
+              <p className="text-xs text-ink-3">İşəgötürənlərdən gələn cavablar</p>
             </div>
           </div>
           <div className="relative w-full sm:w-72">
-            <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Şirkət, namizəd, mətn axtar..."
-              className="w-full bg-gray-900 border border-gray-800 focus:border-emerald-600/50 focus:outline-none text-white rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-gray-600"
+              className="w-full bg-card border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-3"
             />
           </div>
         </div>
 
         {loading ? (
-          <div className="text-gray-500 text-sm py-8 text-center">Yüklənir...</div>
+          <div className="text-ink-3 text-sm py-8 text-center">Yüklənir...</div>
         ) : list.length === 0 ? (
-          <div className="text-gray-500 text-sm bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+          <div className="text-ink-3 text-sm bg-card border border-line rounded-2xl p-8 text-center">
             Hələ cavab gəlməyib. İşəgötürən cavab verəndə burada görünəcək.
           </div>
         ) : (
@@ -100,36 +100,36 @@ export default function InboxPage() {
             {list.map((r) => {
               const isOpen = open === r.id;
               return (
-                <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div key={r.id} className="bg-card border border-line rounded-2xl overflow-hidden">
                   <button
                     onClick={() => setOpen(isOpen ? null : r.id)}
-                    className="w-full text-left p-4 hover:bg-gray-800/30 transition-colors"
+                    className="w-full text-left p-4 hover:bg-card-2/30 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-white truncate">{r.match.employer.name}</span>
+                          <span className="font-semibold text-ink truncate">{r.match.employer.name}</span>
                           <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
                           {r.match.employer.optedOut && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">🚫 əlaqə saxlanmır</span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5 truncate">
+                        <div className="text-xs text-ink-3 mt-0.5 truncate">
                           {r.replySubject || r.match.vacancy.title}
                         </div>
-                        <div className="text-[11px] text-gray-600 mt-1">
+                        <div className="text-[11px] text-ink-3 mt-1">
                           {r.match.candidate.name} üçün · {fmt(r.repliedAt)}
                         </div>
                       </div>
-                      <span className={`shrink-0 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                      <span className={`shrink-0 text-ink-3 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
                     </div>
                   </button>
                   {isOpen && (
-                    <div className="px-4 pb-4 border-t border-gray-800/70 pt-3">
-                      <div className="text-xs text-gray-500 mb-2">
-                        <span className="text-gray-600">Kimdən:</span> {r.replyFrom || r.toAddress || "—"}
+                    <div className="px-4 pb-4 border-t border-line/70 pt-3">
+                      <div className="text-xs text-ink-3 mb-2">
+                        <span className="text-ink-3">Kimdən:</span> {r.replyFrom || r.toAddress || "—"}
                       </div>
-                      <div className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed bg-gray-950/60 rounded-lg p-3 max-h-96 overflow-y-auto">
+                      <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">
                         {r.replyText || "(mətn yoxdur)"}
                       </div>
                       <div className="flex items-center gap-3 mt-2">
@@ -139,7 +139,7 @@ export default function InboxPage() {
                         )}
                         {r.match.employer.optedOut ? (
                           <button onClick={() => setOptOut(r.match.employer.id, false)}
-                            className="text-xs text-gray-400 hover:text-gray-200">↩ Əlaqəni bərpa et</button>
+                            className="text-xs text-ink-2 hover:text-ink">↩ Əlaqəni bərpa et</button>
                         ) : (
                           <button onClick={() => setOptOut(r.match.employer.id, true)}
                             className="text-xs text-red-400 hover:text-red-300">🚫 Bu şirkətə bir daha göndərmə</button>

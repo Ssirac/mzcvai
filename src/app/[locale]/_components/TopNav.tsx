@@ -3,6 +3,7 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const LOCALES = ["az", "de", "en"] as const;
 
@@ -81,12 +82,15 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
   }
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-gray-800 bg-gray-950/80 backdrop-blur supports-[backdrop-filter]:bg-gray-950/60">
+    <nav className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
       <div className="px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
         {/* Brand */}
-        <a href={`/${locale}/dashboard`} className="flex items-center gap-2 shrink-0">
-          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow">MZ</span>
-          <span className="hidden md:block text-white font-semibold text-sm">Talent Intelligence</span>
+        <a href={`/${locale}/dashboard`} className="flex items-center gap-2.5 shrink-0 group">
+          <span className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ring-1 ring-white/10 transition-transform group-hover:scale-105">MZ</span>
+          <span className="hidden md:flex flex-col leading-none">
+            <span className="text-ink font-semibold text-sm tracking-tight">Talent Intelligence</span>
+            <span className="text-ink-3 text-[10px] tracking-wide">MZ Personalvermittlung</span>
+          </span>
         </a>
 
         {/* Primary tabs — prominent. On phones only the active tab shows its
@@ -102,8 +106,8 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                 title={tab.label}
                 className={`flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800/60"
+                    ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                    : "text-ink-2 hover:text-ink hover:bg-card-2"
                 }`}
               >
                 <span className="relative">
@@ -122,23 +126,24 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
 
         {/* Right controls */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <div className="flex gap-0.5 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
+          <div className="flex gap-0.5 bg-card-2 rounded-lg p-0.5 border border-line">
             {LOCALES.map((l) => (
               <a
                 key={l}
                 href={localeHref(l)}
                 className={`px-1.5 sm:px-2 py-1 rounded-md text-xs font-medium ${
-                  locale === l ? "bg-gray-700 text-white" : "text-gray-500 hover:text-white"
+                  locale === l ? "bg-line-strong text-ink" : "text-ink-3 hover:text-ink"
                 }`}
               >
                 {l.toUpperCase()}
               </a>
             ))}
           </div>
+          <ThemeToggle />
           <button
             onClick={logout}
             title={t("logout")}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg px-2.5 sm:px-3 py-2"
+            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-2.5 sm:px-3 py-2"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />

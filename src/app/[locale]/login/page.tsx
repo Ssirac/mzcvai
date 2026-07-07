@@ -38,14 +38,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-surface flex items-center justify-center px-4 relative overflow-hidden">
       {/* ambient gradient */}
-      <div className="pointer-events-none absolute -top-1/3 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-emerald-500/5 blur-3xl" />
+      <div className="pointer-events-none absolute -top-1/3 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-accent/5 blur-3xl" />
 
       <div className="absolute top-4 right-4 flex gap-1 text-xs">
         {LOCALES.map((l) => (
           <a key={l} href={`/${l}/login`}
-            className={`px-2 py-1 rounded ${locale === l ? "bg-gray-800 text-white" : "text-gray-500 hover:text-white"}`}>
+            className={`px-2 py-1 rounded ${locale === l ? "bg-card-2 text-ink" : "text-ink-3 hover:text-ink"}`}>
             {l.toUpperCase()}
           </a>
         ))}
@@ -53,39 +53,39 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-500/20 ring-1 ring-white/10">
             MZ
           </div>
           <div>
-            <div className="text-white font-bold leading-tight">{t("title")}</div>
-            <div className="text-gray-500 text-xs">{t("subtitle")}</div>
+            <div className="text-ink font-bold leading-tight">{t("title")}</div>
+            <div className="text-ink-3 text-xs">{t("subtitle")}</div>
           </div>
         </div>
 
-        <form onSubmit={submit} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+        <form onSubmit={submit} className="card p-6 space-y-4">
           <div>
-            <label className="text-xs text-gray-500">{t("username")}</label>
+            <label className="text-xs text-ink-3">{t("username")}</label>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoFocus
               autoComplete="username"
-              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2.5 text-sm mt-1 border border-transparent focus:border-emerald-500 focus:outline-none"
+              className="field mt-1"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500">{t("password")}</label>
+            <label className="text-xs text-ink-3">{t("password")}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2.5 text-sm mt-1 border border-transparent focus:border-emerald-500 focus:outline-none"
+              className="field mt-1"
             />
           </div>
 
           {error && (
-            <div className="text-sm bg-red-900/30 text-red-300 border border-red-500/30 rounded-lg px-3 py-2">
+            <div className="text-sm bg-red-500/10 pill-red border border-red-500/30 rounded-lg px-3 py-2">
               {t("error")}
             </div>
           )}
@@ -93,7 +93,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || !username || !password}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white rounded-lg px-4 py-2.5 text-sm font-semibold"
+            className="btn btn-primary w-full"
           >
             {loading ? t("signingIn") : t("signIn")}
           </button>
