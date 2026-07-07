@@ -11,9 +11,26 @@
  * Consult a German GDPR/UWG lawyer before scaling outreach operations.
  */
 
+import { resolveMx } from "dns/promises";
 import { launchBrowser } from "@/lib/browser";
 import { prisma } from "@/lib/prisma";
 import type { SponsorshipSignal } from "@prisma/client";
+
+// Free deliverability precheck: a domain with no MX records cannot receive email,
+// so any address on it will hard-bounce. Rejecting these before we ever send
+// protects the sending domain's reputation at zero API cost. Fails OPEN on a
+// transient DNS error (timeout/SERVFAIL) so a hiccup never discards a good
+// address; only a definitive "no such domain / no mail" answer rejects.
+async function domainCanReceiveMail(domain: string): Promise<boolean> {
+  try {
+    const records = await resolveMx(domain);
+    return Array.isArray(records) && records.length > 0;
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "ENOTFOUND" || code === "ENODATA") return false;
+    return true; // transient — don't discard on our own network trouble
+  }
+}
 
 const SPONSORSHIP_KEYWORDS = [
   "visum", "sponsoring", "sponsorship", "relocation", "fachkräfte",
@@ -264,6 +281,19 @@ async function enrichEmployer(employerId: string, website: string, verifyCity?: 
 
     // Extract data — emails from homepage + Impressum/Kontakt/careers pages
     const genericEmails = extractGenericEmails(homeHtml + " " + innerHtml + " " + innerText);
+    // Prefer an address on the SITE's own domain — a homepage/footer often embeds
+    // a third-party email (web agency, booking partner) that isn't the employer's.
+    let siteDomain: string | null = null;
+    try { siteDomain = new URL(baseUrl).hostname.replace(/^www\./, ""); } catch { /* keep null */ }
+    const onDomain = siteDomain
+      ? genericEmails.filter((e) => { const d = e.split("@")[1]?.toLowerCase(); return d === siteDomain || (d?.endsWith("." + siteDomain) ?? false); })
+      : [];
+    let chosenEmail: string | null = onDomain[0] ?? genericEmails[0] ?? null;
+    // Free MX precheck — never store an address on a domain that can't receive mail.
+    if (chosenEmail) {
+      const d = chosenEmail.split("@")[1]?.toLowerCase();
+      if (d && !(await domainCanReceiveMail(d))) chosenEmail = null;
+    }
     const applyFormMatch = (homeHtml + innerHtml).match(/href="([^"]*(?:bewerbung|apply|karriere|jobs)[^"]*form[^"]*)"/i);
     const sponsorshipSignal = detectSponsorshipSignal(fullText);
     const stars = extractStars(fullText);
@@ -272,7 +302,7 @@ async function enrichEmployer(employerId: string, website: string, verifyCity?: 
     await prisma.employer.update({
       where: { id: employerId },
       data: {
-        genericEmail: genericEmails[0] ?? null,
+        genericEmail: chosenEmail,
         applyFormUrl: applyFormMatch?.[1] ?? null,
         sponsorshipSignal,
         ...(stars ? { stars } : {}),
@@ -304,7 +334,7 @@ function sleep(ms: number) {
  * (or in the raw API payload), which is the most reliable email of all — it's the
  * address the employer explicitly wants applications sent to. No network needed.
  */
-async function emailFromVacancies(employerId: string): Promise<string | null> {
+async function emailFromVacancies(employerId: string, preferDomain?: string | null): Promise<string | null> {
   const vacancies = await prisma.vacancy.findMany({
     where: { employerId, status: "ACTIVE" },
     select: { description: true, applyValue: true, rawData: true },
@@ -312,17 +342,27 @@ async function emailFromVacancies(employerId: string): Promise<string | null> {
     take: 10,
   });
 
+  const collected: string[] = [];
   for (const v of vacancies) {
-    // applyValue is sometimes a bare email address
+    // applyValue as a bare email = the employer's EXPLICIT application address.
+    // Strongest possible signal — return it immediately even if off-domain (some
+    // employers route applications through a portal/agency on purpose).
     if (v.applyValue && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v.applyValue.trim())) {
       const found = extractGenericEmails(v.applyValue);
       if (found[0]) return found[0];
     }
     const haystack = `${v.description ?? ""} ${v.applyValue ?? ""} ${v.rawData ? JSON.stringify(v.rawData) : ""}`;
-    const emails = extractGenericEmails(haystack);
-    if (emails[0]) return emails[0];
+    collected.push(...extractGenericEmails(haystack));
   }
-  return null;
+  if (collected.length === 0) return null;
+  // For emails merely MENTIONED in the description, prefer one on the employer's
+  // own domain when we know it — avoids grabbing a staffing agency's address that
+  // appears in boilerplate.
+  if (preferDomain) {
+    const onDomain = collected.find((e) => { const d = e.split("@")[1]?.toLowerCase(); return d === preferDomain || (d?.endsWith("." + preferDomain) ?? false); });
+    if (onDomain) return onDomain;
+  }
+  return collected[0];
 }
 
 /**
@@ -531,6 +571,10 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   // next source by returning null.
   const accept = async (email: string, source: string): Promise<string | null> => {
     if (bounced.has(email.toLowerCase())) return null; // skip known-dead addresses
+    // Free MX precheck — reject addresses on domains that can't receive mail at
+    // all (parked/dead), regardless of which source produced them.
+    const emailDomain = email.split("@")[1]?.toLowerCase();
+    if (emailDomain && !(await domainCanReceiveMail(emailDomain))) return null;
     const status = await verifyEmail(email);
     if (status === "undeliverable") return null;
     await prisma.employer.update({
@@ -547,7 +591,7 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
   };
 
   // Step 0: listing text (most reliable — employer wrote it for applications)
-  const fromListing = await emailFromVacancies(employer.id);
+  const fromListing = await emailFromVacancies(employer.id, domain);
   if (fromListing) {
     const ok = await accept(fromListing, "listing");
     if (ok) return ok;
