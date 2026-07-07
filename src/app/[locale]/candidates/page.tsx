@@ -26,7 +26,31 @@ interface Candidate {
   phone: string | null;
   notes: string | null;
   status: "ACTIVE" | "PENDING" | "PLACED" | "ARCHIVED";
+  // Extra fields the list API also returns (used for flags + completeness)
+  hasCv?: boolean;
+  skills?: string[];
+  experience?: unknown[];
+  germanLevel?: string | null;
+  yearsExperience?: number | null;
+  createdAt?: string;
   _count: { matches: number };
+}
+
+// Profile completeness — the fields that make a candidate ready to place and
+// produce a strong application letter. Each present field counts equally.
+function profileCompleteness(c: Candidate): { pct: number; missing: string[] } {
+  const checks: { label: string; ok: boolean }[] = [
+    { label: "E-poçt", ok: !!c.email },
+    { label: "Telefon", ok: !!c.phone },
+    { label: "Şəhər", ok: !!c.currentCity },
+    { label: "CV faylı", ok: !!c.hasCv },
+    { label: "Dil", ok: (c.languages?.length ?? 0) > 0 },
+    { label: "Bacarıqlar", ok: (c.skills?.length ?? 0) > 0 },
+    { label: "Təcrübə", ok: (c.experience?.length ?? 0) > 0 },
+    { label: "Alman dili səviyyəsi", ok: !!c.germanLevel },
+  ];
+  const done = checks.filter((x) => x.ok).length;
+  return { pct: Math.round((done / checks.length) * 100), missing: checks.filter((x) => !x.ok).map((x) => x.label) };
 }
 
 interface Match {
@@ -201,6 +225,10 @@ export default function CandidatesPage() {
   const [enrichingMatches, setEnrichingMatches] = useState(false);
   // Per-candidate unread-reply counts → green dot in the candidate list.
   const [unreadByCandidate, setUnreadByCandidate] = useState<Record<string, number>>({});
+  const [listSort, setListSort] = useState<"status" | "matches" | "unread" | "recent">("status");
+  const [matchFilters, setMatchFilters] = useState<{ sponsor: boolean; emailReady: boolean }>({ sponsor: false, emailReady: false });
+  const [matchSort, setMatchSort] = useState<"email" | "fit">("email");
+  const [expandedFit, setExpandedFit] = useState<string | null>(null);
 
   async function loadUnread() {
     try {
@@ -216,7 +244,17 @@ export default function CandidatesPage() {
     // Hide a job only once it's actually SENT — a stuck DRAFT (failed send) must
     // stay in the list so it can be retried, not silently disappear.
     .filter((m) => !m.outreach.some((o) => o.status === "SENT"))
-    .sort((a, b) => (b.employer.genericEmail ? 1 : 0) - (a.employer.genericEmail ? 1 : 0));
+    .filter((m) => !matchFilters.sponsor || m.employer.sponsorshipSignal === "YES")
+    .filter((m) => !matchFilters.emailReady || !!m.employer.genericEmail)
+    .sort((a, b) =>
+      matchSort === "fit"
+        ? (b.fitScore ?? 0) - (a.fitScore ?? 0)
+        : (b.employer.genericEmail ? 1 : 0) - (a.employer.genericEmail ? 1 : 0)
+    );
+  // How many pending matches exist ignoring the active filters (to tell "all
+  // sent" apart from "filters hid everything").
+  const pendingUnfiltered = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT")).length;
+  const matchFilterActive = matchFilters.sponsor || matchFilters.emailReady;
 
   function toggleMatchSelect(id: string) {
     setSelectedMatchIds((prev) => {
@@ -724,6 +762,14 @@ export default function CandidatesPage() {
 
   const selectedCandidate = candidates.find((c) => c.id === selectedId);
 
+  // Per-candidate outreach performance, computed from the loaded comms.
+  const perfSent = comms.filter((c) => c.sentAt || c.status === "SENT").length;
+  const perfOpened = comms.filter((c) => c.openedAt || c.openCount > 0 || c.status === "OPENED").length;
+  const perfReplied = comms.filter((c) => c.repliedAt || c.status === "REPLIED").length;
+  const perfInterview = comms.filter((c) => c.match?.status === "INTERVIEW" || c.match?.status === "PLACED").length;
+  const perfReplyRate = perfSent > 0 ? Math.round((perfReplied / perfSent) * 100) : 0;
+  const completeness = selectedCandidate ? profileCompleteness(selectedCandidate) : null;
+
   const q = searchQuery.trim().toLowerCase();
   const visibleCandidates = candidates
     .filter((c) => statusFilter === "ALL" || c.status === statusFilter)
@@ -735,7 +781,12 @@ export default function CandidatesPage() {
       (c.currentCity ?? "").toLowerCase().includes(q) ||
       (c.nationality ?? "").toLowerCase().includes(q)
     )
-    .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+    .sort((a, b) => {
+      if (listSort === "matches") return (b._count.matches ?? 0) - (a._count.matches ?? 0);
+      if (listSort === "unread") return (unreadByCandidate[b.id] ?? 0) - (unreadByCandidate[a.id] ?? 0);
+      if (listSort === "recent") return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      return (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+    });
 
   return (
     <div className="min-h-screen bg-surface text-ink">
@@ -781,7 +832,20 @@ export default function CandidatesPage() {
                   </button>
                 ))}
               </div>
-              <div className="text-[10px] text-ink-3">{t("candidateCount", { shown: visibleCandidates.length, total: candidates.length })}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] text-ink-3">{t("candidateCount", { shown: visibleCandidates.length, total: candidates.length })}</div>
+                <select
+                  value={listSort}
+                  onChange={(e) => setListSort(e.target.value as typeof listSort)}
+                  className="bg-card-2 text-ink-2 rounded-md text-[10px] px-1.5 py-1 border border-line focus:outline-none"
+                  title="Sırala"
+                >
+                  <option value="status">↓ Status</option>
+                  <option value="matches">↓ Ən çox uyğunluq</option>
+                  <option value="unread">↓ Yeni cavab</option>
+                  <option value="recent">↓ Ən yeni</option>
+                </select>
+              </div>
             </div>
           )}
           {candidates.length === 0 && (
@@ -817,6 +881,16 @@ export default function CandidatesPage() {
                 {t("matchCount", { count: c._count.matches })}
                 {c.needsSponsorship && <span className="ml-2 text-yellow-500">{t("needsSponsorshipShort")}</span>}
               </div>
+              {(!c.hasCv || c._count.matches === 0) && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {!c.hasCv && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ CV yoxdur</span>
+                  )}
+                  {c._count.matches === 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ Uyğunluq yoxdur</span>
+                  )}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -1167,7 +1241,7 @@ export default function CandidatesPage() {
           {selectedCandidate && !showForm && (
             <div>
               {/* Profile header */}
-              <div className="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-900/30 border border-line rounded-2xl p-5 mb-5">
+              <div className="card p-5 mb-5">
                 <div className="flex items-start gap-4">
                   <div className={`shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${avatarGradient(selectedCandidate.name)} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
                     {initials(selectedCandidate.name)}
@@ -1219,22 +1293,54 @@ export default function CandidatesPage() {
                     </div>
                   </div>
                 </div>
-                {/* Quick stats */}
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-4 pt-4 border-t border-line">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-emerald-400">{matches.length}</span>
-                    <span className="text-xs text-ink-3">{t("statMatches")}</span>
+                {/* Performance — how this candidate is doing, at a glance */}
+                <div className="mt-4 pt-4 border-t border-line">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {[
+                      { label: t("statMatches"), value: matches.length, cls: "text-emerald-400" },
+                      { label: "Göndərildi", value: perfSent, cls: "text-blue-400" },
+                      { label: "Açıldı", value: perfOpened, cls: "text-violet-400" },
+                      { label: "Cavab", value: perfReplied, cls: "text-green-400" },
+                      { label: "Müsahibə", value: perfInterview, cls: "text-amber-400" },
+                    ].map((s) => (
+                      <div key={s.label} className="bg-card-2 border border-line rounded-lg px-2.5 py-2">
+                        <div className={`tabular text-xl font-bold ${s.cls}`}>{s.value}</div>
+                        <div className="text-[10px] text-ink-3 truncate">{s.label}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-blue-400">{comms.filter((c) => c.status === "SENT" || c.sentAt).length}</span>
-                    <span className="text-xs text-ink-3">{t("statSent")}</span>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-green-400">{comms.filter((c) => c.status === "REPLIED" || c.repliedAt).length}</span>
-                    <span className="text-xs text-ink-3">{t("commReplied")}</span>
-                  </div>
-                  {/* Mobile actions */}
-                  <div className="sm:hidden w-full flex items-center gap-1.5 pt-1">
+                  {/* Reply-rate bar — the money metric for this person */}
+                  {perfSent > 0 && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-ink-3">Cavab faizi</span>
+                        <span className="tabular font-semibold text-ink">{perfReplyRate}% <span className="text-ink-3 font-normal">({perfReplied}/{perfSent})</span></span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
+                        <div className="h-full bg-accent rounded-full" style={{ width: `${perfReplyRate}%`, transition: "width 500ms ease" }} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Profile completeness — nudge toward a stronger letter + auto-send readiness */}
+                  {completeness && completeness.pct < 100 && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-ink-3">Profil tamlığı</span>
+                        <span className="tabular font-semibold text-ink">{completeness.pct}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
+                        <div className={`h-full rounded-full ${completeness.pct >= 75 ? "bg-emerald-500" : completeness.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${completeness.pct}%`, transition: "width 500ms ease" }} />
+                      </div>
+                      {completeness.missing.length > 0 && (
+                        <div className="text-[10px] text-ink-3 mt-1">Çatışmır: {completeness.missing.join(" · ")}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile actions row (desktop shows them in the header top-right) */}
+                <div className="sm:hidden mt-3">
+                  <div className="w-full flex items-center gap-1.5 pt-1">
                     <select
                       value={selectedCandidate.status}
                       onChange={(e) => changeStatus(selectedCandidate.id, e.target.value)}
@@ -1270,12 +1376,37 @@ export default function CandidatesPage() {
               {/* Matches tab */}
               {activeTab === "matches" && (
                 matchesLoading ? (
-                  <div className="text-ink-3 text-sm">{t("searching")}</div>
-                ) : pendingMatches.length === 0 ? (
-                  <div className="bg-card border border-line rounded-2xl p-8 text-center">
-                    <div className="text-ink-2 text-sm mb-3">{comms.length > 0 ? t("allSent") : t("noVacancyTitle")}</div>
-                    <div className="text-ink-3 text-xs">{comms.length > 0 ? t("allSentHint") : t("noVacancyHint")}</div>
+                  <div className="space-y-3">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="bg-card border border-line rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="skeleton w-10 h-10 rounded-full shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="skeleton h-3.5 w-1/3" />
+                            <div className="skeleton h-3 w-2/3" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                ) : pendingMatches.length === 0 ? (
+                  matchFilterActive && pendingUnfiltered > 0 ? (
+                    <div className="bg-card border border-line rounded-2xl p-8 text-center">
+                      <div className="text-3xl mb-2">🔎</div>
+                      <div className="text-ink-2 text-sm mb-3">Filtrlərə uyğun uyğunluq yoxdur ({pendingUnfiltered} gizlədildi).</div>
+                      <button
+                        onClick={() => setMatchFilters({ sponsor: false, emailReady: false })}
+                        className="btn btn-ghost text-xs"
+                      >
+                        Filtrləri sıfırla
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-line rounded-2xl p-8 text-center">
+                      <div className="text-ink-2 text-sm mb-3">{comms.length > 0 ? t("allSent") : t("noVacancyTitle")}</div>
+                      <div className="text-ink-3 text-xs">{comms.length > 0 ? t("allSentHint") : t("noVacancyHint")}</div>
+                    </div>
+                  )
                 ) : (
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
@@ -1341,6 +1472,32 @@ export default function CandidatesPage() {
                         </button>
                       </div>
                     </div>
+                    {/* Filter + sort */}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      <button
+                        onClick={() => setMatchFilters((f) => ({ ...f, sponsor: !f.sponsor }))}
+                        className={`text-xs px-2.5 py-1 rounded-md border ${matchFilters.sponsor ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40" : "bg-card-2 text-ink-2 border-line hover:bg-line"}`}
+                      >
+                        ★ Sponsor
+                      </button>
+                      <button
+                        onClick={() => setMatchFilters((f) => ({ ...f, emailReady: !f.emailReady }))}
+                        className={`text-xs px-2.5 py-1 rounded-md border ${matchFilters.emailReady ? "bg-blue-500/15 text-blue-400 border-blue-500/40" : "bg-card-2 text-ink-2 border-line hover:bg-line"}`}
+                      >
+                        ✉️ Email hazır
+                      </button>
+                      <div className="ml-auto flex items-center gap-1 text-xs text-ink-3">
+                        <span>Sırala:</span>
+                        <select
+                          value={matchSort}
+                          onChange={(e) => setMatchSort(e.target.value as typeof matchSort)}
+                          className="bg-card-2 text-ink-2 rounded-md text-xs px-1.5 py-1 border border-line focus:outline-none"
+                        >
+                          <option value="email">Email hazır</option>
+                          <option value="fit">Uyğunluq (fit)</option>
+                        </select>
+                      </div>
+                    </div>
                     <div className="space-y-3">
                       {pendingMatches.map((m) => {
                         const jobLink = m.vacancy.url
@@ -1364,7 +1521,33 @@ export default function CandidatesPage() {
                                         m.employer.sponsorshipSignal === "NO" ? t("sponsorshipNo") : t("sponsorshipUnknown")}
                                   </span>
                                   {m.vacancy.source && <span className="text-[10px] text-ink-3 uppercase tracking-wide">{m.vacancy.source}</span>}
+                                  {typeof m.fitScore === "number" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedFit(expandedFit === m.id ? null : m.id)}
+                                      title={`Uyğunluq: ${m.fitScore}${m.fitBreakdown ? " — detallar üçün klik" : ""}`}
+                                      className="ml-auto shrink-0 relative w-9 h-9"
+                                    >
+                                      <div
+                                        className="w-9 h-9 rounded-full"
+                                        style={{ background: `conic-gradient(rgb(var(--accent)) ${Math.round(m.fitScore * 3.6)}deg, rgb(var(--card-2)) 0deg)` }}
+                                      />
+                                      <div className="absolute inset-[3px] rounded-full bg-card flex items-center justify-center">
+                                        <span className="tabular text-[11px] font-bold text-ink">{m.fitScore}</span>
+                                      </div>
+                                    </button>
+                                  )}
                                 </div>
+                                {expandedFit === m.id && m.fitBreakdown && (
+                                  <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-2 bg-card-2 border border-line rounded-lg p-2.5">
+                                    {Object.entries(m.fitBreakdown).map(([key, val]) => (
+                                      <div key={key} className="text-center">
+                                        <div className="text-[9px] uppercase text-ink-3 truncate">{key}</div>
+                                        <div className="tabular text-sm font-bold text-ink">{val}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="text-sm text-ink-2 mt-0.5">
                                   {m.employer.city}, {m.employer.region} · {m.vacancy.title}
                                 </div>
