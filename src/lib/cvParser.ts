@@ -62,7 +62,7 @@ type ContentBlocks = Anthropic.Messages.MessageParam["content"];
 // return the extracted candidate fields.
 export async function parseCvContent(content: ContentBlocks): Promise<Record<string, unknown>> {
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-4-8", // strongest model — most complete/accurate CV extraction → better matches
     max_tokens: 4000, // longer CVs need room for full experience/education lists
     messages: [{ role: "user", content }],
   });

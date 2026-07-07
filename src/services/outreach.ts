@@ -176,7 +176,7 @@ export async function composeApplicationLetter(
   // Excerpt of the actual job posting so the letter can address its requirements
   const jobText = (vacancy.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1500);
 
-  const prompt = `Du schreibst im Namen der Personalvermittlung "MZ Personalvermittlung" eine konkrete Bewerbung für einen Kandidaten — ZUGESCHNITTEN auf diese eine Stellenanzeige.
+  const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "MZ Personalvermittlung" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
 - Sprich den Arbeitgeber NAMENTLICH an: "${employer.name}".
@@ -187,6 +187,13 @@ PFLICHT (unbedingt einhalten):
 - Erwähne NICHT die Themen Visum/Visabegleitung, Kostenfreiheit/Unverbindlichkeit der Vorstellung oder das Angebot eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
 - Verwende NIEMALS das Wort "Test".
 - Max. 230 Wörter, professionell, freundlich, konkret (keine Floskeln).
+
+SO ERHÖHST DU DIE ANTWORTQUOTE (Qualität, die Rückmeldungen bringt):
+- Erster Satz = starker, konkreter Einstieg mit direktem Bezug auf ${employer.name} und die ausgeschriebene Stelle — KEINE Standardfloskel wie "hiermit bewerbe ich mich".
+- Greife 2–3 konkrete Anforderungen aus der Anzeige auf und belege sie mit passenden Stationen/Fähigkeiten des Kandidaten (nenne konkrete Tätigkeiten, Jahre, Erfahrung — keine leeren Adjektive).
+- Formuliere aus Arbeitgeber-Sicht: was der Kandidat dem Betrieb konkret bringt (Nutzen), nicht nur, was er sucht.
+- Natürliche, menschliche Sprache in fehlerfreiem Deutsch. KEINE aufgeblähten KI-Formulierungen, keine Wiederholungen, keine übertriebenen Superlative.
+- Kurze, klar lesbare Absätze. Selbstbewusster, aber nie aufdringlicher Ton.
 
 Kandidat: ${candidate.name}${candidate.nationality ? ` (${candidate.nationality})` : ""}
 Beruf/Qualifikation: ${candidate.beruf}
@@ -203,8 +210,8 @@ ${jobText ? `\nStellenanzeige (Auszug):\n"""${jobText}"""` : ""}
 Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift).`;
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 600,
+    model: "claude-opus-4-8", // strongest model — best-tailored, most convincing letters → higher reply rate
+    max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });
   let body = message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
