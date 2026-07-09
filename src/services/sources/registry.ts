@@ -15,7 +15,6 @@ import { ingestAdzuna } from "@/services/adzuna";
 import { ingestJooble } from "@/services/jooble";
 import { ingestCareerjet } from "@/services/careerjet";
 import { ingestJSearch } from "@/services/jsearch";
-import { ingestMeinestadt } from "@/services/meinestadt";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 export interface JobSource {
@@ -96,15 +95,6 @@ const jsearch: JobSource = {
   ingest: (o) => ingestJSearch(o),
 };
 
-const meinestadt: JobSource = {
-  id: "meinestadt",
-  label: "meineStadt (Beta — Scraper)",
-  category: "general",
-  available: () => process.env.MEINESTADT_ENABLED === "true",
-  unavailableReason: "MEINESTADT_ENABLED=true erforderlich (Beta-Scraper, keine offizielle API)",
-  ingest: (o) => ingestMeinestadt(o),
-};
-
 /**
  * Registry order follows the user's priority: hospitality platforms first,
  * then the big boards, then the live aggregators that already work.
@@ -126,7 +116,6 @@ export const SOURCES: JobSource[] = [
   jooble,
   careerjet,
   jsearch,
-  meinestadt,
 ];
 
 export function getSource(id: string): JobSource | undefined {
