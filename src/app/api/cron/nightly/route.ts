@@ -11,7 +11,7 @@ import { availableSources } from "@/services/sources/registry";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { runAutoSend } from "@/services/autopilot";
-import { deletePartTimeVacancies } from "@/services/cleanup";
+import { deletePartTimeVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { prisma } from "@/lib/prisma";
 
@@ -138,6 +138,14 @@ export async function POST(req: NextRequest) {
       log.push(`Part-time purge: deleted ${pt.partTimeDeleted}`);
     } catch (err) {
       log.push(`Part-time purge FAILED: ${(err as Error).message}`);
+    }
+
+    // Step 5b-2: Purge any non-German listings — Germany only.
+    try {
+      const ng = await deleteNonGermanVacancies();
+      log.push(`Non-German purge: deleted ${ng.nonGermanDeleted}`);
+    } catch (err) {
+      log.push(`Non-German purge FAILED: ${(err as Error).message}`);
     }
 
     // Step 5c: Merge duplicate employers from multiple sources.

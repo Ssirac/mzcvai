@@ -14,7 +14,7 @@
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
 import type { ApplyChannel, SponsorshipSignal } from "@prisma/client";
-import { berufSearchKeywords, isPartTimeJob } from "@/lib/berufMap";
+import { berufSearchKeywords, isPartTimeJob, isNonGermanLocation } from "@/lib/berufMap";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 const BASE = "https://api.adzuna.com/v1/api/jobs/de/search";
@@ -127,6 +127,7 @@ export async function ingestAdzuna(opts: IngestOptions): Promise<IngestResult> {
       for (const job of jobs) {
         try {
           if (!titleRelevant(job, keywords)) continue;
+          if (isNonGermanLocation(`${job.location?.display_name ?? ""} ${(job.location?.area ?? []).join(" ")}`)) continue; // Germany only
           if (isPartTimeJob(job.title, job.contract_time ? [job.contract_time] : [], job.description ?? "")) continue;
 
           const sourceRef = `adzuna:${job.id}`;

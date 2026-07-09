@@ -11,7 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
+import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
 
 // Vacancies not re-seen in EXPIRY_DAYS are stale job postings — most German
 // listings are filled or pulled within a month. Delete them so candidates only
@@ -39,6 +39,39 @@ export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expired
   }
 
   return { expiredDeleted };
+}
+
+// Germany-only guard: purge any vacancy whose employer/vacancy location names a
+// place OUTSIDE Germany (Austria, Switzerland, etc.). The precise word-boundary
+// check runs in JS — a raw DB `contains` would wrongly hit German names like
+// "Bernau" (contains "bern"). Vacancies tied to a SENT outreach are kept.
+export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: number }> {
+  const vacancies = await prisma.vacancy.findMany({
+    where: { matches: { none: { outreach: { some: { status: "SENT" } } } } },
+    select: {
+      id: true,
+      region: true,
+      matches: { select: { id: true } },
+      employer: { select: { city: true, region: true } },
+    },
+  });
+
+  const foreign = vacancies.filter((v) =>
+    isNonGermanLocation(`${v.employer?.city ?? ""} ${v.employer?.region ?? ""} ${v.region ?? ""}`)
+  );
+
+  const ids = foreign.map((v) => v.id);
+  const matchIds = foreign.flatMap((v) => v.matches.map((m) => m.id));
+
+  let nonGermanDeleted = 0;
+  if (ids.length > 0) {
+    await prisma.outreach.deleteMany({ where: { matchId: { in: matchIds } } });
+    await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
+    const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: ids } } });
+    nonGermanDeleted = count;
+  }
+
+  return { nonGermanDeleted };
 }
 
 export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: number }> {

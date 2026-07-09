@@ -181,8 +181,9 @@ export default function DashboardPage() {
         fetch("/api/cleanup-expired", { method: "POST" }).then((r) => r.json()),
       ]);
       const pt = Number(ptRes?.partTimeDeleted ?? 0);
+      const ng = Number(ptRes?.nonGermanDeleted ?? 0);
       const ex = Number(exRes?.expiredDeleted ?? 0);
-      toast(`${pt} part-time/mini-job + ${ex} köhnə elan silindi`, "success");
+      toast(`${pt} part-time + ${ng} xarici + ${ex} köhnə elan silindi`, "success");
       fetchStats();
     } finally {
       setCleanupLoading(false);
@@ -431,10 +432,10 @@ export default function DashboardPage() {
               <button
                 onClick={cleanupPartTime}
                 disabled={cleanupLoading || ingestLoading}
-                title="Part-time / mini-job və 30 gündən köhnə elanları bazadan silir"
+                title="Part-time / mini-job, xarici (Almaniyadan kənar) və 30 gündən köhnə elanları bazadan silir"
                 className="w-full pill-red bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 disabled:opacity-50 rounded-lg px-3 py-2 text-xs font-medium"
               >
-                {cleanupLoading ? t("running") : "🧹 Part-time + köhnə elanları sil"}
+                {cleanupLoading ? t("running") : "🧹 Part-time + xarici + köhnə elanları sil"}
               </button>
               {ingestResult && (
                 <div className={`text-xs p-2 rounded-lg border ${ingestResult.startsWith("⚠") ? "bg-red-500/10 border-red-500/30 pill-red" : "bg-accent/10 border-accent/30 text-accent"}`}>

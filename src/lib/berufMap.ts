@@ -290,18 +290,62 @@ export const PART_TIME_HARD_KEYWORDS = [
 // countries. The agency places only in Germany, so drop anything whose location
 // clearly names a non-German country or city.
 const NON_GERMAN_LOCATIONS = [
-  "österreich", "austria", "wien", "vienna", "graz", "salzburg", "linz", "innsbruck",
-  "schweiz", "switzerland", "suisse", "zürich", "zurich", "genf", "geneva", "basel", "bern", "lausanne",
-  "niederlande", "netherlands", "nederland", "amsterdam", "rotterdam", "den haag", "utrecht", "eindhoven",
-  "belgien", "belgium", "brüssel", "brussels", "antwerpen", "antwerp",
-  "polen", "poland", "polska", "warschau", "warsaw", "krakau", "krakow",
-  "luxemburg", "luxembourg", "frankreich", "france", "paris", "italien", "italy", "spanien", "spain",
-  "dänemark", "denmark", "tschechien", "czech", "prag", "prague", "ungarn", "hungary", "budapest",
-  "remote - eu", "united kingdom", "london", "ireland", "dublin",
+  // Countries (DE / EN / local spellings)
+  "österreich", "austria", "autriche",
+  "schweiz", "switzerland", "suisse", "svizzera",
+  "liechtenstein",
+  "niederlande", "netherlands", "nederland", "holland",
+  "belgien", "belgium", "belgique", "belgie", "belgië",
+  "luxemburg", "luxembourg",
+  "frankreich", "france",
+  "italien", "italy", "italia",
+  "spanien", "spain", "espana", "españa",
+  "portugal",
+  "polen", "poland", "polska",
+  "tschechien", "czech", "czechia", "cesko", "česko",
+  "slowakei", "slovakia", "slowenien", "slovenia",
+  "ungarn", "hungary",
+  "rumänien", "romania", "bulgarien", "bulgaria",
+  "kroatien", "croatia", "serbien", "serbia",
+  "griechenland", "greece",
+  "dänemark", "denmark", "schweden", "sweden", "norwegen", "norway", "finnland", "finland",
+  "irland", "ireland",
+  "vereinigtes königreich", "großbritannien", "united kingdom", "england", "scotland", "wales",
+  "türkei", "turkey", "türkiye", "turkiye",
+  "usa", "united states", "kanada", "canada",
+  "vereinigte arabische emirate", "united arab emirates", "katar", "qatar", "saudi",
+  // Foreign cities
+  "wien", "vienna", "graz", "salzburg", "linz", "innsbruck", "klagenfurt", "villach", "wels",
+  "zürich", "zurich", "genf", "geneva", "genève", "geneve", "basel", "bern", "lausanne",
+  "luzern", "lucerne", "winterthur", "st. gallen", "st gallen", "lugano", "zug",
+  "vaduz",
+  "amsterdam", "rotterdam", "den haag", "the hague", "utrecht", "eindhoven", "groningen",
+  "brüssel", "brussels", "bruxelles", "antwerpen", "antwerp", "gent", "ghent", "liège", "liege", "lüttich",
+  "warschau", "warsaw", "krakau", "krakow", "kraków", "danzig", "gdansk", "breslau", "wroclaw",
+  "prag", "prague", "praha", "brünn", "brno",
+  "budapest",
+  "paris", "lyon", "marseille", "straßburg", "strasbourg",
+  "mailand", "milano", "milan", "rom", "rome", "roma", "turin", "torino", "neapel",
+  "bozen", "bolzano", "südtirol",
+  "madrid", "barcelona",
+  "lissabon", "lisbon", "lisboa", "porto",
+  "london", "manchester", "dublin",
+  "kopenhagen", "copenhagen", "stockholm", "oslo", "helsinki",
+  "istanbul", "ankara", "izmir",
+  "dubai", "abu dhabi", "doha", "riad", "riyadh",
+  // Explicit foreign / EU-wide remote
+  "remote - eu", "remote (eu)", "remote europe", "eu remote", "europaweit",
 ];
+
+// Word-boundary matcher — avoids false positives where a foreign token is a
+// substring of a German place name (e.g. "bern" inside "Bernau").
+const NON_GERMAN_RE = new RegExp(
+  "\\b(" + NON_GERMAN_LOCATIONS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b",
+  "i"
+);
+
 export function isNonGermanLocation(location: string): boolean {
-  const l = (location ?? "").toLowerCase();
-  return NON_GERMAN_LOCATIONS.some((k) => l.includes(k));
+  return NON_GERMAN_RE.test((location ?? "").toLowerCase());
 }
 
 export function isPartTimeJob(title: string, types?: string[], description?: string): boolean {

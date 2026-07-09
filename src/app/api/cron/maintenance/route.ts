@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
-import { deletePartTimeVacancies, deleteExpiredVacancies } from "@/services/cleanup";
+import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
@@ -69,9 +69,10 @@ export async function POST(req: NextRequest) {
     if (job === "replies" || job === "all") {
       log.replies = await pollReplies();
     }
-    // Keep the DB full-time-only and free of stale postings on every pass.
+    // Keep the DB full-time-only, Germany-only and free of stale postings.
     if (job === "cleanup" || job === "replies" || job === "all") {
       log.partTime = await deletePartTimeVacancies();
+      log.nonGerman = await deleteNonGermanVacancies();
       log.expired = await deleteExpiredVacancies();
     }
     if (job === "followups" || job === "all") {
