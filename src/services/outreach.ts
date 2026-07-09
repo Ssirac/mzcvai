@@ -92,12 +92,27 @@ function isExecLocalpart(local: string): boolean {
   return EXEC_CONTAINS.some((t) => l.includes(t));
 }
 
+// Local parts that identify a DEPARTMENT / application inbox, not a person. A
+// generic address often carries a branch or name suffix — e.g.
+// bewerbung-felderer@, jobs-berlin@, hr-nord@, personal-hamburg@ — and is still
+// a valid application address, so it must NOT be treated as personal.
+const GENERIC_LOCAL_PREFIXES = new Set([
+  "info", "bewerbung", "bewerbungen", "jobs", "job", "karriere", "career", "careers",
+  "recruiting", "recruitment", "hr", "personal", "kontakt", "contact", "post", "mail",
+  "office", "stelle", "stellen", "team", "service", "empfang", "zentrale", "verwaltung", "mailbox",
+]);
+
 function looksPersonal(email: string): boolean {
-  const local = email.split("@")[0] ?? "";
+  const local = (email.split("@")[0] ?? "").toLowerCase();
   // Boss/owner address → never send (avoids annoying the Geschäftsführer).
   if (isExecLocalpart(local)) return true;
-  // Patterns like firstname.lastname, f.lastname, firstname_lastname
-  return /^[a-z]+[.\-_][a-z]+$/i.test(local) && !/^(info|bewerbung|jobs|karriere|hr|personal|kontakt|post|mail|office|bewerbungen|stelle|stellen|team)$/i.test(local);
+  // Department/application inbox with a suffix (bewerbung-felderer, jobs-berlin,
+  // hr-nord) — the first token is a known generic prefix → treat as generic.
+  const firstToken = local.split(/[.\-_]/)[0] ?? "";
+  if (GENERIC_LOCAL_PREFIXES.has(firstToken)) return false;
+  // Otherwise a firstname.lastname / f.lastname / firstname_lastname pattern is
+  // a personal address — block it (GDPR default).
+  return /^[a-z]+[.\-_][a-z]+$/i.test(local);
 }
 
 // Standard service paragraphs appended to EVERY employer letter (before the
