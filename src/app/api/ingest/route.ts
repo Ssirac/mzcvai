@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { scoreEmployersForSearch } from "@/services/scoring";
 import { SOURCES, availableSources, getSource } from "@/services/sources/registry";
-import { prisma } from "@/lib/prisma";
-import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
+import { runVacancyCleanup } from "@/services/cleanup";
 
 // POST /api/ingest
 // Body: { beruf, region, maxPages?, source? }  — source = a module id or "all".
@@ -59,49 +58,11 @@ export async function POST(req: NextRequest) {
 
     const scored = await scoreEmployersForSearch(beruf, region);
 
-    // Remove any part-time / mini-job vacancies that slipped in (title-based cleanup).
-    // Must delete child Match rows first to avoid FK violation.
-    const partTimeWhere = {
-      OR: [
-        ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({
-          title: { contains: kw, mode: "insensitive" as const },
-        })),
-        ...PART_TIME_HARD_KEYWORDS.map((kw) => ({
-          description: { contains: kw, mode: "insensitive" as const },
-        })),
-      ],
-    };
-    const ptVacancies = await prisma.vacancy.findMany({ where: partTimeWhere, select: { id: true } });
-    const ptIds = ptVacancies.map((v) => v.id);
-    let partTimeDeleted = 0;
-    if (ptIds.length > 0) {
-      await prisma.match.deleteMany({ where: { vacancyId: { in: ptIds } } });
-      const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: ptIds } } });
-      partTimeDeleted = count;
-    }
-
-    // Remove stale vacancies (older than EXPIRY_DAYS, never re-seen by a fresh
-    // ingest). Keeps history intact: a vacancy is skipped if any of its matches
-    // has a SENT outreach, so already-contacted employers stay visible in
-    // "Göndərilən maillər". Match/Outreach rows are deleted first (FK-safe).
-    const EXPIRY_DAYS = 30;
-    const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-    const staleVacancies = await prisma.vacancy.findMany({
-      where: {
-        foundAt: { lt: expiryCutoff },
-        matches: { none: { outreach: { some: { status: "SENT" } } } },
-      },
-      select: { id: true, matches: { select: { id: true } } },
-    });
-    const staleVacancyIds = staleVacancies.map((v) => v.id);
-    const staleMatchIds = staleVacancies.flatMap((v) => v.matches.map((m) => m.id));
-    let expiredDeleted = 0;
-    if (staleVacancyIds.length > 0) {
-      await prisma.outreach.deleteMany({ where: { matchId: { in: staleMatchIds } } });
-      await prisma.match.deleteMany({ where: { id: { in: staleMatchIds } } });
-      const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: staleVacancyIds } } });
-      expiredDeleted = count;
-    }
+    // Immediately purge anything that must never reach candidates: part-time /
+    // mini-job, non-German (Almaniyadan kənar), and stale (30+ day) listings.
+    // Deletes cascade to Match + Outreach, so they also vanish from every
+    // candidate's matches — no waiting for the hourly cron.
+    const cleaned = await runVacancyCleanup();
 
     return NextResponse.json({
       ok: true,
@@ -109,8 +70,9 @@ export async function POST(req: NextRequest) {
       vacanciesUpdated: totals.vacanciesUpdated,
       employersNew: totals.employersNew,
       employersScored: scored,
-      partTimeDeleted,
-      expiredDeleted,
+      partTimeDeleted: cleaned.partTimeDeleted,
+      nonGermanDeleted: cleaned.nonGermanDeleted,
+      expiredDeleted: cleaned.expiredDeleted,
       sourcesRun: modules.map((m) => m.id),
       perSource,
       errors: totals.errors,

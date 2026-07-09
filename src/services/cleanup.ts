@@ -74,6 +74,16 @@ export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: nu
   return { nonGermanDeleted };
 }
 
+// One-shot purge run after every ingest: drop part-time/mini-job, non-German,
+// and stale listings in a single call. The deletes cascade to Match + Outreach,
+// so purged jobs also disappear from every candidate's matches immediately.
+export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number }> {
+  const pt = await deletePartTimeVacancies();
+  const ng = await deleteNonGermanVacancies();
+  const ex = await deleteExpiredVacancies();
+  return { ...pt, ...ng, ...ex };
+}
+
 export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: number }> {
   const titleOr = PART_TIME_TITLE_KEYWORDS.map((kw) => ({
     title: { contains: kw, mode: "insensitive" as const },

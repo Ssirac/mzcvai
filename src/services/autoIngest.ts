@@ -9,6 +9,7 @@ import { ingestAdzuna } from "@/services/adzuna";
 import { ingestArbeitnow } from "@/services/arbeitnow";
 import { ingestJooble } from "@/services/jooble";
 import { scoreEmployersForSearch } from "@/services/scoring";
+import { runVacancyCleanup } from "@/services/cleanup";
 
 // Turn a free-text beruf into clean search terms. Compound titles like
 // "Geschäftsführer / Bauprojektmanager" are split into their parts so each is
@@ -56,6 +57,9 @@ export async function autoIngestForBeruf(beruf: string, region: string): Promise
   if (vacanciesNew > 0) {
     // Score against each term so the candidate's employers get ranked
     for (const term of terms) await scoreEmployersForSearch(term, region);
+    // Purge part-time / non-German / stale listings straight away so the
+    // candidate's matches only ever contain valid, full-time German jobs.
+    try { await runVacancyCleanup(); } catch { /* non-fatal */ }
   }
   return { vacanciesNew, sources: Array.from(sources), terms };
 }
