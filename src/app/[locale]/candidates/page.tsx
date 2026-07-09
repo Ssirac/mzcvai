@@ -27,6 +27,7 @@ interface Candidate {
   notes: string | null;
   status: "ACTIVE" | "PENDING" | "PLACED" | "ARCHIVED";
   // Extra fields the list API also returns (used for flags + completeness)
+  photoUrl?: string | null;
   hasCv?: boolean;
   skills?: string[];
   experience?: unknown[];
@@ -152,6 +153,33 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+// Resize an uploaded image to a small square-ish JPEG data URL so the photo can
+// be stored inline (in photoUrl) and shipped in the list without bloating rows.
+function resizeImageToDataUrl(file: File, max = 160): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no canvas"));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 const SIGNAL_COLOR: Record<string, string> = {
   YES: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40",
   LIKELY: "bg-blue-500/20 text-blue-300 border border-blue-500/40",
@@ -178,7 +206,7 @@ const BLANK_FORM = {
   needsSponsorship: true, visaStatus: "", notes: "",
   germanLevel: "A1",
   dateOfBirth: "", gender: "", nationality: "", maritalStatus: "",
-  currentCity: "", currentCountry: "", address: "",
+  currentCity: "", currentCountry: "", address: "", photoUrl: "",
   desiredPosition: "", yearsExperience: "", salaryExpectation: "",
   availableFrom: "", willingToRelocate: true, drivingLicense: "",
   skills: "", certificates: "",
@@ -383,6 +411,7 @@ export default function CandidatesPage() {
       currentCity: c.currentCity ?? "",
       currentCountry: c.currentCountry ?? "",
       address: c.address ?? "",
+      photoUrl: c.photoUrl ?? "",
       desiredPosition: c.desiredPosition ?? "",
       yearsExperience: c.yearsExperience != null ? String(c.yearsExperience) : "",
       salaryExpectation: c.salaryExpectation ?? "",
@@ -861,9 +890,16 @@ export default function CandidatesPage() {
               className={`w-full text-left p-2.5 rounded-xl border transition-colors ${selectedId === c.id ? "bg-blue-600/15 border-blue-600/40" : "border-transparent hover:bg-card-2/60 hover:border-line"}`}
             >
               <div className="flex items-start gap-2.5">
-                {/* Avatar — gradient initials, with an unread-reply badge */}
-                <div className={`relative shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient(c.name)} flex items-center justify-center text-white font-bold text-xs shadow-sm`}>
-                  {initials(c.name)}
+                {/* Avatar — real photo if uploaded, else gradient initials */}
+                <div className="relative shrink-0 w-9 h-9">
+                  {c.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.photoUrl} alt={c.name} className="w-9 h-9 rounded-xl object-cover shadow-sm" />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient(c.name)} flex items-center justify-center text-white font-bold text-xs shadow-sm`}>
+                      {initials(c.name)}
+                    </div>
+                  )}
                   {unreadByCandidate[c.id] > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 flex items-center justify-center rounded-full bg-green-500 text-white text-[9px] font-bold ring-2 ring-surface" title={`${unreadByCandidate[c.id]} yeni cavab`}>
                       {unreadByCandidate[c.id]}
@@ -1019,6 +1055,43 @@ export default function CandidatesPage() {
                 {/* Personal */}
                 <div className={cardCls}>
                   <h3 className={sectionTitle}>{t("personalInfo")}</h3>
+                  {/* Candidate photo — resized client-side, stored inline */}
+                  <div className="flex items-center gap-4">
+                    <div className="shrink-0">
+                      {form.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={form.photoUrl} alt="" className="w-16 h-16 rounded-2xl object-cover border border-line" />
+                      ) : (
+                        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${avatarGradient(form.name || "?")} flex items-center justify-center text-white font-bold text-xl`}>
+                          {initials(form.name || "?")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="btn btn-ghost text-xs cursor-pointer">
+                        📷 Şəkil yüklə
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const url = await resizeImageToDataUrl(file);
+                              set("photoUrl", url);
+                            } catch {
+                              toast("Şəkil yüklənmədi", "error");
+                            }
+                          }}
+                        />
+                      </label>
+                      {form.photoUrl && (
+                        <button type="button" onClick={() => set("photoUrl", "")} className="text-xs text-red-400 hover:text-red-300 text-left">Şəkli sil</button>
+                      )}
+                      <span className="text-[10px] text-ink-3">JPG/PNG — avtomatik kiçildilir</span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div>
                       <label className={labelCls}>{t("fullName")} *</label>
@@ -1249,9 +1322,14 @@ export default function CandidatesPage() {
               {/* Profile header */}
               <div className="card p-5 mb-5">
                 <div className="flex items-start gap-4">
-                  <div className={`shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${avatarGradient(selectedCandidate.name)} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
-                    {initials(selectedCandidate.name)}
-                  </div>
+                  {selectedCandidate.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selectedCandidate.photoUrl} alt={selectedCandidate.name} className="shrink-0 w-14 h-14 rounded-2xl object-cover shadow-lg" />
+                  ) : (
+                    <div className={`shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${avatarGradient(selectedCandidate.name)} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
+                      {initials(selectedCandidate.name)}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="text-xl font-bold text-ink truncate">{selectedCandidate.name}</h2>
