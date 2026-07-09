@@ -858,39 +858,45 @@ export default function CandidatesPage() {
             <button
               key={c.id}
               onClick={() => selectCandidate(c.id)}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${selectedId === c.id ? "bg-blue-600/20 border border-blue-600/40" : "hover:bg-card-2/50"}`}
+              className={`w-full text-left p-2.5 rounded-xl border transition-colors ${selectedId === c.id ? "bg-blue-600/15 border-blue-600/40" : "border-transparent hover:bg-card-2/60 hover:border-line"}`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-ink text-sm truncate flex items-center gap-1.5">
-                  {c.name}
+              <div className="flex items-start gap-2.5">
+                {/* Avatar — gradient initials, with an unread-reply badge */}
+                <div className={`relative shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient(c.name)} flex items-center justify-center text-white font-bold text-xs shadow-sm`}>
+                  {initials(c.name)}
                   {unreadByCandidate[c.id] > 0 && (
-                    <span className="shrink-0 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold" title={`${unreadByCandidate[c.id]} yeni cavab`}>
+                    <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 flex items-center justify-center rounded-full bg-green-500 text-white text-[9px] font-bold ring-2 ring-surface" title={`${unreadByCandidate[c.id]} yeni cavab`}>
                       {unreadByCandidate[c.id]}
                     </span>
                   )}
-                </span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${STATUS_COLOR[c.status]}`}>{t(`status${c.status}`)}</span>
-              </div>
-              <div className="text-xs text-ink-2 mt-0.5">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
-              {(c.currentCity || c.phone) && (
-                <div className="text-xs text-ink-3 mt-0.5 truncate">
-                  {[c.currentCity, c.phone].filter(Boolean).join(" · ")}
                 </div>
-              )}
-              <div className="text-xs text-ink-3 mt-0.5">
-                {t("matchCount", { count: c._count.matches })}
-                {c.needsSponsorship && <span className="ml-2 text-yellow-500">{t("needsSponsorshipShort")}</span>}
-              </div>
-              {(!c.hasCv || c._count.matches === 0) && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {!c.hasCv && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ CV yoxdur</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-ink text-sm truncate">{c.name}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${STATUS_COLOR[c.status]}`}>{t(`status${c.status}`)}</span>
+                  </div>
+                  <div className="text-xs text-ink-2 mt-0.5 truncate">{c.beruf} · {c.regionPrefs.join(", ") || t("anywhere")}</div>
+                  {(c.currentCity || c.phone) && (
+                    <div className="text-xs text-ink-3 mt-0.5 truncate">
+                      {[c.currentCity, c.phone].filter(Boolean).join(" · ")}
+                    </div>
                   )}
-                  {c._count.matches === 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ Uyğunluq yoxdur</span>
+                  <div className="text-[11px] text-ink-3 mt-1 flex items-center gap-2 flex-wrap">
+                    <span>{t("matchCount", { count: c._count.matches })}</span>
+                    {c.needsSponsorship && <span className="text-yellow-500">{t("needsSponsorshipShort")}</span>}
+                  </div>
+                  {(!c.hasCv || c._count.matches === 0) && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {!c.hasCv && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ CV yoxdur</span>
+                      )}
+                      {c._count.matches === 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ Uyğunluq yoxdur</span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
             </button>
           ))}
         </div>
@@ -1354,8 +1360,8 @@ export default function CandidatesPage() {
                 </div>
               </div>
 
-              {/* Tabs */}
-              <div className="flex gap-1 border-b border-line mb-4">
+              {/* Tabs — sticky so they stay reachable while scrolling long lists */}
+              <div className="flex gap-1 border-b border-line mb-4 sticky top-0 z-20 bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
                 {([
                   ["matches", t("tabMatches"), pendingMatches.length],
                   ["comms", t("tabComms"), comms.length],
@@ -1503,7 +1509,7 @@ export default function CandidatesPage() {
                         const jobLink = m.vacancy.url
                           || (m.vacancy.applyValue && /^https?:\/\//.test(m.vacancy.applyValue) ? m.vacancy.applyValue : null);
                         return (
-                          <div key={m.id} className={`group bg-card border rounded-2xl p-4 transition-colors ${selectedMatchIds.has(m.id) ? "border-emerald-600/60" : "border-line hover:border-line-strong"}`}>
+                          <div key={m.id} className={`group bg-card border rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/10 ${selectedMatchIds.has(m.id) ? "border-emerald-600/60" : "border-line hover:border-line-strong"}`}>
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                               <input
                                 type="checkbox"
@@ -1824,11 +1830,17 @@ export default function CandidatesPage() {
 
           {/* Empty state */}
           {!selectedCandidate && !showForm && (
-            <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center">
-              <div className="text-ink-3 text-sm mb-4">{t("selectOrAdd")}</div>
-              <button onClick={startNewCandidate}
-                className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">
-                {t("addFirst")}
+            <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-center px-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-teal-600/20 border border-line flex items-center justify-center mb-4">
+                <svg viewBox="0 0 24 24" className="w-7 h-7 text-accent" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <div className="text-ink font-semibold mb-1">{t("selectOrAdd")}</div>
+              <div className="text-ink-3 text-sm mb-5 max-w-xs">Soldan namizəd seçin və ya yenisini əlavə edin — sistem uyğun vakansiyaları avtomatik tapır.</div>
+              <button onClick={startNewCandidate} className="btn btn-primary">
+                + {t("addFirst")}
               </button>
             </div>
           )}
