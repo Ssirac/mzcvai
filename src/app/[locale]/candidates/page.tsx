@@ -1918,7 +1918,7 @@ export default function CandidatesPage() {
               <div className="text-ink font-semibold mb-1">{t("selectOrAdd")}</div>
               <div className="text-ink-3 text-sm mb-5 max-w-xs">Soldan namizəd seçin və ya yenisini əlavə edin — sistem uyğun vakansiyaları avtomatik tapır.</div>
               <button onClick={startNewCandidate} className="btn btn-primary">
-                + {t("addFirst")}
+                {t("addFirst")}
               </button>
             </div>
           )}
