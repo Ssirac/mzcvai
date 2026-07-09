@@ -22,12 +22,20 @@ export const metadata: Metadata = {
   applicationName: "MZ Talent Intelligence",
   robots: { index: false, follow: false }, // internal admin tool — keep out of search engines
   formatDetection: { telephone: false, email: false, address: false },
+  manifest: "/manifest.webmanifest",
+  // Installable as a standalone app on phone/desktop
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "MZ Talent" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  // Browser chrome color tracks the OS light/dark preference
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#080b0f" },
+    { media: "(prefers-color-scheme: light)", color: "#f3f6f9" },
+  ],
 };
 
 export default function RootLayout({

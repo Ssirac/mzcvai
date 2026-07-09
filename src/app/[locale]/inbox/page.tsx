@@ -72,7 +72,12 @@ export default function InboxPage() {
           <div className="flex items-center gap-3">
             <span className="w-1 h-8 rounded-full bg-gradient-to-b from-green-400 to-emerald-600" />
             <div>
-              <h1 className="text-xl font-bold text-ink">Gələn maillər</h1>
+              <h1 className="text-xl font-bold text-ink flex items-center gap-2">
+                Gələn maillər
+                {!loading && list.length > 0 && (
+                  <span className="tabular text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent">{list.length}</span>
+                )}
+              </h1>
               <p className="text-xs text-ink-3">İşəgötürənlərdən gələn cavablar</p>
             </div>
           </div>
@@ -90,10 +95,20 @@ export default function InboxPage() {
         </div>
 
         {loading ? (
-          <div className="text-ink-3 text-sm py-8 text-center">Yüklənir...</div>
+          <div className="space-y-2.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="card p-4">
+                <div className="skeleton h-4 w-1/3 mb-2" />
+                <div className="skeleton h-3 w-2/3 mb-1.5" />
+                <div className="skeleton h-3 w-1/4" />
+              </div>
+            ))}
+          </div>
         ) : list.length === 0 ? (
-          <div className="text-ink-3 text-sm bg-card border border-line rounded-2xl p-8 text-center">
-            Hələ cavab gəlməyib. İşəgötürən cavab verəndə burada görünəcək.
+          <div className="card p-10 text-center">
+            <div className="text-4xl mb-3">📭</div>
+            <div className="text-ink font-semibold mb-1">{q ? "Nəticə tapılmadı" : "Hələ cavab gəlməyib"}</div>
+            <div className="text-ink-3 text-sm max-w-sm mx-auto">{q ? "Axtarışa uyğun cavab yoxdur." : "İşəgötürən cavab verəndə cavablar burada görünəcək."}</div>
           </div>
         ) : (
           <div className="space-y-2.5">

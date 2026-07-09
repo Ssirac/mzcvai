@@ -15,6 +15,8 @@ function isPublic(pathname: string): boolean {
   if (pathname.startsWith("/api/unsubscribe")) return true; // public opt-out link (UWG)
   if (pathname === "/api/health") return true;           // monitoring/uptime check
   if (/^\/(?:[a-z]{2}\/)?login$/.test(pathname)) return true; // login page (with/without locale)
+  // PWA/browser assets — must load pre-login for install + tab icon
+  if (pathname === "/manifest.webmanifest" || pathname === "/icon.svg" || pathname === "/favicon.ico") return true;
   return false;
 }
 
