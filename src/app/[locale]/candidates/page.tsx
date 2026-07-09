@@ -153,6 +153,34 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+// Count a number up from 0 to its target with an ease-out — a small "instrument
+// readout" touch when a candidate's stats appear. Respects reduced-motion.
+function useCountUp(target: number, duration = 650): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setVal(target);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(target * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
+function CountUp({ value, className }: { value: number; className?: string }) {
+  const v = useCountUp(value);
+  return <span className={className}>{v}</span>;
+}
+
 // Resize an uploaded image to a small square-ish JPEG data URL so the photo can
 // be stored inline (in photoUrl) and shipped in the list without bloating rows.
 function resizeImageToDataUrl(file: File, max = 160): Promise<string> {
@@ -1377,8 +1405,9 @@ export default function CandidatesPage() {
                     </div>
                   </div>
                 </div>
-                {/* Performance — how this candidate is doing, at a glance */}
-                <div className="mt-4 pt-4 border-t border-line">
+                {/* Performance — how this candidate is doing, at a glance.
+                    Keyed on the candidate so the count-up re-runs on each open. */}
+                <div key={selectedCandidate.id} className="mt-4 pt-4 border-t border-line">
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {[
                       { label: t("statMatches"), value: matches.length, cls: "text-emerald-400" },
@@ -1387,8 +1416,8 @@ export default function CandidatesPage() {
                       { label: "Cavab", value: perfReplied, cls: "text-green-400" },
                       { label: "Müsahibə", value: perfInterview, cls: "text-amber-400" },
                     ].map((s) => (
-                      <div key={s.label} className="bg-card-2 border border-line rounded-lg px-2.5 py-2">
-                        <div className={`tabular text-xl font-bold ${s.cls}`}>{s.value}</div>
+                      <div key={s.label} className="bg-card-2 border border-line rounded-lg px-2.5 py-2 transition-colors hover:border-line-strong">
+                        <div className={`tabular text-xl font-bold ${s.cls}`}><CountUp value={s.value} /></div>
                         <div className="text-[10px] text-ink-3 truncate">{s.label}</div>
                       </div>
                     ))}
@@ -1398,7 +1427,7 @@ export default function CandidatesPage() {
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[11px] mb-1">
                         <span className="text-ink-3">Cavab faizi</span>
-                        <span className="tabular font-semibold text-ink">{perfReplyRate}% <span className="text-ink-3 font-normal">({perfReplied}/{perfSent})</span></span>
+                        <span className="tabular font-semibold text-ink"><CountUp value={perfReplyRate} />% <span className="text-ink-3 font-normal">({perfReplied}/{perfSent})</span></span>
                       </div>
                       <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
                         <div className="h-full bg-accent rounded-full" style={{ width: `${perfReplyRate}%`, transition: "width 500ms ease" }} />
@@ -1410,7 +1439,7 @@ export default function CandidatesPage() {
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[11px] mb-1">
                         <span className="text-ink-3">Profil tamlığı</span>
-                        <span className="tabular font-semibold text-ink">{completeness.pct}%</span>
+                        <span className="tabular font-semibold text-ink"><CountUp value={completeness.pct} />%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
                         <div className={`h-full rounded-full ${completeness.pct >= 75 ? "bg-emerald-500" : completeness.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${completeness.pct}%`, transition: "width 500ms ease" }} />
