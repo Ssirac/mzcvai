@@ -27,6 +27,24 @@ export interface AutoPilotResult {
   capReached?: boolean;
 }
 
+// Auto-send for ONE candidate — used the moment new matching jobs are found for
+// them (on match view / re-match), so the application goes out immediately
+// instead of waiting for the next cron pass. Enforces the same gates as the
+// batch run: kill switch, ACTIVE status, and the CV requirement. All the hard
+// safety rails (caps, cooldown, opt-out, generic-email-only) live in the send
+// path itself.
+export async function autoSendForCandidate(candidateId: string): Promise<void> {
+  if (process.env.AUTO_SEND_ENABLED === "false") return;
+  const requireCv = process.env.AUTO_SEND_REQUIRE_CV !== "false";
+  const c = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+    select: { status: true, cvData: true },
+  });
+  if (!c || c.status !== "ACTIVE") return;
+  if (requireCv && !c.cvData) return;
+  await sendAllForCandidate(candidateId, "auto-pilot");
+}
+
 export async function runAutoSend(): Promise<AutoPilotResult> {
   const result: AutoPilotResult = { candidates: 0, sent: 0, skipped: 0, errors: [] };
 

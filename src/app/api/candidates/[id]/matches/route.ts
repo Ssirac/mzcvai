@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
 import { matchCandidateToVacancies } from "@/services/scoring";
+import { autoSendForCandidate } from "@/services/autopilot";
 
 export const maxDuration = 120;
 
@@ -92,6 +93,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       ...m,
       employerLastSentAt: cooldownByEmployer.get(m.employerId) ?? null,
     }));
+
+    // Auto-pilot: if any matching job hasn't been applied to yet, dispatch the
+    // application(s) now (fire-and-forget). Every hard guard — CV requirement,
+    // per-candidate + global daily caps, per-employer cooldown, opt-out,
+    // generic-email-only, already-sent — is enforced inside the send path, so
+    // this never double-sends and never blocks the response.
+    const hasPending = annotated.some((m) => !m.outreach.some((o) => o.status === "SENT"));
+    if (hasPending) {
+      void autoSendForCandidate(params.id).catch((e) =>
+        console.error("[auto-pilot] send on matches view failed:", (e as Error).message)
+      );
+    }
 
     return NextResponse.json({ matches: annotated });
   } catch (err) {

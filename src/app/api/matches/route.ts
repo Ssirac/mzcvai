@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoIngestForBeruf } from "@/services/autoIngest";
+import { autoSendForCandidate } from "@/services/autopilot";
 
 // GET /api/matches?candidateId=
 export async function GET(req: NextRequest) {
@@ -51,6 +52,15 @@ export async function POST(req: NextRequest) {
         if (autoIngest.vacanciesNew > 0) result = await matchCandidateToVacancies(candidateId);
       }
     }
+
+    // Auto-pilot: a suitable job for this candidate → send the application right
+    // away (fire-and-forget). The send path enforces CV, caps, cooldown, opt-out
+    // and generic-email-only, and skips anything already sent — so this only
+    // dispatches genuinely new, eligible matches.
+    void autoSendForCandidate(candidateId).catch((e) =>
+      console.error("[auto-pilot] send on match view failed:", (e as Error).message)
+    );
+
     return NextResponse.json({ ok: true, ...result, autoIngest });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
