@@ -129,7 +129,7 @@ export async function ingestJSearch(opts: IngestOptions): Promise<IngestResult> 
 
           const sourceRef = `jsearch:${job.job_id}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
-          if (existing) { result.vacanciesUpdated++; continue; }
+          if (existing) { await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } }); result.vacanciesUpdated++; continue; }
 
           const region = normalizeRegion(job.job_city, job.job_state);
           const text = `${job.job_title} ${job.job_description ?? ""}`;

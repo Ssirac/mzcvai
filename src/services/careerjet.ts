@@ -121,7 +121,7 @@ export async function ingestCareerjet(opts: IngestOptions): Promise<IngestResult
 
           const sourceRef = `careerjet:${job.url}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
-          if (existing) { result.vacanciesUpdated++; continue; }
+          if (existing) { await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } }); result.vacanciesUpdated++; continue; }
 
           const region = normalizeRegion(job.locations ?? "");
           const text = `${job.title} ${job.description ?? ""}`;

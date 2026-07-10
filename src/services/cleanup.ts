@@ -13,16 +13,33 @@
 import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
 
-// Vacancies not re-seen in EXPIRY_DAYS are stale job postings — most German
-// listings are filled or pulled within a month. Delete them so candidates only
-// ever see currently-open jobs. Kept if tied to a SENT outreach (history).
+// Remove dead and expired listings so candidates only ever see currently-open
+// jobs. Three independent freshness tests (any one triggers removal):
+//   • DEAD    — a source stopped re-listing it (lastSeenAt older than
+//               VACANCY_STALE_DAYS): the position was filled or pulled.
+//   • TOO OLD — the posting itself is past its shelf life (postedAt older than
+//               VACANCY_MAX_AGE_DAYS), even if a stale aggregator still echoes it.
+//   • FALLBACK— first discovered over `expiryDays` ago (foundAt), for rows with
+//               no posted/last-seen signal.
+// Vacancies tied to a SENT outreach are always kept (application history).
 export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expiredDeleted: number }> {
-  const cutoff = new Date(Date.now() - expiryDays * 24 * 60 * 60 * 1000);
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const staleDays = parseInt(process.env.VACANCY_STALE_DAYS ?? "14");
+  const maxAgeDays = parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "45");
+
+  const staleCut = new Date(now - staleDays * day);   // not re-listed → dead
+  const ageCut = new Date(now - maxAgeDays * day);    // posting too old
+  const foundCut = new Date(now - expiryDays * day);  // fallback on first-seen
 
   const stale = await prisma.vacancy.findMany({
     where: {
-      foundAt: { lt: cutoff },
       matches: { none: { outreach: { some: { status: "SENT" } } } },
+      OR: [
+        { lastSeenAt: { lt: staleCut } },
+        { postedAt: { lt: ageCut } },
+        { foundAt: { lt: foundCut } },
+      ],
     },
     select: { id: true, matches: { select: { id: true } } },
   });

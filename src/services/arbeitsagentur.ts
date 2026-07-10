@@ -381,8 +381,9 @@ async function processJob(
   // Check if vacancy already exists (sourceRef = refnr is unique)
   const existing = await prisma.vacancy.findUnique({ where: { sourceRef: job.refnr } });
   if (existing) {
+    await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } });
     result.vacanciesUpdated++;
-    return; // dedup — already ingested
+    return; // dedup — already ingested (freshness refreshed)
   }
 
   // Fetch detail for apply channel info

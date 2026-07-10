@@ -166,12 +166,14 @@ model Vacancy {
   applyValue     String?
   postedAt       DateTime?
   foundAt        DateTime      @default(now())
+  lastSeenAt     DateTime      @default(now()) // refreshed each time a source re-lists it; stale = filled/dead
   status         VacancyStatus @default(ACTIVE)
   rawData        Json?
   matches        Match[]
 
   @@index([beruf, region, status])
   @@index([foundAt])
+  @@index([lastSeenAt])
 }
 
 model Candidate {

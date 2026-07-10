@@ -150,6 +150,7 @@ export async function ingestArbeitnow(opts: IngestOptions): Promise<IngestResult
           const sourceRef = `arbeitnow:${job.slug}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
           if (existing) {
+            await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } });
             result.vacanciesUpdated++;
             continue;
           }

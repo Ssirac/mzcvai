@@ -132,7 +132,7 @@ export async function ingestAdzuna(opts: IngestOptions): Promise<IngestResult> {
 
           const sourceRef = `adzuna:${job.id}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
-          if (existing) { result.vacanciesUpdated++; continue; }
+          if (existing) { await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } }); result.vacanciesUpdated++; continue; }
 
           const region = normalizeRegion(job.location?.area, job.location?.display_name);
           const text = `${job.title} ${job.description ?? ""}`;
