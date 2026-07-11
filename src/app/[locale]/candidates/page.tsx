@@ -39,16 +39,16 @@ interface Candidate {
 
 // Profile completeness — the fields that make a candidate ready to place and
 // produce a strong application letter. Each present field counts equally.
-function profileCompleteness(c: Candidate): { pct: number; missing: string[] } {
+function profileCompleteness(c: Candidate, t: (k: string) => string): { pct: number; missing: string[] } {
   const checks: { label: string; ok: boolean }[] = [
-    { label: "E-poçt", ok: !!c.email },
-    { label: "Telefon", ok: !!c.phone },
-    { label: "Şəhər", ok: !!c.currentCity },
-    { label: "CV faylı", ok: !!c.hasCv },
-    { label: "Dil", ok: (c.languages?.length ?? 0) > 0 },
-    { label: "Bacarıqlar", ok: (c.skills?.length ?? 0) > 0 },
-    { label: "Təcrübə", ok: (c.experience?.length ?? 0) > 0 },
-    { label: "Alman dili səviyyəsi", ok: !!c.germanLevel },
+    { label: t("compEmail"), ok: !!c.email },
+    { label: t("compPhone"), ok: !!c.phone },
+    { label: t("compCity"), ok: !!c.currentCity },
+    { label: t("compCv"), ok: !!c.hasCv },
+    { label: t("compLang"), ok: (c.languages?.length ?? 0) > 0 },
+    { label: t("compSkills"), ok: (c.skills?.length ?? 0) > 0 },
+    { label: t("compExp"), ok: (c.experience?.length ?? 0) > 0 },
+    { label: t("compGerman"), ok: !!c.germanLevel },
   ];
   const done = checks.filter((x) => x.ok).length;
   return { pct: Math.round((done / checks.length) * 100), missing: checks.filter((x) => !x.ok).map((x) => x.label) };
@@ -674,7 +674,7 @@ export default function CandidatesPage() {
       });
       if (!approveRes.ok) {
         await discardDraft();
-        toast("Təsdiq xətası", "error");
+        toast(t("confirmError"), "error");
         return;
       }
 
@@ -686,14 +686,14 @@ export default function CandidatesPage() {
       });
       const sendData = await sendRes.json();
       if (sendData.ok) {
-        toast("Mail göndərildi ✓", "success");
+        toast(t("mailSent"), "success");
       } else {
         // Send failed → drop the draft so the job stays in the list to retry
         await discardDraft();
         if ((sendData.error ?? "").includes("No email address")) {
-          toast("Bu şirkətin e-mail ünvanı tapılmadı. Yalnız online forma ilə müraciət mümkündür.", "error");
+          toast(t("noEmailFormOnly"), "error");
         } else {
-          toast(sendData.error ?? "Göndərmə xətası", "error");
+          toast(sendData.error ?? t("sendError"), "error");
         }
       }
 
@@ -769,7 +769,7 @@ export default function CandidatesPage() {
         // Stay quiet on the automatic pass unless it actually found something.
         if (!silent || found > 0) {
           toast(
-            `${found} yeni e-mail tapıldı (cəmi e-mailli: ${found + Number(data.alreadyHad ?? 0)})`,
+            t("emailsFound", { found, total: found + Number(data.alreadyHad ?? 0) }),
             "success"
           );
         }
@@ -825,7 +825,7 @@ export default function CandidatesPage() {
   const perfReplied = comms.filter((c) => c.repliedAt || c.status === "REPLIED").length;
   const perfInterview = comms.filter((c) => c.match?.status === "INTERVIEW" || c.match?.status === "PLACED").length;
   const perfReplyRate = perfSent > 0 ? Math.round((perfReplied / perfSent) * 100) : 0;
-  const completeness = selectedCandidate ? profileCompleteness(selectedCandidate) : null;
+  const completeness = selectedCandidate ? profileCompleteness(selectedCandidate, t) : null;
 
   const q = searchQuery.trim().toLowerCase();
   const visibleCandidates = candidates
@@ -895,12 +895,12 @@ export default function CandidatesPage() {
                   value={listSort}
                   onChange={(e) => setListSort(e.target.value as typeof listSort)}
                   className="bg-card-2 text-ink-2 rounded-md text-[10px] px-1.5 py-1 border border-line focus:outline-none"
-                  title="Sırala"
+                  title={t("sortTitle")}
                 >
-                  <option value="status">↓ Status</option>
-                  <option value="matches">↓ Ən çox uyğunluq</option>
-                  <option value="unread">↓ Yeni cavab</option>
-                  <option value="recent">↓ Ən yeni</option>
+                  <option value="status">↓ {t("sortStatus")}</option>
+                  <option value="matches">↓ {t("sortMatches")}</option>
+                  <option value="unread">↓ {t("sortUnread")}</option>
+                  <option value="recent">↓ {t("sortRecent")}</option>
                 </select>
               </div>
             </div>
@@ -952,10 +952,10 @@ export default function CandidatesPage() {
                   {(!c.hasCv || c._count.matches === 0) && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {!c.hasCv && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ CV yoxdur</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ {t("noCvFlag")}</span>
                       )}
                       {c._count.matches === 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ Uyğunluq yoxdur</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">⚠ {t("noMatchFlag")}</span>
                       )}
                     </div>
                   )}
@@ -1097,7 +1097,7 @@ export default function CandidatesPage() {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="btn btn-ghost text-xs cursor-pointer">
-                        📷 Şəkil yüklə
+                        📷 {t("uploadPhoto")}
                         <input
                           type="file"
                           accept="image/*"
@@ -1109,15 +1109,15 @@ export default function CandidatesPage() {
                               const url = await resizeImageToDataUrl(file);
                               set("photoUrl", url);
                             } catch {
-                              toast("Şəkil yüklənmədi", "error");
+                              toast(t("photoFailed"), "error");
                             }
                           }}
                         />
                       </label>
                       {form.photoUrl && (
-                        <button type="button" onClick={() => set("photoUrl", "")} className="text-xs text-red-400 hover:text-red-300 text-left">Şəkli sil</button>
+                        <button type="button" onClick={() => set("photoUrl", "")} className="text-xs text-red-400 hover:text-red-300 text-left">{t("removePhoto")}</button>
                       )}
-                      <span className="text-[10px] text-ink-3">JPG/PNG — avtomatik kiçildilir</span>
+                      <span className="text-[10px] text-ink-3">{t("photoHint")}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1411,10 +1411,10 @@ export default function CandidatesPage() {
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {[
                       { label: t("statMatches"), value: matches.length, cls: "text-emerald-400" },
-                      { label: "Göndərildi", value: perfSent, cls: "text-blue-400" },
-                      { label: "Açıldı", value: perfOpened, cls: "text-violet-400" },
-                      { label: "Cavab", value: perfReplied, cls: "text-green-400" },
-                      { label: "Müsahibə", value: perfInterview, cls: "text-amber-400" },
+                      { label: t("perfSent"), value: perfSent, cls: "text-blue-400" },
+                      { label: t("perfOpened"), value: perfOpened, cls: "text-violet-400" },
+                      { label: t("perfReplied"), value: perfReplied, cls: "text-green-400" },
+                      { label: t("perfInterview"), value: perfInterview, cls: "text-amber-400" },
                     ].map((s) => (
                       <div key={s.label} className="bg-card-2 border border-line rounded-lg px-2.5 py-2 transition-colors hover:border-line-strong">
                         <div className={`tabular text-xl font-bold ${s.cls}`}><CountUp value={s.value} /></div>
@@ -1426,7 +1426,7 @@ export default function CandidatesPage() {
                   {perfSent > 0 && (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="text-ink-3">Cavab faizi</span>
+                        <span className="text-ink-3">{t("replyRateLabel")}</span>
                         <span className="tabular font-semibold text-ink"><CountUp value={perfReplyRate} />% <span className="text-ink-3 font-normal">({perfReplied}/{perfSent})</span></span>
                       </div>
                       <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
@@ -1438,14 +1438,14 @@ export default function CandidatesPage() {
                   {completeness && completeness.pct < 100 && (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="text-ink-3">Profil tamlığı</span>
+                        <span className="text-ink-3">{t("profileCompleteness")}</span>
                         <span className="tabular font-semibold text-ink"><CountUp value={completeness.pct} />%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-card-2 overflow-hidden">
                         <div className={`h-full rounded-full ${completeness.pct >= 75 ? "bg-emerald-500" : completeness.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${completeness.pct}%`, transition: "width 500ms ease" }} />
                       </div>
                       {completeness.missing.length > 0 && (
-                        <div className="text-[10px] text-ink-3 mt-1">Çatışmır: {completeness.missing.join(" · ")}</div>
+                        <div className="text-[10px] text-ink-3 mt-1">{t("missing")}: {completeness.missing.join(" · ")}</div>
                       )}
                     </div>
                   )}
@@ -1506,12 +1506,12 @@ export default function CandidatesPage() {
                   matchFilterActive && pendingUnfiltered > 0 ? (
                     <div className="bg-card border border-line rounded-2xl p-8 text-center">
                       <div className="text-3xl mb-2">🔎</div>
-                      <div className="text-ink-2 text-sm mb-3">Filtrlərə uyğun uyğunluq yoxdur ({pendingUnfiltered} gizlədildi).</div>
+                      <div className="text-ink-2 text-sm mb-3">{t("filterNoMatch", { count: pendingUnfiltered })}</div>
                       <button
                         onClick={() => setMatchFilters({ sponsor: false, emailReady: false })}
                         className="btn btn-ghost text-xs"
                       >
-                        Filtrləri sıfırla
+                        {t("resetFilters")}
                       </button>
                     </div>
                   ) : (
@@ -1591,23 +1591,23 @@ export default function CandidatesPage() {
                         onClick={() => setMatchFilters((f) => ({ ...f, sponsor: !f.sponsor }))}
                         className={`text-xs px-2.5 py-1 rounded-md border ${matchFilters.sponsor ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40" : "bg-card-2 text-ink-2 border-line hover:bg-line"}`}
                       >
-                        ★ Sponsor
+                        ★ {t("filterSponsor")}
                       </button>
                       <button
                         onClick={() => setMatchFilters((f) => ({ ...f, emailReady: !f.emailReady }))}
                         className={`text-xs px-2.5 py-1 rounded-md border ${matchFilters.emailReady ? "bg-blue-500/15 text-blue-400 border-blue-500/40" : "bg-card-2 text-ink-2 border-line hover:bg-line"}`}
                       >
-                        ✉️ Email hazır
+                        ✉️ {t("filterEmailReady")}
                       </button>
                       <div className="ml-auto flex items-center gap-1 text-xs text-ink-3">
-                        <span>Sırala:</span>
+                        <span>{t("sortColon")}:</span>
                         <select
                           value={matchSort}
                           onChange={(e) => setMatchSort(e.target.value as typeof matchSort)}
                           className="bg-card-2 text-ink-2 rounded-md text-xs px-1.5 py-1 border border-line focus:outline-none"
                         >
-                          <option value="email">Email hazır</option>
-                          <option value="fit">Uyğunluq (fit)</option>
+                          <option value="email">{t("filterEmailReady")}</option>
+                          <option value="fit">{t("sortFit")}</option>
                         </select>
                       </div>
                     </div>
@@ -1638,7 +1638,7 @@ export default function CandidatesPage() {
                                     <button
                                       type="button"
                                       onClick={() => setExpandedFit(expandedFit === m.id ? null : m.id)}
-                                      title={`Uyğunluq: ${m.fitScore}${m.fitBreakdown ? " — detallar üçün klik" : ""}`}
+                                      title={t("fitTooltip", { score: m.fitScore })}
                                       className="ml-auto shrink-0 relative w-9 h-9"
                                     >
                                       <div
@@ -1697,15 +1697,15 @@ export default function CandidatesPage() {
                                         ✉ {m.employer.genericEmail}
                                       </a>
                                       {m.employer.emailSource && (
-                                        <span className="text-[9px] uppercase tracking-wide text-ink-3" title="Mənbə">
+                                        <span className="text-[9px] uppercase tracking-wide text-ink-3" title={t("sourceTip")}>
                                           {m.employer.emailSource}
                                         </span>
                                       )}
                                       {m.employer.emailStatus === "undeliverable" && (
-                                        <span className="text-[9px] text-red-400" title="Çatdırıla bilməz">⚠</span>
+                                        <span className="text-[9px] text-red-400" title={t("undeliverableTip")}>⚠</span>
                                       )}
                                       {m.employer.emailStatus === "deliverable" && (
-                                        <span className="text-[9px] text-emerald-400" title="Doğrulandı">✓</span>
+                                        <span className="text-[9px] text-emerald-400" title={t("verifiedTip")}>✓</span>
                                       )}
                                     </span>
                                   ) : (
@@ -1728,7 +1728,7 @@ export default function CandidatesPage() {
                                         WhatsApp
                                       </a>
                                       <a href={`tel:+${phoneDigits(m.employer.phone)}`}
-                                        title={`Zəng: ${m.employer.phone}`}
+                                        title={t("callTip", { phone: m.employer.phone })}
                                         className="inline-flex items-center gap-1 bg-line/40 text-ink-2 border border-line-strong/40 hover:bg-line/60 px-2 py-1 rounded-md font-medium">
                                         <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                         {m.employer.phone}
@@ -1746,16 +1746,16 @@ export default function CandidatesPage() {
                                 ) : m.employer.optedOut ? (
                                   <span
                                     className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-900/20 text-red-400 border border-red-800/30"
-                                    title="Bu şirkət əlaqə istəmədiyini bildirib — göndərilmir"
+                                    title={t("optedOutTip")}
                                   >
-                                    🚫 əlaqə saxlanmır
+                                    🚫 {t("optedOutPill")}
                                   </span>
                                 ) : m.employerLastSentAt ? (
                                   <span
                                     className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-900/20 text-amber-400 border border-amber-800/30"
-                                    title={`Bu işəgötürənə artıq müraciət göndərilib: ${new Date(m.employerLastSentAt).toLocaleDateString()}`}
+                                    title={t("alreadySentTip", { date: new Date(m.employerLastSentAt).toLocaleDateString() })}
                                   >
-                                    ✓ artıq göndərilib
+                                    ✓ {t("alreadySentPill")}
                                   </span>
                                 ) : (
                                   <div className="flex flex-col items-stretch sm:items-end gap-1">
@@ -1821,22 +1821,22 @@ export default function CandidatesPage() {
                             {/* Engagement chips — at a glance: delivered / opened / replied / bounced / follow-ups */}
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {o.deliveredAt && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ çatdırıldı</span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {t("deliveredPill")}</span>
                               )}
                               {(o.openedAt || o.openCount > 0) && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] bg-violet-500/15 text-violet-300 border border-violet-500/25">
-                                  👁 açıldı{o.openCount > 1 ? ` ×${o.openCount}` : ""}
+                                  👁 {t("openedPill")}{o.openCount > 1 ? ` ×${o.openCount}` : ""}
                                 </span>
                               )}
                               {o.repliedAt && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-300 border border-green-500/30">💬 cavab verdi</span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-300 border border-green-500/30">💬 {t("repliedPill")}</span>
                               )}
                               {o.bouncedAt && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">⚠ çatmadı</span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">⚠ {t("bouncedPill")}</span>
                               )}
                               {o.followUpCount > 0 && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                                  ↻ təqib ×{o.followUpCount}
+                                  ↻ {t("followupPill")} ×{o.followUpCount}
                                 </span>
                               )}
                             </div>
@@ -1857,21 +1857,22 @@ export default function CandidatesPage() {
                             {/* Placement pipeline — advance the application's stage.
                                 Click the active stage again to clear it. */}
                             <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                              <span className="text-[10px] text-ink-3 uppercase tracking-wide mr-0.5">Mərhələ:</span>
+                              <span className="text-[10px] text-ink-3 uppercase tracking-wide mr-0.5">{t("stageLabel")}:</span>
                               {PIPELINE_STAGES.map((s) => {
                                 const isActive = o.match.status === s.key;
                                 // Toggle off: clicking the active stage reverts to replied/sent base.
                                 const target = isActive ? (o.repliedAt ? "REPLIED" : "SENT") : s.key;
+                                const stageLabel = t(`pip${s.key}` as never);
                                 return (
                                   <button
                                     key={s.key}
                                     onClick={() => setMatchStage(o.matchId, target)}
-                                    title={isActive ? "Seçimi ləğv et" : s.label}
+                                    title={isActive ? t("cancelStage") : stageLabel}
                                     className={`px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors ${
                                       isActive ? s.active : "bg-card-2/40 text-ink-3 border-line-strong/50 hover:text-ink-2 hover:border-line-strong"
                                     }`}
                                   >
-                                    {s.label}{isActive && <span className="ml-1 opacity-60">✕</span>}
+                                    {stageLabel}{isActive && <span className="ml-1 opacity-60">✕</span>}
                                   </button>
                                 );
                               })}
@@ -1906,8 +1907,8 @@ export default function CandidatesPage() {
                 if (commsLoading) return <div className="text-ink-3 text-sm">{t("searching")}</div>;
                 if (replies.length === 0) return (
                   <div className="bg-card border border-line rounded-2xl p-8 text-center">
-                    <div className="text-ink-2 text-sm mb-2">Hələ cavab gəlməyib.</div>
-                    <div className="text-ink-3 text-xs">İşəgötürən cavab verəndə burada görünəcək.</div>
+                    <div className="text-ink-2 text-sm mb-2">{t("noRepliesYet")}</div>
+                    <div className="text-ink-3 text-xs">{t("noRepliesHint2")}</div>
                   </div>
                 );
                 return (
@@ -1916,11 +1917,11 @@ export default function CandidatesPage() {
                       <div key={o.id} className="bg-card border border-green-900/40 rounded-2xl p-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-ink">{o.match.employer.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 {t("replyShort")}</span>
                           <span className="text-xs text-ink-3 ml-auto">{fmtDate(o.repliedAt)}</span>
                         </div>
                         <div className="text-sm text-ink-2 mt-0.5">{o.match.vacancy.title}</div>
-                        {o.replyFrom && <div className="text-xs text-ink-3 mt-1"><span className="text-ink-3">Kimdən:</span> {o.replyFrom}</div>}
+                        {o.replyFrom && <div className="text-xs text-ink-3 mt-1"><span className="text-ink-3">{t("fromLabel")}:</span> {o.replyFrom}</div>}
                         {o.replySubject && <div className="text-sm text-green-200/90 font-medium mt-2">{o.replySubject}</div>}
                         {o.replyText && (
                           <div className="mt-2 text-sm text-ink-2 whitespace-pre-wrap leading-relaxed bg-surface/50 rounded-lg p-3 max-h-72 overflow-y-auto">
@@ -1945,7 +1946,7 @@ export default function CandidatesPage() {
                 </svg>
               </div>
               <div className="text-ink font-semibold mb-1">{t("selectOrAdd")}</div>
-              <div className="text-ink-3 text-sm mb-5 max-w-xs">Soldan namizəd seçin və ya yenisini əlavə edin — sistem uyğun vakansiyaları avtomatik tapır.</div>
+              <div className="text-ink-3 text-sm mb-5 max-w-xs">{t("selectOrAddSub")}</div>
               <button onClick={startNewCandidate} className="btn btn-primary">
                 {t("addFirst")}
               </button>
