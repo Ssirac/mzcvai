@@ -63,6 +63,16 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     return () => { alive = false; clearInterval(id); window.removeEventListener("inbox-read", load); };
   }, []);
 
+  // Mobile burger menu open/closed
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  // Close the menu whenever the route changes (a tab was followed)
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.replace(`/${locale}/login`);
@@ -81,21 +91,49 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     return `/${l}${rest || "/dashboard"}`;
   }
 
+  const localeSwitcher = (
+    <div className="flex gap-0.5 bg-card-2 rounded-lg p-0.5 border border-line">
+      {LOCALES.map((l) => (
+        <a
+          key={l}
+          href={localeHref(l)}
+          className={`px-2 py-1 rounded-md text-xs font-medium ${
+            locale === l ? "bg-line-strong text-ink" : "text-ink-3 hover:text-ink"
+          }`}
+        >
+          {l.toUpperCase()}
+        </a>
+      ))}
+    </div>
+  );
+
+  const logoutBtn = (full: boolean) => (
+    <button
+      onClick={logout}
+      title={t("logout")}
+      className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-3 py-2"
+    >
+      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+      </svg>
+      {full && <span>{t("logout")}</span>}
+    </button>
+  );
+
   return (
     <nav className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
       <div className="px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
         {/* Brand */}
         <a href={`/${locale}/dashboard`} className="flex items-center gap-2.5 shrink-0 group">
           <span className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ring-1 ring-white/10 transition-transform group-hover:scale-105">MZ</span>
-          <span className="hidden md:flex flex-col leading-none">
+          <span className="flex flex-col leading-none">
             <span className="text-ink font-semibold text-sm tracking-tight">Talent Intelligence</span>
-            <span className="text-ink-3 text-[10px] tracking-wide">MZ Personalvermittlung</span>
+            <span className="hidden sm:block text-ink-3 text-[10px] tracking-wide">MZ Personalvermittlung</span>
           </span>
         </a>
 
-        {/* Primary tabs — prominent. On phones only the active tab shows its
-            label (others collapse to icons) so the bar fits a narrow screen. */}
-        <div className="flex items-center gap-0.5 sm:gap-1 ml-0.5 sm:ml-2">
+        {/* Desktop tabs (md+) */}
+        <div className="hidden md:flex items-center gap-1 ml-2">
           {tabs.map((tab) => {
             const isActive = active === tab.key;
             return (
@@ -104,7 +142,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                 href={tab.href}
                 aria-current={isActive ? "page" : undefined}
                 title={tab.label}
-                className={`flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-accent/15 text-accent ring-1 ring-accent/30"
                     : "text-ink-2 hover:text-ink hover:bg-card-2"
@@ -118,40 +156,86 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                     </span>
                   )}
                 </span>
-                <span className={isActive ? "inline" : "hidden md:inline"}>{tab.label}</span>
+                <span>{tab.label}</span>
               </a>
             );
           })}
         </div>
 
-        {/* Right controls */}
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <div className="flex gap-0.5 bg-card-2 rounded-lg p-0.5 border border-line">
-            {LOCALES.map((l) => (
-              <a
-                key={l}
-                href={localeHref(l)}
-                className={`px-1.5 sm:px-2 py-1 rounded-md text-xs font-medium ${
-                  locale === l ? "bg-line-strong text-ink" : "text-ink-3 hover:text-ink"
-                }`}
-              >
-                {l.toUpperCase()}
-              </a>
-            ))}
-          </div>
+        {/* Desktop right controls (md+) */}
+        <div className="hidden md:flex ml-auto items-center gap-3">
+          {localeSwitcher}
+          <ThemeToggle />
+          {logoutBtn(true)}
+        </div>
+
+        {/* Mobile controls (< md): theme toggle + hamburger */}
+        <div className="md:hidden ml-auto flex items-center gap-2">
           <ThemeToggle />
           <button
-            onClick={logout}
-            title={t("logout")}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-2.5 sm:px-3 py-2"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menyu"
+            aria-expanded={menuOpen}
+            className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-card-2 border border-line-strong text-ink-2 hover:text-ink"
           >
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span className="hidden sm:inline">{t("logout")}</span>
+            {menuOpen ? (
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
+            {!menuOpen && unread > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold leading-none ring-2 ring-surface">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
           </button>
         </div>
       </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div className="md:hidden">
+          <div className="fixed inset-x-0 top-14 bottom-0 z-20 bg-black/40" onClick={() => setMenuOpen(false)} />
+          <div className="absolute left-0 right-0 top-14 z-30 border-b border-line bg-surface shadow-xl animate-[slideIn_0.16s_ease-out]">
+            <div className="px-3 py-3 space-y-1">
+              {tabs.map((tab) => {
+                const isActive = active === tab.key;
+                return (
+                  <a
+                    key={tab.key}
+                    href={tab.href}
+                    onClick={() => setMenuOpen(false)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                        : "text-ink-2 hover:text-ink hover:bg-card-2"
+                    }`}
+                  >
+                    <span className="relative">
+                      {tab.icon}
+                      {tab.key === "inbox" && unread > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
+                    </span>
+                    <span>{tab.label}</span>
+                  </a>
+                );
+              })}
+              <div className="flex items-center justify-between gap-2 pt-3 mt-2 border-t border-line">
+                {localeSwitcher}
+                {logoutBtn(true)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
