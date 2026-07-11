@@ -25,8 +25,8 @@ import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation 
 export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expiredDeleted: number }> {
   const day = 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const staleDays = parseInt(process.env.VACANCY_STALE_DAYS ?? "14");
-  const maxAgeDays = parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "45");
+  const staleDays = parseInt(process.env.VACANCY_STALE_DAYS ?? "10");
+  const maxAgeDays = parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "30");
 
   const staleCut = new Date(now - staleDays * day);   // not re-listed → dead
   const ageCut = new Date(now - maxAgeDays * day);    // posting too old

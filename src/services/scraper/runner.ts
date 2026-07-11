@@ -133,7 +133,9 @@ export async function runScraper(adapter: ScraperAdapter, opts: IngestOptions): 
               applyChannel: "FORM" as ApplyChannel,
               applyValue: job.url,
               postedAt: job.postedAt,
-              rawData: job as object,
+              // rawData intentionally NOT stored for scraped jobs: the card text
+              // is already in `description`, and the raw blob roughly doubled the
+              // Vacancy table size. Email discovery reads description/applyValue.
             },
           });
           result.vacanciesNew++;
