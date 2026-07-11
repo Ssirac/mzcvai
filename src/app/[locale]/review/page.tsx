@@ -85,9 +85,9 @@ export default function ReviewPage() {
   const allSelected = items.length > 0 && selected.size === items.length;
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)));
   const toggle = (id: string) =>
-    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleExpand = (id: string) =>
-    setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const selectedIds = useMemo(() => Array.from(selected), [selected]);
 

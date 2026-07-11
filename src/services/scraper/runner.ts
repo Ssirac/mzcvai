@@ -15,7 +15,6 @@
  * / refresh flows automatically.
  */
 
-import type { Page } from "puppeteer";
 import { prisma } from "@/lib/prisma";
 import { launchBrowser } from "@/lib/browser";
 import type { ApplyChannel } from "@prisma/client";
