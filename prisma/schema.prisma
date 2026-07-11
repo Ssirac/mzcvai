@@ -162,6 +162,7 @@ model Vacancy {
   url            String?
   description    String?       @db.Text
   sourceRef      String        @unique
+  contentHash    String?       // sha256(title|employer|location) — cross-source duplicate detection
   applyChannel   ApplyChannel  @default(UNKNOWN)
   applyValue     String?
   postedAt       DateTime?
@@ -174,6 +175,7 @@ model Vacancy {
   @@index([beruf, region, status])
   @@index([foundAt])
   @@index([lastSeenAt])
+  @@index([contentHash])
 }
 
 model Candidate {
@@ -291,6 +293,7 @@ model IngestionRun {
   status           String
   vacanciesNew     Int      @default(0)
   vacanciesUpdated Int      @default(0)
+  vacanciesDead    Int      @default(0) // dead/expired listings removed during this run
   employersNew     Int      @default(0)
   errorMessage     String?
   startedAt        DateTime @default(now())

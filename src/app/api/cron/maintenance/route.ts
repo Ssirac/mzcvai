@@ -5,6 +5,7 @@ import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacanci
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
+import { runScrapeCycle } from "@/services/scraper/cycle";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,10 @@ export async function POST(req: NextRequest) {
     }
     if (job === "autosend") {
       log.autoSend = await runAutoSend();
+    }
+    // Script-based scraping cycle (Group A→C sites), rate-limited & queued.
+    if (job === "scrape") {
+      log.scrape = await runScrapeCycle();
     }
     return NextResponse.json({ ok: true, job, ...log });
   } catch (err) {

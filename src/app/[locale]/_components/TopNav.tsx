@@ -38,8 +38,15 @@ function IconInbox() {
     </svg>
   );
 }
+function IconReview() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
 
-export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" }) {
+export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" }) {
   const { locale } = useParams() as { locale: string };
   const pathname = usePathname();
   const router = useRouter();
@@ -81,6 +88,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
   const tabs = [
     { key: "dashboard" as const, href: `/${locale}/dashboard`, label: t("dashboard"), icon: <IconGrid /> },
     { key: "candidates" as const, href: `/${locale}/candidates`, label: t("candidates"), icon: <IconUsers /> },
+    { key: "review" as const, href: `/${locale}/review`, label: t("review"), icon: <IconReview /> },
     { key: "inbox" as const, href: `/${locale}/inbox`, label: t("inbox"), icon: <IconInbox /> },
     { key: "analytics" as const, href: `/${locale}/analytics`, label: t("analytics"), icon: <IconChart /> },
   ];

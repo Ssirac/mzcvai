@@ -129,32 +129,103 @@ export const REGIONS_DE = [
  * same occupation family. Used to expand a free-text beruf into search keywords
  * so ingestion and matching are robust to wording / language differences.
  */
+// German + English synonym families (NO Azerbaijani here — AZ input is handled by
+// the AZ_TO_DE translation layer below, so German-`beruf` searches never emit
+// Azerbaijani search slugs). Hotel/Gastro families are intentionally the richest,
+// since that is MZ's core placement sector.
 const SYNONYM_GROUPS: string[][] = [
-  ["housekeeping", "zimmermädchen", "roomboy", "etagenservice", "zimmerreinigung"],
-  ["koch", "köchin", "küchenhilfe", "beikoch", "cook", "küche"],
-  ["service", "servicekraft", "kellner", "restaurantfachmann", "waiter", "waitress"],
-  ["rezeption", "rezeptionist", "empfang", "front office", "reception"],
-  ["reinigung", "reinigungskraft", "gebäudereiniger", "raumpflege", "cleaner", "cleaning"],
-  ["catering", "bankett", "bankettmitarbeiter"],
-  ["pflege", "pflegekraft", "pflegehelfer", "altenpfleger", "krankenpfleger", "nurse", "care"],
-  ["elektrik", "elektriker", "elektroniker", "electrician", "electrical"],
-  ["it", "software", "softwareentwickler", "entwickler", "developer", "programmierer", "programmer", "fachinformatiker", "engineer"],
-  ["lager", "lagerarbeiter", "lagerhelfer", "lagerist", "kommissionierer", "warehouse"],
-  ["lkw-fahrer", "berufskraftfahrer", "kraftfahrer", "fahrer", "driver", "truck"],
+  // ── Hotel & Gastronomie (core) ──────────────────────────────────────────────
+  ["koch", "köchin", "jungkoch", "beikoch", "kochhilfe", "küchenhilfe", "küchenmitarbeiter",
+   "küche", "commis", "commis de cuisine", "chef de partie", "demichef", "demi chef de partie",
+   "sous chef", "souschef", "küchenchef", "chefkoch", "chef de cuisine", "gardemanger",
+   "saucier", "cook", "linecook", "line cook"],
+  ["service", "servicekraft", "servicemitarbeiter", "servicepersonal", "kellner", "kellnerin",
+   "chef de rang", "commis de rang", "restaurantfachmann", "restaurantfachfrau",
+   "restaurantmitarbeiter", "saalpersonal", "runner", "food and beverage", "f&b service",
+   "waiter", "waitress", "servierkraft"],
+  ["rezeption", "rezeptionist", "rezeptionistin", "empfang", "empfangsmitarbeiter",
+   "front office", "front desk", "night audit", "guest service", "gästebetreuung",
+   "hotelfachmann", "hotelfachfrau", "hotelfach", "hotelkaufmann", "reception", "receptionist"],
+  ["bar", "barkeeper", "barmann", "barfrau", "bartender", "barmixer", "barchef", "barista",
+   "mixologe", "barservice", "barkraft"],
+  ["housekeeping", "zimmermädchen", "zimmermaedchen", "roomboy", "room attendant",
+   "etagenservice", "etagenmädchen", "zimmerreinigung", "zimmerpflege", "hausdame",
+   "executive housekeeper", "housekeeping supervisor"],
+  ["reinigung", "reinigungskraft", "gebäudereiniger", "gebaeudereiniger", "raumpflege",
+   "raumpfleger", "unterhaltsreinigung", "glasreiniger", "facility", "cleaner", "cleaning"],
+  ["spülkraft", "spuelkraft", "spüler", "spueler", "abwäscher", "abwaescher", "spülhilfe",
+   "geschirrspüler", "dishwasher", "küchenreinigung"],
+  ["catering", "bankett", "bankettmitarbeiter", "bankettservice", "veranstaltung", "event",
+   "eventgastronomie", "partyservice"],
+  ["konditor", "konditorin", "bäcker", "baecker", "bäckerin", "backwaren", "backhilfe",
+   "patissier", "pâtissier", "confiseur", "konditorei"],
+  ["metzger", "fleischer", "schlachter", "wurstwaren", "fleischerei", "metzgerei"],
+  // ── Gesundheit & Pflege ─────────────────────────────────────────────────────
+  ["pflege", "pflegekraft", "pflegehelfer", "pflegehilfskraft", "altenpfleger", "altenpflegerin",
+   "krankenpfleger", "gesundheits- und krankenpfleger", "pflegefachkraft", "nurse", "care"],
+  // ── Bau & Handwerk ──────────────────────────────────────────────────────────
+  ["installateur", "sanitär", "sanitaer", "anlagenmechaniker", "shk", "heizung", "klempner",
+   "rohrleitungsbauer", "gas wasser installateur", "sanitär heizung klima", "plumber"],
+  ["elektrik", "elektriker", "elektroniker", "elektroinstallateur", "electrician", "electrical"],
   ["schweißer", "schweisser", "welder", "welding"],
-  ["maurer", "bau", "bauarbeiter", "construction"],
-  ["maler", "lackierer", "painter"],
-  ["tischler", "schreiner", "carpenter"],
+  ["maurer", "bau", "bauarbeiter", "bauhelfer", "hochbau", "construction"],
+  ["maler", "lackierer", "maler und lackierer", "painter"],
+  ["tischler", "schreiner", "möbeltischler", "carpenter", "joiner"],
+  ["schlosser", "metallbau", "metallbauer", "zerspanung", "zerspanungsmechaniker", "cnc"],
+  // ── IT & Büro & Sonstige ────────────────────────────────────────────────────
+  ["it", "software", "softwareentwickler", "entwickler", "developer", "programmierer",
+   "programmer", "fachinformatiker", "engineer"],
+  ["lager", "lagerarbeiter", "lagerhelfer", "lagerist", "kommissionierer", "staplerfahrer", "warehouse"],
+  ["lkw-fahrer", "berufskraftfahrer", "kraftfahrer", "fahrer", "auslieferungsfahrer", "driver", "truck"],
   ["buchhaltung", "buchhalter", "accountant", "accounting"],
-  ["vertrieb", "sales", "verkauf", "verkäufer"],
-  ["friseur", "hairdresser", "kosmetik"],
-  ["druck", "drucker", "druckerei", "polygrafie", "polygraf", "offsetdruck", "digitaldruck", "medientechnologe", "siebdruck", "buchbinder"],
-  ["schlosser", "metallbau", "metallbauer", "zerspanung", "cnc"],
-  ["gärtner", "landwirt", "landwirtschaft", "gardener", "agriculture"],
+  ["vertrieb", "sales", "verkauf", "verkäufer", "verkäuferin"],
+  ["friseur", "friseurin", "hairdresser", "kosmetik", "kosmetiker"],
+  ["druck", "drucker", "druckerei", "polygrafie", "polygraf", "offsetdruck", "digitaldruck",
+   "medientechnologe", "siebdruck", "buchbinder"],
+  ["gärtner", "gaertner", "landwirt", "landwirtschaft", "gardener", "agriculture"],
 ];
 
+/**
+ * Azerbaijani occupation (and common ASCII transliteration) → canonical German
+ * term. Candidates frequently enter their job in Azerbaijani; we translate it to
+ * the German equivalent BEFORE synonym expansion, so search + matching run against
+ * the German listings. Each value is a member of a SYNONYM_GROUP above, so a
+ * translated seed expands to the full German/English family. AZ terms themselves
+ * are never used as search slugs.
+ */
+const AZ_TO_DE: Record<string, string> = {
+  // Hotel & Gastronomie
+  "aşpaz": "koch", "aspaz": "koch", "aşbaz": "koch", "asbaz": "koch",
+  "aşpaz köməkçisi": "küchenhilfe", "aspaz komekcisi": "küchenhilfe", "mətbəx işçisi": "küchenhilfe",
+  "ofisiant": "kellner", "ofisant": "kellner", "qarson": "kellner",
+  "resepşn": "rezeption", "resepsiyon": "rezeption", "resepşnist": "rezeption", "qəbul": "rezeption",
+  "barmen": "barkeeper", "barista": "barista", "bufetçi": "barkeeper",
+  "qabyuyan": "spülkraft", "qab yuyan": "spülkraft",
+  "otaq xidmətçisi": "housekeeping", "otaq təmizləyicisi": "housekeeping",
+  "xadimə": "reinigungskraft", "xadime": "reinigungskraft", "təmizlikçi": "reinigungskraft",
+  "təmizlikci": "reinigungskraft", "təmizlik": "reinigung",
+  "qənnadçı": "konditor", "qennadci": "konditor", "çörəkçi": "bäcker", "corekci": "bäcker",
+  "qəssab": "metzger", "qessab": "metzger",
+  // Pflege
+  "tibb bacısı": "krankenpfleger", "tibb bacisi": "krankenpfleger", "baxıcı": "pflegehelfer", "baxici": "pflegehelfer",
+  // Bau & Handwerk
+  "santexnik": "installateur", "santexnika": "installateur",
+  "elektrik": "elektriker", "elektrikçi": "elektriker",
+  "qaynaqçı": "schweißer", "qaynaqci": "schweißer",
+  "bənna": "maurer", "benna": "maurer", "inşaatçı": "bauarbeiter", "insaatci": "bauarbeiter",
+  "rəngsaz": "maler", "rengsaz": "maler", "boyaçı": "maler",
+  "dülgər": "tischler", "dulger": "tischler", "xarrat": "tischler",
+  "çilingər": "schlosser", "cilinger": "schlosser",
+  // Logistik & Sonstige
+  "anbardar": "lagerist", "anbar işçisi": "lagerarbeiter",
+  "sürücü": "fahrer", "surucu": "fahrer", "yük maşını sürücüsü": "berufskraftfahrer",
+  "mühasib": "buchhalter", "muhasib": "buchhalter",
+  "satıcı": "verkäufer", "satici": "verkäufer",
+  "bağban": "gärtner", "bagban": "gärtner",
+};
+
 export function berufSearchKeywords(beruf: string): string[] {
-  const lower = beruf.toLowerCase();
+  const lower = beruf.toLowerCase().trim();
   const tokens = lower.split(/[\s/,-]+/).filter((t) => t.length >= 3);
   const out = new Set<string>([beruf]);
 
@@ -166,13 +237,26 @@ export function berufSearchKeywords(beruf: string): string[] {
     .filter((p) => p.length >= 4)
     .forEach((p) => out.add(p));
 
+  // AZ → DE: translate an Azerbaijani beruf (whole string or any token) to its
+  // German canonical term. These German seeds both become keywords and drive the
+  // synonym-group expansion below, so an AZ input yields the full German family.
+  const seeds = new Set<string>();
+  if (AZ_TO_DE[lower]) seeds.add(AZ_TO_DE[lower]);
+  for (const t of tokens) if (AZ_TO_DE[t]) seeds.add(AZ_TO_DE[t]);
+  seeds.forEach((s) => out.add(s));
+
+  // Tokens that make a synonym group relevant: the beruf's own tokens PLUS any
+  // German seed translated from Azerbaijani.
+  const probeTokens = tokens.concat(Array.from(seeds));
+
   for (const group of SYNONYM_GROUPS) {
     // A group is relevant only if a term truly belongs to the beruf — not just a
     // short substring (e.g. "it" inside "Restaurantleiter" must NOT pull the IT group).
     const hit = group.some((term) =>
       lower === term ||
+      seeds.has(term) ||
       termIncludes(lower, term) ||
-      tokens.some((t) => t === term || (term.length >= 4 && t.length >= 4 && (term.includes(t) || t.includes(term))))
+      probeTokens.some((t) => t === term || (term.length >= 4 && t.length >= 4 && (term.includes(t) || t.includes(term))))
     );
     if (hit) group.forEach((term) => out.add(term));
   }

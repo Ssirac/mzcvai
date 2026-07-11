@@ -15,6 +15,8 @@ import { ingestAdzuna } from "@/services/adzuna";
 import { ingestJooble } from "@/services/jooble";
 import { ingestCareerjet } from "@/services/careerjet";
 import { ingestJSearch } from "@/services/jsearch";
+import { asJobSource } from "@/services/scraper/runner";
+import { SCRAPER_ADAPTERS } from "@/services/scraper/sites";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
 
 export interface JobSource {
@@ -95,19 +97,46 @@ const jsearch: JobSource = {
   ingest: (o) => ingestJSearch(o),
 };
 
+// Script-based (scraped) sources — no API. Each is a ScraperAdapter bridged into
+// this registry via asJobSource(); the shared runner handles rate-limiting,
+// robots, dead-listing removal, dedup and logging (see services/scraper/).
+const scraperSources: JobSource[] = SCRAPER_ADAPTERS.map(asJobSource);
+
 /**
  * Registry order follows the user's priority: hospitality platforms first,
  * then the big boards, then the live aggregators that already work.
  */
 export const SOURCES: JobSource[] = [
-  // Hospitality-focused (placeholders — need partner access)
-  placeholder("hogapage", "HOGAPAGE (Hotel & Gastronomie)", "hospitality", NEEDS_PARTNER),
-  placeholder("hotelcareer", "Hotelcareer", "hospitality", NEEDS_PARTNER),
+  // Hospitality-focused — script-based scrapers (live)
+  ...scraperSources,
+  // HOGAPAGE: kein zugänglicher Listing-Endpunkt — /jobs/* liefert 404, Sitemaps
+  // 404, /jobs/suche per robots.txt gesperrt (live geprüft, Bot-Schutz vermutet).
+  placeholder("hogapage", "HOGAPAGE (Hotel & Gastronomie)", "hospitality", "Kein zugänglicher Listing-Endpunkt (/jobs/* → 404, /jobs/suche gesperrt)"),
+  // yourcareergroup.de leitet die Jobsuche auf hotelcareer.de um (dieselbe YCG-
+  // Plattform) — keine eigenen Daten, würde hotelcareer nur duplizieren.
+  placeholder("yourcareergroup", "YourCareerGroup", "hospitality", "Leitet auf hotelcareer.de um — identische Quelle, kein separater Scraper"),
+  // gastronomie-jobs.com: aus dieser Umgebung nicht erreichbar (Port 80/443
+  // Timeout, AT-IP — vermutlich Geo-Sperre). Struktur nicht prüfbar → später aus
+  // einem DACH-Netz verifizieren.
+  placeholder("gastronomie-jobs", "Gastronomie-Jobs.com", "hospitality", "Nicht erreichbar (Timeout, vermutlich Geo-Sperre) — Struktur nicht prüfbar"),
+  // rollingpin.de: React-SPA mit Build-gehashten CSS-Klassen (fragil), Keyword-
+  // Suche API-getrieben (Payload nicht erfasst), Inhalte AT/CH-lastig (geringer
+  // DE-Ertrag nach Germany-Filter). Aufgeschoben — Aufwand/Fragilität zu hoch.
+  placeholder("rollingpin", "Rolling Pin (Luxus-Hospitality)", "hospitality", "React-SPA, gehashte Klassen + AT/CH-lastig — Scraper aufgeschoben"),
   // Big boards (placeholders — no free public API)
   placeholder("indeed", "Indeed Germany", "general", NEEDS_PARTNER),
-  placeholder("stepstone", "StepStone", "general", NEEDS_PARTNER),
+  // StepStone: Akamai-Bot-Schutz — selbst /robots.txt liefert 403 Access Denied
+  // (errors.edgesuite.net). Ohne Partner-API / Anti-Bot-Proxy nicht scrapebar.
+  placeholder("stepstone", "StepStone", "general", "Akamai-Bot-Schutz (403) — Partner-API/Proxy erforderlich"),
   placeholder("linkedin", "LinkedIn Jobs", "general", NEEDS_PARTNER),
   placeholder("xing", "XING Jobs", "general", NEEDS_PARTNER),
+  // Meinestadt: robots.txt ist erreichbar, aber die Job-Seiten selbst liefern
+  // 403 Akamai (errors.edgesuite.net) — auch mit Browser-UA, www & jobs-Subdomain.
+  placeholder("meinestadt", "meinestadt.de", "general", "Akamai-Bot-Schutz auf Job-Seiten (403) — Partner-API/Proxy erforderlich"),
+  // Kimeta: alle Pfade liefern 503 (nginx) — via curl UND echtem Browser, aus
+  // dieser Umgebung nicht erreichbar (vermutlich IP-/Geo-Sperre). Struktur nicht
+  // prüfbar → später aus einem DACH-Netz erneut verifizieren.
+  placeholder("kimeta", "Kimeta (Aggregator)", "general", "Nicht erreichbar (503 auf allen Pfaden) — Struktur nicht prüfbar"),
   placeholder("company-careers", "Firmen-Karriereseiten (direkt)", "general", "Pro Firma einzeln zu integrieren"),
   // Live modules (working now)
   bundesagentur,

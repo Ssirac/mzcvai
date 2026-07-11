@@ -27,7 +27,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup") => {
+  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -69,6 +69,15 @@ export async function register() {
   const cleanupMin = Math.max(5, parseInt(process.env.CLEANUP_INTERVAL_MIN ?? "30"));
   setTimeout(() => void fire("cleanup"), 45_000);
   setInterval(() => void fire("cleanup"), cleanupMin * 60 * 1000);
+
+  // Script-based scraping cycle (Group A→C job boards) — configurable interval,
+  // default every 8h (~3×/day). Disable independently with SCRAPE_ENABLED=false.
+  if (process.env.SCRAPE_ENABLED !== "false") {
+    const scrapeHours = Math.max(1, parseFloat(process.env.SCRAPE_INTERVAL_HOURS ?? "8"));
+    setTimeout(() => void fire("scrape"), 90_000); // first run ~90s after boot
+    setInterval(() => void fire("scrape"), scrapeHours * HOUR);
+    console.log(`[scheduler] scraping cycle every ${scrapeHours}h`);
+  }
 
   console.log(`[scheduler] started (replies hourly, job refresh every 4h, cleanup every ${cleanupMin}m, follow-ups ~08:00)`);
 }
