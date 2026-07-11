@@ -17,10 +17,12 @@
  * each beruf synonym is its own clean first-page URL.
  */
 
-import type { Page } from "puppeteer";
+import { load } from "cheerio";
 import { berufSearchKeywords } from "@/lib/berufMap";
 import type { ScraperAdapter, RawJob } from "../types";
 import { robotsAllows } from "../robots";
+
+const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
 
 export interface YcgConfig {
   id: string;
@@ -60,55 +62,52 @@ export function makeYcgAdapter(cfg: YcgConfig): ScraperAdapter {
       return slugs.map((s) => `${base}/jobs/${s}`);
     },
 
-    async parseList(page: Page): Promise<RawJob[]> {
-      // $$eval runs in the browser and returns JSON-serializable data only, so it
-      // yields plain strings; the Date is built here in Node afterwards.
-      const rows = await page.$$eval("article.ycg-job-item", (arts, siteBase) =>
-        arts.map((a) => {
-          const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
-          const h2 = a.querySelector("h2");
-          const titleA = a.querySelector<HTMLAnchorElement>("a.link-blue-none");
-          const em = a.querySelector(".w-75 > em") ?? a.querySelector("em");
-          const spans = Array.from(a.querySelectorAll(".ycg-job-metadata span"));
-          const byIcon = (cls: string) => {
-            const s = spans.find((sp) => sp.querySelector("i." + cls));
-            return s ? clean(s.textContent) : null;
-          };
-          const href = titleA ? titleA.getAttribute("href") : null;
-          const idm = href ? href.match(/-(\d+)(?:\?|$)/) : null;
-          const datem = clean(a.textContent).match(/\b\d{2}\.\d{2}\.\d{4}\b/);
-          const abs = href ? (href.startsWith("http") ? href : `${siteBase}${href}`) : null;
-          return {
-            id: idm ? idm[1] : null,
-            title: h2 ? clean(h2.textContent) : "",
-            employer: em ? clean(em.textContent) : "",
-            location: byIcon("ycg-i-location"),
-            url: abs,
-            description: clean(a.textContent) || null,
-            employmentType: byIcon("ycg-i-info"),
-            dateStr: datem ? datem[0] : null,
-          };
-        }), base
-      );
+    parse(html: string): RawJob[] {
+      const $ = load(html);
+      const jobs: RawJob[] = [];
 
-      return rows.map((r): RawJob => {
+      $("article.ycg-job-item").each((_, el) => {
+        const $el = $(el);
+        const title = clean($el.find("h2").first().text());
+        const href = $el.find("a.link-blue-none").first().attr("href") ?? null;
+        const emCard = $el.find(".w-75 > em").first();
+        const employer = clean((emCard.length ? emCard : $el.find("em").first()).text());
+
+        // Metadata spans carry an icon that tells us which field they hold.
+        let location: string | null = null;
+        let employmentType: string | null = null;
+        $el.find(".ycg-job-metadata span").each((__, sp) => {
+          const $sp = $(sp);
+          if ($sp.find("i.ycg-i-location").length) location = clean($sp.text());
+          if ($sp.find("i.ycg-i-info").length) employmentType = clean($sp.text());
+        });
+
+        const cardText = clean($el.text());
+        const datem = cardText.match(/\b\d{2}\.\d{2}\.\d{4}\b/);
+        const idm = href ? href.match(/-(\d+)(?:\?|$)/) : null;
+        const url = href ? (href.startsWith("http") ? href : `${base}${href}`) : null;
+
         let postedAt: Date | null = null;
-        if (r.dateStr) {
-          const [d, m, y] = r.dateStr.split(".").map((n) => parseInt(n, 10));
+        if (datem) {
+          const [d, m, y] = datem[0].split(".").map((n) => parseInt(n, 10));
           const dt = new Date(y, m - 1, d);
           postedAt = isNaN(dt.getTime()) ? null : dt;
         }
-        return {
-          sourceRef: r.id ? `${cfg.id}:${r.id}` : `${cfg.id}:${r.url ?? r.title}`,
-          title: r.title,
-          employer: r.employer,
-          location: r.location,
-          url: r.url,
-          description: r.description,
-          employmentType: r.employmentType,
+
+        if (!title || !employer) return;
+        jobs.push({
+          sourceRef: idm ? `${cfg.id}:${idm[1]}` : `${cfg.id}:${url ?? title}`,
+          title,
+          employer,
+          location,
+          url,
+          description: cardText || null,
+          employmentType,
           postedAt,
-        };
+        });
       });
+
+      return jobs;
     },
   };
 }

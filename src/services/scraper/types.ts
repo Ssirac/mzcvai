@@ -9,8 +9,6 @@
  * page into raw jobs.
  */
 
-import type { Page } from "puppeteer";
-
 // A single job as scraped from a listing page, BEFORE normalization/filtering.
 // The runner fills in the canonical region, applies filters, hashes and stores it.
 export interface RawJob {
@@ -39,11 +37,20 @@ export interface ScraperAdapter {
   robotsAllowed(): Promise<boolean>;
   /**
    * The listing-page URLs to visit for one beruf+region search. The runner
-   * navigates each in turn (rate-limited) and calls parseList on the result.
+   * navigates each in turn (rate-limited), reads the rendered HTML and calls parse.
    */
   listUrls(opts: { beruf: string; region: string; maxPages?: number }): string[] | Promise<string[]>;
-  /** Parse the currently-loaded listing page into raw jobs. */
-  parseList(page: Page): Promise<RawJob[]>;
+  /**
+   * For client-rendered (SPA) sites: a CSS selector the runner waits for after
+   * navigation, so the HTML is fully rendered before parse() reads it.
+   */
+  waitForSelector?: string;
+  /**
+   * Parse the fully-rendered page HTML into raw jobs. Runs in Node via cheerio —
+   * NOT a browser-serialized closure — so it is immune to the bundler helper
+   * injection (`__name`) that breaks page.$$eval in transpiled/bundled builds.
+   */
+  parse(html: string): RawJob[];
   /**
    * Extra body-text markers (lowercased) that mean "this listing is dead" on
    * this site, e.g. "anzeige ist nicht mehr verfügbar". Checked by the dead-check

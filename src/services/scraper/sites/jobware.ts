@@ -17,12 +17,13 @@
  * Content is CSR, so parseList waits for the first card to render.
  */
 
-import type { Page } from "puppeteer";
+import { load } from "cheerio";
 import { berufSearchKeywords } from "@/lib/berufMap";
 import type { ScraperAdapter, RawJob } from "../types";
 import { robotsAllows } from "../robots";
 
 const BASE = "https://www.jobware.de";
+const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
 
 export const jobwareAdapter: ScraperAdapter = {
   id: "jobware",
@@ -32,6 +33,7 @@ export const jobwareAdapter: ScraperAdapter = {
   deadMarkers: ["stellenangebot ist nicht mehr", "nicht mehr verfügbar", "nicht mehr online", "existiert nicht"],
 
   robotsAllowed: () => robotsAllows(BASE, "/jobsuche"),
+  waitForSelector: "a.job", // Angular renders the list client-side
 
   listUrls({ beruf, maxPages }): string[] {
     const maxTerms = maxPages ?? 4;
@@ -41,50 +43,43 @@ export const jobwareAdapter: ScraperAdapter = {
     return terms.map((t) => `${BASE}/jobsuche?jw_jobname=${encodeURIComponent(t)}`);
   },
 
-  async parseList(page: Page): Promise<RawJob[]> {
-    // Angular renders the list client-side — wait for the first card (non-fatal).
-    await page.waitForSelector("a.job", { timeout: 12000 }).catch(() => {});
+  parse(html: string): RawJob[] {
+    const $ = load(html);
+    const jobs: RawJob[] = [];
 
-    const rows = await page.$$eval("a.job", (cards) =>
-      cards
-        .filter((c) => /-\d{6,}$/.test(c.getAttribute("href") ?? ""))
-        .map((c) => {
-          const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
-          const href = c.getAttribute("href");
-          const idm = href ? href.match(/-(\d{6,})$/) : null;
-          const heading = c.querySelector("h1,h2,h3,h4,h5");
-          const img = c.querySelector<HTMLImageElement>("img");
-          return {
-            id: idm ? idm[1] : null,
-            href,
-            title: clean(heading?.textContent),
-            employer: clean(c.querySelector(".company")?.textContent) || clean(img?.alt),
-            location: clean(c.querySelector(".location")?.textContent) || null,
-            employmentType: clean(c.querySelector(".chip")?.textContent) || null,
-            dateStr: clean(c.querySelector(".date")?.textContent) || null,
-            description: clean(c.textContent) || null,
-          };
-        })
-    );
+    $("a.job").each((_, el) => {
+      const $el = $(el);
+      const href = $el.attr("href") ?? "";
+      const idm = href.match(/-(\d{6,})$/);
+      if (!idm) return; // skip non-job anchors
 
-    return rows.map((r): RawJob => {
+      const title = clean($el.find("h1,h2,h3,h4,h5").first().text());
+      const employer = clean($el.find(".company").first().text()) || clean($el.find("img").first().attr("alt"));
+      const location = clean($el.find(".location").first().text()) || null;
+      const employmentType = clean($el.find(".chip").first().text()) || null;
+      const dateStr = clean($el.find(".date").first().text());
+
       let postedAt: Date | null = null;
-      const dm = r.dateStr?.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      const dm = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
       if (dm) {
         const dt = new Date(parseInt(dm[3]), parseInt(dm[2]) - 1, parseInt(dm[1]));
         postedAt = isNaN(dt.getTime()) ? null : dt;
       }
-      const url = r.href ? (r.href.startsWith("http") ? r.href : `${BASE}${r.href}`) : null;
-      return {
-        sourceRef: r.id ? `jobware:${r.id}` : `jobware:${url ?? r.title}`,
-        title: r.title,
-        employer: r.employer,
-        location: r.location,
+      const url = href.startsWith("http") ? href : `${BASE}${href}`;
+
+      if (!title || !employer) return;
+      jobs.push({
+        sourceRef: `jobware:${idm[1]}`,
+        title,
+        employer,
+        location,
         url,
-        description: r.description,
-        employmentType: r.employmentType,
+        description: clean($el.text()) || null,
+        employmentType,
         postedAt,
-      };
+      });
     });
+
+    return jobs;
   },
 };

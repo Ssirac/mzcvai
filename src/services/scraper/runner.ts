@@ -65,12 +65,20 @@ export async function runScraper(adapter: ScraperAdapter, opts: IngestOptions): 
       // ── Queue: visit each listing URL in turn, rate-limited ──────────────────
       const raw: RawJob[] = [];
       let first = true;
+      // Client-rendered (SPA) sites declare a waitForSelector; they also need the
+      // network to settle before their list exists, so navigate with networkidle2.
+      // Server-rendered sites are ready at domcontentloaded.
+      const waitUntil = adapter.waitForSelector ? "networkidle2" : "domcontentloaded";
       for (const url of urls) {
         if (!first) await sleep(adapter.minDelayMs); // rate limit between requests
         first = false;
         try {
-          await page.goto(url, { waitUntil: "domcontentloaded" });
-          raw.push(...(await adapter.parseList(page)));
+          await page.goto(url, { waitUntil });
+          if (adapter.waitForSelector) {
+            await page.waitForSelector(adapter.waitForSelector, { timeout: 15000 }).catch(() => {});
+          }
+          const html = await page.content();
+          raw.push(...adapter.parse(html));
         } catch (err) {
           result.errors.push(`${adapter.id} ${url}: ${(err as Error).message}`);
         }

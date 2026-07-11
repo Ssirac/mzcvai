@@ -42,7 +42,10 @@ export async function isListingDead(page: Page, url: string, extraMarkers: strin
       }
     } catch { /* ignore URL parse issues */ }
 
-    const body = (await page.evaluate(() => document.body?.innerText ?? "")).toLowerCase();
+    // Read the rendered HTML (not page.evaluate — a serialized closure would hit
+    // the same bundler `__name` issue as $$eval). Markers are plain text, so a
+    // substring check against the lowercased HTML is sufficient.
+    const body = (await page.content()).toLowerCase();
     const markers = [...GENERIC_DEAD_MARKERS, ...extraMarkers.map((m) => m.toLowerCase())];
     return markers.some((m) => body.includes(m));
   } catch {

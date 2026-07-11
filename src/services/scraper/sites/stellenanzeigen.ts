@@ -18,12 +18,14 @@
  * CSR, so parseList waits for the first card.
  */
 
-import type { Page } from "puppeteer";
+import { load } from "cheerio";
 import { berufSearchKeywords } from "@/lib/berufMap";
 import type { ScraperAdapter, RawJob } from "../types";
 import { robotsAllows } from "../robots";
 
 const BASE = "https://www.stellenanzeigen.de";
+const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+const TYPE = /(Vollzeit|Teilzeit|Minijob|Aushilfe|Werkstudent|Praktikum|Ausbildung|Festanstellung|Zeitarbeit)/i;
 
 export const stellenanzeigenAdapter: ScraperAdapter = {
   id: "stellenanzeigen",
@@ -33,6 +35,7 @@ export const stellenanzeigenAdapter: ScraperAdapter = {
   deadMarkers: ["nicht mehr verfügbar", "nicht mehr online", "stellenangebot wurde", "existiert nicht", "seite nicht gefunden"],
 
   robotsAllowed: () => robotsAllows(BASE, "/suche/"),
+  waitForSelector: '[data-testid="company-name"]', // React renders the list client-side
 
   listUrls({ beruf, maxPages }): string[] {
     const maxTerms = maxPages ?? 4;
@@ -42,78 +45,65 @@ export const stellenanzeigenAdapter: ScraperAdapter = {
     return terms.map((t) => `${BASE}/suche/?fulltext=${encodeURIComponent(t)}`);
   },
 
-  async parseList(page: Page): Promise<RawJob[]> {
-    await page.waitForSelector('[data-testid="company-name"]', { timeout: 12000 }).catch(() => {});
+  parse(html: string): RawJob[] {
+    const $ = load(html);
+    const jobs: RawJob[] = [];
 
-    const rows = await page.$$eval('[data-testid="company-name"]', (comps) => {
-      const TYPE = /(Vollzeit|Teilzeit|Minijob|Aushilfe|Werkstudent|Praktikum|Ausbildung|Festanstellung|Zeitarbeit)/i;
-      const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+    $('[data-testid="company-name"]').each((_, comp) => {
+      const $comp = $(comp);
+      // Climb to the card: nearest ancestor with a /job/ link AND a date.
+      const $card = $comp
+        .parents()
+        .filter((__, p) => {
+          const $p = $(p);
+          return $p.find('a[href^="/job/"]').length > 0 && /\d{2}\.\d{2}\.\d{4}/.test($p.text());
+        })
+        .first();
+      if (!$card.length) return;
 
-      return comps.map((comp) => {
-        // Climb to the card: nearest ancestor that has a /job/ link AND a date.
-        let card: HTMLElement | null = comp as HTMLElement;
-        for (let i = 0; i < 9 && card?.parentElement; i++) {
-          card = card.parentElement;
-          const t = card.textContent ?? "";
-          if (/\d{2}\.\d{2}\.\d{4}/.test(t) && card.querySelector('a[href^="/job/"]')) break;
+      const href = $card.find('a[href^="/job/"]').first().attr("href") ?? null;
+      const slug = href ? href.replace(/\/+$/, "").split("/").pop() ?? null : null;
+      if (!slug) return;
+
+      const title = clean($card.find('[data-testid="enhanced-link"]').first().text());
+      const employer = clean($comp.text());
+      const text = $card.text();
+      const typeM = text.match(TYPE);
+      const dateM = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+
+      // location = first leaf span/p after the company element that isn't the
+      // employment type, a benefit chip, the Ref-Nr or the date.
+      const leaves = $card.find("span,p").filter((__, e) => $(e).children().length === 0 && !!$(e).text().trim()).toArray();
+      const ci = leaves.findIndex((e) => $(e).attr("data-testid") === "company-name");
+      let location: string | null = null;
+      for (let j = ci + 1; j < leaves.length; j++) {
+        const t = clean($(leaves[j]).text());
+        if (t && !TYPE.test(t) && !/Ref-Nr/i.test(t) && !/\d{2}\.\d{2}\.\d{4}/.test(t) && !/Schnellbewerbung/i.test(t)) {
+          location = t;
+          break;
         }
-        if (!card) return null;
+      }
 
-        const jobA = card.querySelector<HTMLAnchorElement>('a[href^="/job/"]');
-        const href = jobA ? jobA.getAttribute("href") : null;
-        const slug = href ? href.replace(/\/+$/, "").split("/").pop() ?? null : null;
-        const titleEl = card.querySelector('[data-testid="enhanced-link"]');
-        const text = card.textContent ?? "";
-        const typeM = text.match(TYPE);
-        const dateM = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      let postedAt: Date | null = null;
+      if (dateM) {
+        const dt = new Date(parseInt(dateM[3]), parseInt(dateM[2]) - 1, parseInt(dateM[1]));
+        postedAt = isNaN(dt.getTime()) ? null : dt;
+      }
+      const url = href ? (href.startsWith("http") ? href : `${BASE}${href}`) : null;
 
-        // location = first leaf span/p after the company element that isn't the
-        // employment type, a benefit chip artefact, the Ref-Nr or the date.
-        const leaves = Array.from(card.querySelectorAll("span,p")).filter(
-          (e) => e.children.length === 0 && (e.textContent ?? "").trim()
-        );
-        const ci = leaves.findIndex((e) => e.getAttribute("data-testid") === "company-name");
-        let location: string | null = null;
-        for (let j = ci + 1; j < leaves.length; j++) {
-          const t = clean(leaves[j].textContent);
-          if (t && !TYPE.test(t) && !/Ref-Nr/i.test(t) && !/\d{2}\.\d{2}\.\d{4}/.test(t) && !/Schnellbewerbung/i.test(t)) {
-            location = t;
-            break;
-          }
-        }
-
-        return {
-          slug,
-          href,
-          title: clean(titleEl?.textContent),
-          employer: clean(comp.textContent),
-          location,
-          employmentType: typeM ? typeM[1] : null,
-          dateStr: dateM ? dateM[0] : null,
-        };
+      if (!title || !employer) return;
+      jobs.push({
+        sourceRef: `stellenanzeigen:${slug}`,
+        title,
+        employer,
+        location,
+        url,
+        description: [title, employer, location, typeM ? typeM[1] : null].filter(Boolean).join(" · ") || null,
+        employmentType: typeM ? typeM[1] : null,
+        postedAt,
       });
     });
 
-    return rows
-      .filter((r): r is NonNullable<typeof r> => !!r && !!r.slug)
-      .map((r): RawJob => {
-        let postedAt: Date | null = null;
-        const dm = r.dateStr?.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-        if (dm) {
-          const dt = new Date(parseInt(dm[3]), parseInt(dm[2]) - 1, parseInt(dm[1]));
-          postedAt = isNaN(dt.getTime()) ? null : dt;
-        }
-        const url = r.href ? (r.href.startsWith("http") ? r.href : `${BASE}${r.href}`) : null;
-        return {
-          sourceRef: `stellenanzeigen:${r.slug}`,
-          title: r.title,
-          employer: r.employer,
-          location: r.location,
-          url,
-          description: [r.title, r.employer, r.location, r.employmentType].filter(Boolean).join(" · ") || null,
-          employmentType: r.employmentType,
-          postedAt,
-        };
-      });
+    return jobs;
   },
 };
