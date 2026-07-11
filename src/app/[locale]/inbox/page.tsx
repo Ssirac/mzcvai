@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import TopNav from "../_components/TopNav";
 
 interface Reply {
@@ -23,6 +24,7 @@ function fmt(d: string | null) {
 }
 
 export default function InboxPage() {
+  const t = useTranslations("inbox");
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
@@ -73,12 +75,12 @@ export default function InboxPage() {
             <span className="w-1 h-8 rounded-full bg-gradient-to-b from-green-400 to-emerald-600" />
             <div>
               <h1 className="text-xl font-bold text-ink flex items-center gap-2">
-                Gələn maillər
+                {t("title")}
                 {!loading && list.length > 0 && (
                   <span className="tabular text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent">{list.length}</span>
                 )}
               </h1>
-              <p className="text-xs text-ink-3">İşəgötürənlərdən gələn cavablar</p>
+              <p className="text-xs text-ink-3">{t("subtitle")}</p>
             </div>
           </div>
           <div className="relative w-full sm:w-72">
@@ -88,7 +90,7 @@ export default function InboxPage() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Şirkət, namizəd, mətn axtar..."
+              placeholder={t("searchPlaceholder")}
               className="w-full bg-card border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-3"
             />
           </div>
@@ -107,8 +109,8 @@ export default function InboxPage() {
         ) : list.length === 0 ? (
           <div className="card p-10 text-center">
             <div className="text-4xl mb-3">📭</div>
-            <div className="text-ink font-semibold mb-1">{q ? "Nəticə tapılmadı" : "Hələ cavab gəlməyib"}</div>
-            <div className="text-ink-3 text-sm max-w-sm mx-auto">{q ? "Axtarışa uyğun cavab yoxdur." : "İşəgötürən cavab verəndə cavablar burada görünəcək."}</div>
+            <div className="text-ink font-semibold mb-1">{q ? t("noResults") : t("noReplies")}</div>
+            <div className="text-ink-3 text-sm max-w-sm mx-auto">{q ? t("noResultsHint") : t("noRepliesHint")}</div>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -124,16 +126,16 @@ export default function InboxPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-ink truncate">{r.match.employer.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 cavab</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 {t("replyPill")}</span>
                           {r.match.employer.optedOut && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">🚫 əlaqə saxlanmır</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">🚫 {t("optedOut")}</span>
                           )}
                         </div>
                         <div className="text-xs text-ink-3 mt-0.5 truncate">
                           {r.replySubject || r.match.vacancy.title}
                         </div>
                         <div className="text-[11px] text-ink-3 mt-1">
-                          {r.match.candidate.name} üçün · {fmt(r.repliedAt)}
+                          {t("forCandidate", { name: r.match.candidate.name })} · {fmt(r.repliedAt)}
                         </div>
                       </div>
                       <span className={`shrink-0 text-ink-3 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
@@ -142,22 +144,22 @@ export default function InboxPage() {
                   {isOpen && (
                     <div className="px-4 pb-4 border-t border-line/70 pt-3">
                       <div className="text-xs text-ink-3 mb-2">
-                        <span className="text-ink-3">Kimdən:</span> {r.replyFrom || r.toAddress || "—"}
+                        <span className="text-ink-3">{t("from")}:</span> {r.replyFrom || r.toAddress || "—"}
                       </div>
                       <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">
-                        {r.replyText || "(mətn yoxdur)"}
+                        {r.replyText || t("noText")}
                       </div>
                       <div className="flex items-center gap-3 mt-2">
                         {r.match.vacancy.url && (
                           <a href={r.match.vacancy.url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-400 hover:underline">🔗 İş elanı</a>
+                            className="text-xs text-blue-400 hover:underline">🔗 {t("jobListing")}</a>
                         )}
                         {r.match.employer.optedOut ? (
                           <button onClick={() => setOptOut(r.match.employer.id, false)}
-                            className="text-xs text-ink-2 hover:text-ink">↩ Əlaqəni bərpa et</button>
+                            className="text-xs text-ink-2 hover:text-ink">↩ {t("restore")}</button>
                         ) : (
                           <button onClick={() => setOptOut(r.match.employer.id, true)}
-                            className="text-xs text-red-400 hover:text-red-300">🚫 Bu şirkətə bir daha göndərmə</button>
+                            className="text-xs text-red-400 hover:text-red-300">🚫 {t("stopSending")}</button>
                         )}
                       </div>
                     </div>
