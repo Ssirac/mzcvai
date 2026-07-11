@@ -42,7 +42,28 @@ async function scrapeBerufe(): Promise<string[]> {
   return Array.from(set).slice(0, 15); // cap so a cycle stays within maxDuration
 }
 
+// In-flight guard: with an hourly (or faster) schedule a long cycle could still
+// be running when the next tick fires. Skip the overlapping run rather than
+// double-scraping every board.
+let running = false;
+
 export async function runScrapeCycle(maxPagesPerSearch = 3): Promise<ScrapeCycleResult> {
+  if (running) {
+    return {
+      adapters: SCRAPER_ADAPTERS.length, berufe: 0,
+      vacanciesNew: 0, vacanciesUpdated: 0, vacanciesDead: 0, duplicatesSkipped: 0,
+      matched: 0, perSite: { _skipped: { new: 0, dead: 0, dup: 0, errors: 0 } },
+    };
+  }
+  running = true;
+  try {
+    return await runScrapeCycleInner(maxPagesPerSearch);
+  } finally {
+    running = false;
+  }
+}
+
+async function runScrapeCycleInner(maxPagesPerSearch: number): Promise<ScrapeCycleResult> {
   const berufe = await scrapeBerufe();
   const result: ScrapeCycleResult = {
     adapters: SCRAPER_ADAPTERS.length, berufe: berufe.length,
