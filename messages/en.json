@@ -60,7 +60,22 @@
     "emailReady": "email ready",
     "noEmailYet": "no email",
     "searchJobs": "Search job, company, region...",
-    "allBerufs": "All occupations"
+    "allBerufs": "All occupations",
+    "fSent": "Sent",
+    "fDelivered": "Delivered",
+    "fOpened": "Opened",
+    "fReply": "Reply",
+    "replyRateLabel": "Reply rate",
+    "heroTotal": "{replied} replies out of {sent} sent in total.",
+    "heroEmpty": "No applications sent yet — add a candidate and the system starts automatically.",
+    "last30": "Last 30 days",
+    "deliverTitle": "Deliverability warning — high bounce rate ({rate}%)",
+    "deliverBody": "{count} / {sent} emails failed. A high bounce rate harms your domain reputation and pushes mail to spam. Make sure email verification is enabled and reduce the daily sending volume.",
+    "noJobsSearch": "No listing matches your search.",
+    "noJobsYet": "No listings yet — run the sources above.",
+    "cleanupBtn": "Delete part-time + foreign + old listings",
+    "cleanupTitle": "Deletes part-time / mini-job, foreign (outside Germany) and 30+ day old listings from the database",
+    "cleanupToast": "{pt} part-time + {ng} foreign + {ex} old listings deleted"
   },
   "nav": {
     "dashboard": "Dashboard",

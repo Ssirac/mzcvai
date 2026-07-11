@@ -60,7 +60,22 @@
     "emailReady": "E-Mail vorhanden",
     "noEmailYet": "keine E-Mail",
     "searchJobs": "Stelle, Firma, Region suchen...",
-    "allBerufs": "Alle Berufe"
+    "allBerufs": "Alle Berufe",
+    "fSent": "Gesendet",
+    "fDelivered": "Zugestellt",
+    "fOpened": "Geöffnet",
+    "fReply": "Antwort",
+    "replyRateLabel": "Antwortrate",
+    "heroTotal": "Insgesamt {replied} Antworten / {sent} Sendungen.",
+    "heroEmpty": "Noch keine Bewerbungen gesendet — fügen Sie einen Kandidaten hinzu, das System startet automatisch.",
+    "last30": "Letzte 30 Tage",
+    "deliverTitle": "Zustellwarnung — hohe Bounce-Rate ({rate}%)",
+    "deliverBody": "{count} / {sent} Mails nicht zugestellt. Eine hohe Bounce-Rate schadet der Reputation Ihrer Domain und lässt Mails im Spam landen. Stellen Sie sicher, dass die E-Mail-Verifizierung aktiv ist, und reduzieren Sie das Tagesvolumen.",
+    "noJobsSearch": "Keine Anzeige passt zur Suche.",
+    "noJobsYet": "Noch keine Anzeigen — starten Sie oben die Quellen.",
+    "cleanupBtn": "Teilzeit + Ausland + alte Anzeigen löschen",
+    "cleanupTitle": "Löscht Teilzeit-/Minijob-, ausländische (außerhalb Deutschlands) und über 30 Tage alte Anzeigen aus der Datenbank",
+    "cleanupToast": "{pt} Teilzeit + {ng} Ausland + {ex} alte Anzeigen gelöscht"
   },
   "nav": {
     "dashboard": "Dashboard",

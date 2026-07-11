@@ -183,7 +183,7 @@ export default function DashboardPage() {
       const pt = Number(ptRes?.partTimeDeleted ?? 0);
       const ng = Number(ptRes?.nonGermanDeleted ?? 0);
       const ex = Number(exRes?.expiredDeleted ?? 0);
-      toast(`${pt} part-time + ${ng} xarici + ${ex} köhnə elan silindi`, "success");
+      toast(t("cleanupToast", { pt, ng, ex }), "success");
       fetchStats();
     } finally {
       setCleanupLoading(false);
@@ -228,7 +228,7 @@ export default function DashboardPage() {
             metric, so it opens the console. */}
         <div className="card card-lift p-5 sm:p-6 grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr] lg:items-center">
           <div>
-            <div className="eyebrow mb-2">Cavab faizi</div>
+            <div className="eyebrow mb-2">{t("replyRateLabel")}</div>
             {!analyticsLoaded ? (
               <div className="skeleton h-14 w-40" />
             ) : (
@@ -240,15 +240,13 @@ export default function DashboardPage() {
               </div>
             )}
             <p className="text-sm text-ink-2 mt-3 leading-relaxed">
-              {funnel && funnel.sent > 0 ? (
-                <>Ümumilikdə <b className="text-ink tabular">{funnel.replied}</b> cavab / <b className="text-ink tabular">{funnel.sent}</b> göndərişdən.</>
-              ) : (
-                "Hələ göndərilmiş müraciət yoxdur — namizəd əlavə edin, sistem avtomatik başlayır."
-              )}
+              {funnel && funnel.sent > 0
+                ? t("heroTotal", { replied: funnel.replied, sent: funnel.sent })
+                : t("heroEmpty")}
             </p>
             {last30 && last30.sent > 0 && (
               <p className="text-xs text-ink-3 mt-1.5">
-                Son 30 gün: <span className="tabular text-ink-2">{last30.replyRate}%</span> ({last30.replied}/{last30.sent})
+                {t("last30")}: <span className="tabular text-ink-2">{last30.replyRate}%</span> ({last30.replied}/{last30.sent})
               </p>
             )}
           </div>
@@ -256,10 +254,10 @@ export default function DashboardPage() {
           {/* Funnel: send → deliver → open → reply, narrowing toward the win */}
           <div className="space-y-2.5">
             {(!analyticsLoaded ? [0, 1, 2, 3] : [
-              { label: "Göndərildi", value: funnel?.sent ?? 0, cls: "bg-line-strong", star: false },
-              { label: "Çatdı", value: funnel?.delivered ?? 0, cls: "bg-blue-500", star: false },
-              { label: "Açıldı", value: funnel?.opened ?? 0, cls: "bg-violet-500", star: false },
-              { label: "Cavab", value: funnel?.replied ?? 0, cls: "bg-accent", star: true },
+              { label: t("fSent"), value: funnel?.sent ?? 0, cls: "bg-line-strong", star: false },
+              { label: t("fDelivered"), value: funnel?.delivered ?? 0, cls: "bg-blue-500", star: false },
+              { label: t("fOpened"), value: funnel?.opened ?? 0, cls: "bg-violet-500", star: false },
+              { label: t("fReply"), value: funnel?.replied ?? 0, cls: "bg-accent", star: true },
             ]).map((s, i) => {
               if (typeof s === "number") {
                 return (
@@ -295,10 +293,9 @@ export default function DashboardPage() {
           <div className="flex items-start gap-3 bg-red-500/5 border border-red-500/30 rounded-2xl p-4">
             <span className="text-xl leading-none">⚠️</span>
             <div className="text-sm">
-              <div className="font-semibold pill-red bg-transparent border-0 p-0">Çatdırılma xəbərdarlığı — bounce faizi yüksəkdir ({bounce.rate}%)</div>
+              <div className="font-semibold pill-red bg-transparent border-0 p-0">{t("deliverTitle", { rate: bounce.rate })}</div>
               <p className="text-ink-2 text-xs mt-0.5 leading-relaxed">
-                {bounce.count} / {bounce.sent} mail çatmadı. Yüksək bounce domeninizin reputasiyasını zədələyir və maillərin spam-a düşməsinə səbəb olur.
-                Email doğrulamanın açıq olduğundan (VERIFY_EMAILS=true) əmin olun və gündəlik göndərmə sayını azaldın.
+                {t("deliverBody", { count: bounce.count, sent: bounce.sent })}
               </p>
             </div>
           </div>
@@ -432,10 +429,10 @@ export default function DashboardPage() {
               <button
                 onClick={cleanupPartTime}
                 disabled={cleanupLoading || ingestLoading}
-                title="Part-time / mini-job, xarici (Almaniyadan kənar) və 30 gündən köhnə elanları bazadan silir"
+                title={t("cleanupTitle")}
                 className="w-full pill-red bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 disabled:opacity-50 rounded-lg px-3 py-2 text-xs font-medium"
               >
-                {cleanupLoading ? t("running") : "🧹 Part-time + xarici + köhnə elanları sil"}
+                {cleanupLoading ? t("running") : "🧹 " + t("cleanupBtn")}
               </button>
               {ingestResult && (
                 <div className={`text-xs p-2 rounded-lg border ${ingestResult.startsWith("⚠") ? "bg-red-500/10 border-red-500/30 pill-red" : "bg-accent/10 border-accent/30 text-accent"}`}>
@@ -534,7 +531,7 @@ export default function DashboardPage() {
               return (
                 <div className="py-10 text-center">
                   <div className="text-3xl mb-2">🔍</div>
-                  <div className="text-ink-2 text-sm">{q ? "Axtarışa uyğun elan tapılmadı." : "Hələ elan yoxdur — yuxarıdan mənbələri işə salın."}</div>
+                  <div className="text-ink-2 text-sm">{q ? t("noJobsSearch") : t("noJobsYet")}</div>
                 </div>
               );
             }

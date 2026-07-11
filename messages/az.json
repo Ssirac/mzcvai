@@ -60,7 +60,22 @@
     "emailReady": "e-mail hazır",
     "noEmailYet": "e-mail yox",
     "searchJobs": "İş, şirkət, region axtar...",
-    "allBerufs": "Bütün peşələr"
+    "allBerufs": "Bütün peşələr",
+    "fSent": "Göndərildi",
+    "fDelivered": "Çatdı",
+    "fOpened": "Açıldı",
+    "fReply": "Cavab",
+    "replyRateLabel": "Cavab faizi",
+    "heroTotal": "Ümumilikdə {replied} cavab / {sent} göndərişdən.",
+    "heroEmpty": "Hələ göndərilmiş müraciət yoxdur — namizəd əlavə edin, sistem avtomatik başlayır.",
+    "last30": "Son 30 gün",
+    "deliverTitle": "Çatdırılma xəbərdarlığı — bounce faizi yüksəkdir ({rate}%)",
+    "deliverBody": "{count} / {sent} mail çatmadı. Yüksək bounce domeninizin reputasiyasını zədələyir və maillərin spam-a düşməsinə səbəb olur. Email doğrulamanın açıq olduğundan əmin olun və gündəlik göndərmə sayını azaldın.",
+    "noJobsSearch": "Axtarışa uyğun elan tapılmadı.",
+    "noJobsYet": "Hələ elan yoxdur — yuxarıdan mənbələri işə salın.",
+    "cleanupBtn": "Part-time + xarici + köhnə elanları sil",
+    "cleanupTitle": "Part-time / mini-job, xarici (Almaniyadan kənar) və 30 gündən köhnə elanları bazadan silir",
+    "cleanupToast": "{pt} part-time + {ng} xarici + {ex} köhnə elan silindi"
   },
   "nav": {
     "dashboard": "İdarə paneli",
