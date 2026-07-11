@@ -27,7 +27,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups" | "refresh") => {
+  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -63,5 +63,12 @@ export async function register() {
   setTimeout(tick, 30_000);
   setInterval(tick, HOUR);
 
-  console.log("[scheduler] started (replies hourly, job refresh every 4h, follow-ups ~08:00)");
+  // Frequent standalone purge of part-time / non-German / dead+expired listings
+  // so candidates never see stale jobs — runs every CLEANUP_INTERVAL_MIN minutes
+  // (default 30) on top of the per-ingest and hourly passes. No manual clicking.
+  const cleanupMin = Math.max(5, parseInt(process.env.CLEANUP_INTERVAL_MIN ?? "30"));
+  setTimeout(() => void fire("cleanup"), 45_000);
+  setInterval(() => void fire("cleanup"), cleanupMin * 60 * 1000);
+
+  console.log(`[scheduler] started (replies hourly, job refresh every 4h, cleanup every ${cleanupMin}m, follow-ups ~08:00)`);
 }
