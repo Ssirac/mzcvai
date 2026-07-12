@@ -181,6 +181,98 @@ async function sendEmployerMail(
   throw lastErr ?? new Error("send failed");
 }
 
+export interface OutreachCycleResult {
+  attempted: number; sent: number; held: number; dryRun: number;
+  skippedDedupe: number; skippedConsent: number; skippedCap: number;
+  skippedIncomplete: number; failed: number;
+}
+
+function emptyCycle(): OutreachCycleResult {
+  return { attempted: 0, sent: 0, held: 0, dryRun: 0, skippedDedupe: 0, skippedConsent: 0, skippedCap: 0, skippedIncomplete: 0, failed: 0 };
+}
+
+function tally(r: OutreachCycleResult, status: OutreachStatus) {
+  r.attempted++;
+  if (status === "SENT") r.sent++;
+  else if (status === "HELD_FOR_REVIEW") r.held++;
+  else if (status === "DRY_RUN") r.dryRun++;
+  else if (status === "SKIPPED_DEDUPE") r.skippedDedupe++;
+  else if (status === "SKIPPED_NO_CONSENT") r.skippedConsent++;
+  else if (status === "SKIPPED_DAILY_LIMIT") r.skippedCap++;
+  else if (status === "SKIPPED_INCOMPLETE") r.skippedIncomplete++;
+  else if (status === "FAILED") r.failed++;
+}
+
+// Qualifying matches for a set of candidates: fitScore ≥ MATCH_THRESHOLD, newest
+// strongest first. attemptEmployerOutreach re-checks every gate per item.
+async function processMatches(candidateIds: string[] | null): Promise<OutreachCycleResult> {
+  const cfg = outreachConfig();
+  const result = emptyCycle();
+  if (!cfg.enabled) return result;
+
+  const sendDelayMs = parseInt(process.env.OUTREACH_SEND_DELAY_MS ?? "3000");
+  const matches = await prisma.match.findMany({
+    where: {
+      fitScore: { gte: Math.ceil(cfg.matchThreshold) },
+      ...(candidateIds ? { candidateId: { in: candidateIds } } : { candidate: { status: { in: ["ACTIVE", "PENDING"] } } }),
+    },
+    orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],
+    select: { candidateId: true, employerId: true, vacancyId: true, fitScore: true },
+    take: 2000,
+  });
+
+  for (const m of matches) {
+    const { status } = await attemptEmployerOutreach({
+      candidateId: m.candidateId, employerId: m.employerId, jobId: m.vacancyId, matchScore: m.fitScore,
+    });
+    tally(result, status);
+    // Only pace real sends — skips/holds are cheap and shouldn't slow the run.
+    if (status === "SENT" && sendDelayMs > 0) await new Promise((r) => setTimeout(r, sendDelayMs));
+  }
+  return result;
+}
+
+// Full governed cycle across all active/pending candidates.
+export function runEmployerOutreachCycle(): Promise<OutreachCycleResult> {
+  return processMatches(null);
+}
+
+// Governed outreach for one candidate (used the moment new matches appear).
+export function runEmployerOutreachForCandidate(candidateId: string): Promise<OutreachCycleResult> {
+  return processMatches([candidateId]);
+}
+
+/**
+ * Admin approves a HELD_FOR_REVIEW item → send it now. Bypasses the review band,
+ * dry-run and the dedupe hold (it IS the held row), but STILL honours consent —
+ * a non-consenting employer is never emailed even on manual approval.
+ */
+export async function approveHeldOutreach(logId: string): Promise<{ status: OutreachStatus; error?: string }> {
+  const log = await prisma.employerOutreachLog.findUnique({ where: { id: logId } });
+  if (!log) return { status: "FAILED", error: "not found" };
+  if (log.status !== "HELD_FOR_REVIEW") return { status: "SKIPPED_DEDUPE" };
+
+  const [candidate, employer, vacancy] = await Promise.all([
+    prisma.candidate.findUnique({ where: { id: log.candidateId } }),
+    prisma.employer.findUnique({ where: { id: log.employerId } }),
+    prisma.vacancy.findUnique({ where: { id: log.jobId } }),
+  ]);
+  if (!candidate || !employer || !vacancy) return { status: "FAILED", error: "candidate/employer/job not found" };
+  if (!employer.outreachConsent || employer.optedOut) return { status: "SKIPPED_NO_CONSENT" };
+  if (!employer.genericEmail) return { status: "SKIPPED_NO_EMAIL" };
+
+  const p: AttemptParams = { candidateId: log.candidateId, employerId: log.employerId, jobId: log.jobId, matchScore: 100 };
+  try {
+    await sendEmployerMail(candidate, employer, vacancy);
+    await logOutreach(p, "SENT");
+    return { status: "SENT" };
+  } catch (err) {
+    const msg = (err as Error).message;
+    await logOutreach(p, "FAILED", msg);
+    return { status: "FAILED", error: msg };
+  }
+}
+
 // Mandatory GDPR unsubscribe line + MZ contact (Feature 3 uses an MZ contact link,
 // not an anonymised portal).
 function unsubscribeFooter(employerId: string): string {

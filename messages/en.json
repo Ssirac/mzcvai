@@ -86,7 +86,23 @@
     "outreach": "Outreach",
     "review": "Review",
     "captcha": "Robot queue",
+    "outreachReview": "Held mail",
     "logout": "Sign out"
+  },
+  "outreachReview": {
+    "title": "Auto-outreach — held for review",
+    "subtitle": "Strong-but-not-certain matches (score {min}–{max}) wait here for one-click approval before the employer mail goes out",
+    "empty": "Nothing held for review.",
+    "approveSend": "Approve & send",
+    "dismiss": "Dismiss",
+    "selectAll": "Select all",
+    "selectedCount": "{count} selected",
+    "to": "To",
+    "noConsent": "no consent",
+    "refresh": "Refresh",
+    "sentToast": "{sent} sent, {failed} failed",
+    "dismissedToast": "{count} dismissed",
+    "actionFailed": "Action failed"
   },
   "captchaQueue": {
     "title": "Robot confirmation queue",

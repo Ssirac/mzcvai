@@ -86,7 +86,23 @@
     "outreach": "Müraciətlər",
     "review": "Təsdiq",
     "captcha": "Robot növbəsi",
+    "outreachReview": "Gözləyən mail",
     "logout": "Çıxış"
+  },
+  "outreachReview": {
+    "title": "Avto-təqdim — təsdiq gözləyir",
+    "subtitle": "Güclü, amma tam əmin olmayan uyğunluqlar (skor {min}–{max}) işəgötürənə mail getməzdən əvvəl bir kliklə təsdiq üçün burada gözləyir",
+    "empty": "Təsdiq gözləyən yoxdur.",
+    "approveSend": "Təsdiqlə və göndər",
+    "dismiss": "Ləğv et",
+    "selectAll": "Hamısını seç",
+    "selectedCount": "{count} seçildi",
+    "to": "Kimə",
+    "noConsent": "razılıq yoxdur",
+    "refresh": "Yenilə",
+    "sentToast": "{sent} göndərildi, {failed} uğursuz",
+    "dismissedToast": "{count} ləğv edildi",
+    "actionFailed": "Əməliyyat uğursuz oldu"
   },
   "captchaQueue": {
     "title": "Robot təsdiqi növbəsi",

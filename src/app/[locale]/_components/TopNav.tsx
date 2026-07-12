@@ -52,8 +52,15 @@ function IconShield() {
     </svg>
   );
 }
+function IconSend() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
 
-export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" | "captcha" }) {
+export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" | "captcha" | "outreachReview" }) {
   const { locale } = useParams() as { locale: string };
   const pathname = usePathname();
   const router = useRouter();
@@ -97,6 +104,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     { key: "candidates" as const, href: `/${locale}/candidates`, label: t("candidates"), icon: <IconUsers /> },
     { key: "review" as const, href: `/${locale}/review`, label: t("review"), icon: <IconReview /> },
     { key: "captcha" as const, href: `/${locale}/captcha-queue`, label: t("captcha"), icon: <IconShield /> },
+    { key: "outreachReview" as const, href: `/${locale}/outreach-review`, label: t("outreachReview"), icon: <IconSend /> },
     { key: "inbox" as const, href: `/${locale}/inbox`, label: t("inbox"), icon: <IconInbox /> },
     { key: "analytics" as const, href: `/${locale}/analytics`, label: t("analytics"), icon: <IconChart /> },
   ];

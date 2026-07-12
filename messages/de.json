@@ -86,7 +86,23 @@
     "outreach": "Outreach",
     "review": "Prüfung",
     "captcha": "Robot-Queue",
+    "outreachReview": "Freigaben",
     "logout": "Abmelden"
+  },
+  "outreachReview": {
+    "title": "Auto-Outreach — zur Prüfung",
+    "subtitle": "Starke, aber nicht sichere Treffer (Score {min}–{max}) warten hier auf die Ein-Klick-Freigabe, bevor die Arbeitgeber-Mail rausgeht",
+    "empty": "Nichts zur Prüfung.",
+    "approveSend": "Freigeben & senden",
+    "dismiss": "Verwerfen",
+    "selectAll": "Alle auswählen",
+    "selectedCount": "{count} ausgewählt",
+    "to": "An",
+    "noConsent": "keine Einwilligung",
+    "refresh": "Aktualisieren",
+    "sentToast": "{sent} gesendet, {failed} fehlgeschlagen",
+    "dismissedToast": "{count} verworfen",
+    "actionFailed": "Aktion fehlgeschlagen"
   },
   "captchaQueue": {
     "title": "Warteschlange Robot-Bestätigung",

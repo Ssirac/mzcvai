@@ -17,6 +17,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendAllForCandidate } from "@/services/outreach";
+import { runEmployerOutreachCycle, runEmployerOutreachForCandidate } from "@/services/employerOutreach";
+
+// Feature 3 supersession: when the governed employer-outreach flow is enabled
+// (AUTO_EMAIL_ENABLED=true), ALL auto-send goes through it (consent, dedupe,
+// per-employer cap, review band, dry-run) instead of the legacy ungoverned
+// send — so the two never both fire and no employer is emailed twice.
+const governed = () => process.env.AUTO_EMAIL_ENABLED === "true";
 
 export interface AutoPilotResult {
   candidates: number;
@@ -34,6 +41,8 @@ export interface AutoPilotResult {
 // safety rails (caps, cooldown, opt-out, generic-email-only) live in the send
 // path itself.
 export async function autoSendForCandidate(candidateId: string): Promise<void> {
+  // Governed path takes over entirely when enabled.
+  if (governed()) { await runEmployerOutreachForCandidate(candidateId); return; }
   if (process.env.AUTO_SEND_ENABLED === "false") return;
   const requireCv = process.env.AUTO_SEND_REQUIRE_CV !== "false";
   const c = await prisma.candidate.findUnique({
@@ -47,6 +56,15 @@ export async function autoSendForCandidate(candidateId: string): Promise<void> {
 
 export async function runAutoSend(): Promise<AutoPilotResult> {
   const result: AutoPilotResult = { candidates: 0, sent: 0, skipped: 0, errors: [] };
+
+  // Governed path takes over entirely when enabled — map its summary onto the
+  // AutoPilotResult the callers already log.
+  if (governed()) {
+    const c = await runEmployerOutreachCycle();
+    result.sent = c.sent;
+    result.skipped = c.skippedDedupe + c.skippedConsent + c.skippedCap + c.skippedIncomplete + c.held + c.dryRun;
+    return result;
+  }
 
   if (process.env.AUTO_SEND_ENABLED === "false") {
     result.disabled = true;
