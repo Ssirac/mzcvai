@@ -87,7 +87,19 @@
     "review": "Təsdiq",
     "captcha": "Robot növbəsi",
     "outreachReview": "Gözləyən mail",
+    "applications": "Müraciətlər",
     "logout": "Çıxış"
+  },
+  "applications": {
+    "title": "Müraciət jurnalı",
+    "subtitle": "Xarici forma müraciətləri və statusları",
+    "empty": "Hələ qeydə alınmış müraciət yoxdur.",
+    "refresh": "Yenilə",
+    "candidate": "Namizəd",
+    "position": "Vəzifə",
+    "company": "Şirkət",
+    "source": "Mənbə",
+    "status": "Status"
   },
   "outreachReview": {
     "title": "Avto-təqdim — təsdiq gözləyir",

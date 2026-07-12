@@ -45,8 +45,16 @@ function IconShield() {
     </svg>
   );
 }
+function IconList() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
 
-export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" | "captcha" | "outreachReview" }) {
+export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" | "captcha" | "outreachReview" | "applications" }) {
   const { locale } = useParams() as { locale: string };
   const pathname = usePathname();
   const router = useRouter();
@@ -104,6 +112,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     { key: "dashboard" as const, href: `/${locale}/dashboard`, label: t("dashboard"), icon: <IconGrid /> },
     { key: "candidates" as const, href: `/${locale}/candidates`, label: t("candidates"), icon: <IconUsers /> },
     { key: "captcha" as const, href: `/${locale}/captcha-queue`, label: t("captcha"), icon: <IconShield /> },
+    { key: "applications" as const, href: `/${locale}/applications`, label: t("applications"), icon: <IconList /> },
     { key: "inbox" as const, href: `/${locale}/inbox`, label: t("inbox"), icon: <IconInbox /> },
     { key: "analytics" as const, href: `/${locale}/analytics`, label: t("analytics"), icon: <IconChart /> },
   ];

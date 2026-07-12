@@ -87,7 +87,19 @@
     "review": "Prüfung",
     "captcha": "Robot-Queue",
     "outreachReview": "Freigaben",
+    "applications": "Bewerbungen",
     "logout": "Abmelden"
+  },
+  "applications": {
+    "title": "Bewerbungsprotokoll",
+    "subtitle": "Externe Formular-Bewerbungen und ihr Status",
+    "empty": "Noch keine Bewerbungen protokolliert.",
+    "refresh": "Aktualisieren",
+    "candidate": "Kandidat",
+    "position": "Position",
+    "company": "Unternehmen",
+    "source": "Quelle",
+    "status": "Status"
   },
   "outreachReview": {
     "title": "Auto-Outreach — zur Prüfung",

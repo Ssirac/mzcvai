@@ -87,7 +87,19 @@
     "review": "Review",
     "captcha": "Robot queue",
     "outreachReview": "Held mail",
+    "applications": "Applications",
     "logout": "Sign out"
+  },
+  "applications": {
+    "title": "Application log",
+    "subtitle": "External form applications and their status",
+    "empty": "No applications logged yet.",
+    "refresh": "Refresh",
+    "candidate": "Candidate",
+    "position": "Position",
+    "company": "Company",
+    "source": "Source",
+    "status": "Status"
   },
   "outreachReview": {
     "title": "Auto-outreach — held for review",
