@@ -9,12 +9,14 @@ import { hotelcareerAdapter } from "./hotelcareer";
 import { gastrojobsAdapter } from "./gastrojobs";
 import { jobwareAdapter } from "./jobware";
 import { stellenanzeigenAdapter } from "./stellenanzeigen";
+import { yourfirmAdapter } from "./yourfirm";
 
 export const SCRAPER_ADAPTERS: ScraperAdapter[] = [
   // Group A — hospitality (YourCareerGroup engine)
   hotelcareerAdapter,
   gastrojobsAdapter,
-  // Group B — general boards, hospitality-filtered
+  // Group B — general boards (Stellenanzeigen + Yourfirm share an engine)
   jobwareAdapter,
   stellenanzeigenAdapter,
+  yourfirmAdapter,
 ];

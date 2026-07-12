@@ -27,10 +27,18 @@ export async function robotsAllows(base: string, path: string): Promise<boolean>
       }
     }
     const target = path.toLowerCase();
-    // A rule blocks us if the target path starts with the (wildcard-trimmed) rule.
+    // Proper robots matching: a Disallow is a PREFIX pattern where `*` is any
+    // sequence and a trailing `$` anchors the end. A naive stem check wrongly
+    // blocks e.g. "/stellenangebote/" against a "/stellenangebote*offset=" rule
+    // (which only targets offset-paginated URLs). Build a prefix-anchored regex.
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return !disallows.some((rule) => {
-      const stem = rule.split("*")[0];
-      return stem !== "" && target.startsWith(stem);
+      let pat = rule;
+      const anchorEnd = pat.endsWith("$");
+      if (anchorEnd) pat = pat.slice(0, -1);
+      if (pat === "") return false;
+      const re = new RegExp("^" + pat.split("*").map(esc).join(".*") + (anchorEnd ? "$" : ""));
+      return re.test(target);
     });
   } catch {
     return true; // fail-open on our own network trouble
