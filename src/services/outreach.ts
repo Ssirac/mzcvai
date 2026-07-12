@@ -225,7 +225,10 @@ ${jobText ? `\nStellenanzeige (Auszug):\n"""${jobText}"""` : ""}
 Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift).`;
 
   const message = await anthropic.messages.create({
-    model: "claude-opus-4-8", // strongest model — best-tailored, most convincing letters → higher reply rate
+    // Sonnet 5 instead of Opus 4.8: application letters don't need the top-tier
+    // model, and Sonnet is materially cheaper per letter (auto-send generates
+    // many). Override with OUTREACH_LETTER_MODEL if needed.
+    model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
     max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });

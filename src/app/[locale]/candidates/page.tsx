@@ -254,6 +254,7 @@ export default function CandidatesPage() {
   const toast = useToast();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sweeping, setSweeping] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -410,6 +411,23 @@ export default function CandidatesPage() {
     setSelectedId(null);
     setShowForm(true);
     setMobileView("detail");
+  }
+
+  // Delete dead/expired listings across ALL candidates (visits each URL). Slow, so
+  // it processes a batch per click and reports the count; click again to continue.
+  async function sweepDeadListings() {
+    if (sweeping) return;
+    setSweeping(true);
+    try {
+      const { ok, data } = await jsonFetch("/api/vacancies/sweep-dead", { method: "POST" });
+      if (!ok) { toast(String(data.error ?? t("sweepFailed")), "error"); return; }
+      const deleted = Number(data.deleted ?? 0);
+      const checked = Number(data.checked ?? 0);
+      toast(t("sweepDone", { deleted, checked }), deleted > 0 ? "success" : "info");
+      if (deleted > 0 && selectedId) await loadMatches(selectedId);
+    } finally {
+      setSweeping(false);
+    }
   }
 
   // Load an existing candidate's full record into the editable form
@@ -852,12 +870,22 @@ export default function CandidatesPage() {
       {/* Sub-header */}
       <div className="border-b border-line px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
         <span className="font-semibold text-ink text-sm">{t("title")}</span>
-        <button
-          onClick={startNewCandidate}
-          className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium"
-        >
-          + <span className="hidden sm:inline">{t("newCandidate")}</span><span className="sm:hidden">{t("new")}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={sweepDeadListings}
+            disabled={sweeping}
+            title={t("sweepDeadTitle")}
+            className={`text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-semibold shadow-lg shadow-red-600/30 disabled:opacity-70 ${sweeping ? "bg-red-700 cursor-wait" : "bg-red-600 hover:bg-red-500 animate-pulse"}`}
+          >
+            {sweeping ? t("sweeping") : <>🗑 <span className="hidden sm:inline">{t("sweepDead")}</span><span className="sm:hidden">{t("sweepDeadShort")}</span></>}
+          </button>
+          <button
+            onClick={startNewCandidate}
+            className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium"
+          >
+            + <span className="hidden sm:inline">{t("newCandidate")}</span><span className="sm:hidden">{t("new")}</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-110px)]">

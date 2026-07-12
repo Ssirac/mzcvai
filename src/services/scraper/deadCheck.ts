@@ -23,7 +23,8 @@ const GENERIC_DEAD_MARKERS = [
   "nicht mehr aktuell", "anzeige wurde deaktiviert", "stelle ist besetzt",
   "stelle ist bereits besetzt", "position wurde besetzt", "wurde geschlossen",
   "nicht mehr aktiv", "abgelaufen", "nicht gefunden", "seite nicht gefunden",
-  "existiert nicht", "stellenanzeige ist abgelaufen",
+  "existiert nicht", "stellenanzeige ist abgelaufen", "leider nicht mehr",
+  "job ist leider nicht mehr", "stelle ist nicht mehr",
   // English
   "position filled", "position has been filled", "job is no longer",
   "no longer available", "no longer valid", "no longer active",
@@ -124,11 +125,17 @@ export async function pruneDeadVacancies(
  * (oldest-seen first) and removes the dead ones — so expired jobs stop showing up
  * in candidates' matches. Launches + closes its own browser; runs from cron.
  */
-export async function sweepDeadVacancies(opts?: { limit?: number; notSeenMins?: number; delayMs?: number }): Promise<number> {
+export async function sweepDeadVacancies(
+  opts?: { limit?: number; notSeenMins?: number; delayMs?: number; maxMs?: number }
+): Promise<{ checked: number; deleted: number }> {
   const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "30");
   const notSeenMins = opts?.notSeenMins ?? parseInt(process.env.DEAD_SWEEP_NOT_SEEN_MINS ?? "360"); // 6h
   const delayMs = opts?.delayMs ?? 1200;
-  const cutoff = new Date(Date.now() - notSeenMins * 60 * 1000);
+  const maxMs = opts?.maxMs ?? 0; // 0 = no time budget
+  const started = Date.now();
+  // notSeenMins <= 0 means "check everything" (manual full sweep), so use a future
+  // cutoff that matches all rows.
+  const cutoff = notSeenMins <= 0 ? new Date(Date.now() + 60_000) : new Date(Date.now() - notSeenMins * 60 * 1000);
 
   const candidates = await prisma.vacancy.findMany({
     where: {
@@ -142,16 +149,19 @@ export async function sweepDeadVacancies(opts?: { limit?: number; notSeenMins?: 
     take: limit,
     select: { id: true, url: true },
   });
-  if (candidates.length === 0) return 0;
+  if (candidates.length === 0) return { checked: 0, deleted: 0 };
 
   const browser = await launchBrowser();
   const deadIds: string[] = [];
+  let checked = 0;
   try {
     const page = await browser.newPage();
     await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)");
     await page.setDefaultTimeout(20000);
     for (const v of candidates) {
       if (!v.url) continue;
+      if (maxMs && Date.now() - started > maxMs) break; // stop within the request budget
+      checked++;
       try {
         if (await isListingDead(page, v.url)) deadIds.push(v.id);
       } catch { /* inconclusive — leave for the stale-based cleanup */ }
@@ -160,5 +170,6 @@ export async function sweepDeadVacancies(opts?: { limit?: number; notSeenMins?: 
   } finally {
     await browser.close();
   }
-  return deleteVacancies(deadIds);
+  const deleted = await deleteVacancies(deadIds);
+  return { checked, deleted };
 }
