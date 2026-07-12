@@ -342,7 +342,10 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   // Guard 4b: GLOBAL daily cap across ALL candidates — protects the sending
   // domain's reputation. With many candidates auto-piloting at 20/day each, the
   // total could spike into spam-filter territory; this caps the whole system.
-  const GLOBAL_CAP = parseInt(process.env.GLOBAL_DAILY_CAP ?? "60");
+  // Default raised to 500 so per-candidate 20/day auto-send isn't throttled for
+  // ~25 candidates. WARNING: a high cap risks the sending domain being spam-
+  // flagged — keep a sane ceiling via GLOBAL_DAILY_CAP for deliverability.
+  const GLOBAL_CAP = parseInt(process.env.GLOBAL_DAILY_CAP ?? "500");
   const sentTodayGlobal = await prisma.outreach.count({
     where: { status: "SENT", sentAt: { gte: todayStart } },
   });
