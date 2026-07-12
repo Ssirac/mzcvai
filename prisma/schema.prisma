@@ -132,6 +132,10 @@ model Employer {
   optedOut           Boolean           @default(false) // employer asked to stop (UWG opt-out)
   applyFormUrl       String?
   phone              String?
+  // Auto-outreach governance (Feature 3): never email an employer that hasn't
+  // consented; cap how many candidate presentations they get per day.
+  outreachConsent    Boolean           @default(false)
+  dailyOutreachCap   Int               @default(5)
   sponsorshipSignal  SponsorshipSignal @default(UNKNOWN)
   score              Int               @default(0)
   scoreBreakdown     Json?
@@ -214,6 +218,9 @@ model Candidate {
   cvData            Bytes?
   cvFileName        String?
   cvMimeType        String?
+  // Auto-outreach gate (Feature 3): a half-finished profile is never presented
+  // to an employer. Recomputed from the profile fields on save / matching.
+  profileComplete   Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   matches          Match[]
@@ -322,4 +329,22 @@ model CaptchaQueue {
 
   @@unique([jobId, candidateId])
   @@index([status, createdAt])
+}
+
+// Governed auto-outreach to employers (Feature 3). One row per attempt/decision,
+// with a hard unique on (candidate, employer, job) so the same presentation is
+// never emailed twice — idempotency + audit trail in one place.
+model EmployerOutreachLog {
+  id           String   @id @default(cuid())
+  candidateId  String
+  employerId   String
+  jobId        String
+  template     String
+  status       String   // SENT | FAILED | SKIPPED_DEDUPE | SKIPPED_DAILY_LIMIT | DRY_RUN | HELD_FOR_REVIEW
+  error        String?
+  sentAt       DateTime @default(now())
+
+  @@unique([candidateId, employerId, jobId])
+  @@index([employerId, sentAt])
+  @@index([status])
 }
