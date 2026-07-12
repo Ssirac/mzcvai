@@ -1,0 +1,30 @@
+/**
+ * Field → matcher map for German application forms. Each field lists candidate
+ * input `names` (matched against name/id), `types`, and visible `labels`
+ * (matched against placeholder / aria-label / associated <label> text).
+ * content.js resolves each field to an input using these hints.
+ *
+ * Per-platform overrides can be layered on top by extending window.MZ_SELECTORS
+ * before content.js runs (see README → Platform overrides).
+ */
+window.MZ_SELECTORS = {
+  anrede:        { names: ["anrede", "salutation", "title"], labels: ["Anrede", "Salutation"], select: true },
+  vorname:       { names: ["vorname", "firstname", "first_name", "given-name", "fname"], labels: ["Vorname", "First name"] },
+  nachname:      { names: ["nachname", "lastname", "last_name", "surname", "family-name", "lname"], labels: ["Nachname", "Last name", "Familienname"] },
+  name:          { names: ["fullname", "full_name", "name"], labels: ["Name", "Vollständiger Name"] },
+  email:         { names: ["email", "e-mail", "mail"], types: ["email"], labels: ["E-Mail", "Email", "E-Mail-Adresse"] },
+  telefon:       { names: ["telefon", "phone", "tel", "mobile", "handy"], types: ["tel"], labels: ["Telefon", "Phone", "Mobil", "Handy", "Rufnummer"] },
+  geburtsdatum:  { names: ["geburtsdatum", "birthdate", "dob", "birthday"], types: ["date"], labels: ["Geburtsdatum", "Date of birth"] },
+  nationalitaet: { names: ["nationalitaet", "nationality", "staatsangehoerigkeit"], labels: ["Nationalität", "Staatsangehörigkeit", "Nationality"] },
+  adresse:       { names: ["adresse", "address", "strasse", "street"], labels: ["Adresse", "Straße", "Anschrift", "Address"] },
+  ort:           { names: ["ort", "city", "stadt", "wohnort"], labels: ["Ort", "Stadt", "Wohnort", "City"] },
+  land:          { names: ["land", "country", "staat"], labels: ["Land", "Country"], select: true },
+  beruf:         { names: ["beruf", "position", "jobtitle", "job_title", "taetigkeit"], labels: ["Beruf", "Position", "Tätigkeit", "Berufsbezeichnung"] },
+  deutschniveau: { names: ["deutsch", "german", "sprachniveau"], labels: ["Deutschkenntnisse", "Deutsch", "German level"] },
+};
+
+// File input for the CV / Lebenslauf.
+window.MZ_FILE_MATCH = {
+  names: ["lebenslauf", "cv", "resume", "datei", "anhang", "upload", "file", "dokument"],
+  labels: ["Lebenslauf", "CV", "Anhang", "Datei", "Dokument", "Bewerbungsunterlagen"],
+};

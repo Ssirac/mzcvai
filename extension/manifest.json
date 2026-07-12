@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "MZ Autofill",
+  "version": "1.0.0",
+  "description": "Füllt Bewerbungsformulare mit MZ-Kandidatendaten aus. Rührt CAPTCHAs niemals an — der Mensch bestätigt und sendet ab.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://mzcvai-production.up.railway.app/*",
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MZ Autofill"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["selectors.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
