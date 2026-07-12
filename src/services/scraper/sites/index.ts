@@ -11,6 +11,7 @@ import { jobwareAdapter } from "./jobware";
 import { stellenanzeigenAdapter } from "./stellenanzeigen";
 import { yourfirmAdapter } from "./yourfirm";
 import { absolventaAdapter } from "./absolventa";
+import { hokifyAdapter } from "./hokify";
 
 export const SCRAPER_ADAPTERS: ScraperAdapter[] = [
   // Group A — hospitality (YourCareerGroup engine)
@@ -21,4 +22,5 @@ export const SCRAPER_ADAPTERS: ScraperAdapter[] = [
   stellenanzeigenAdapter,
   yourfirmAdapter,
   absolventaAdapter,
+  hokifyAdapter,
 ];
