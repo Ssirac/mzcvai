@@ -15,12 +15,22 @@
 
 import type { Page } from "puppeteer";
 import { prisma } from "@/lib/prisma";
+import { launchBrowser } from "@/lib/browser";
 
 const GENERIC_DEAD_MARKERS = [
+  // German
   "nicht mehr verfügbar", "nicht mehr verfuegbar", "nicht mehr online",
-  "anzeige wurde deaktiviert", "stelle ist besetzt", "position filled",
-  "job is no longer", "no longer available", "nicht gefunden",
-  "seite nicht gefunden", "existiert nicht", "abgelaufen", "expired",
+  "nicht mehr aktuell", "anzeige wurde deaktiviert", "stelle ist besetzt",
+  "stelle ist bereits besetzt", "position wurde besetzt", "wurde geschlossen",
+  "nicht mehr aktiv", "abgelaufen", "nicht gefunden", "seite nicht gefunden",
+  "existiert nicht", "stellenanzeige ist abgelaufen",
+  // English
+  "position filled", "position has been filled", "job is no longer",
+  "no longer available", "no longer valid", "no longer active",
+  "this job has expired", "job has been filled", "expired", "not found",
+  // Turkish (some source sites localise the expiry notice)
+  "artık geçerli değil", "geçerli değil", "yayında değil",
+  "ilan yayından kaldırıldı", "bu ilan sona erdi", "ilan süresi doldu",
 ];
 
 // Decide whether a single listing URL is dead. Navigates the shared page and
@@ -102,6 +112,53 @@ export async function pruneDeadVacancies(
     if (!v.url) continue;
     if (await isListingDead(page, v.url, opts.extraMarkers)) deadIds.push(v.id);
     await new Promise((r) => setTimeout(r, opts.delayMs)); // respect the site's rate limit
+  }
+  return deleteVacancies(deadIds);
+}
+
+/**
+ * Cross-source dead sweep. The scraper dead-check (pruneDeadVacancies) only covers
+ * scraped sources; API sources (adzuna, arbeitnow, arbeitsagentur…) can still
+ * carry an expired posting whose external page now says "no longer valid". This
+ * self-contained sweep visits a bounded batch of ACTIVE vacancies of ANY source
+ * (oldest-seen first) and removes the dead ones — so expired jobs stop showing up
+ * in candidates' matches. Launches + closes its own browser; runs from cron.
+ */
+export async function sweepDeadVacancies(opts?: { limit?: number; notSeenMins?: number; delayMs?: number }): Promise<number> {
+  const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "30");
+  const notSeenMins = opts?.notSeenMins ?? parseInt(process.env.DEAD_SWEEP_NOT_SEEN_MINS ?? "360"); // 6h
+  const delayMs = opts?.delayMs ?? 1200;
+  const cutoff = new Date(Date.now() - notSeenMins * 60 * 1000);
+
+  const candidates = await prisma.vacancy.findMany({
+    where: {
+      status: "ACTIVE",
+      url: { not: null },
+      lastSeenAt: { lt: cutoff },
+      // Never touch a vacancy already tied to a sent application (history).
+      matches: { none: { outreach: { some: { status: "SENT" } } } },
+    },
+    orderBy: { lastSeenAt: "asc" },
+    take: limit,
+    select: { id: true, url: true },
+  });
+  if (candidates.length === 0) return 0;
+
+  const browser = await launchBrowser();
+  const deadIds: string[] = [];
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent("MZPersonal-CompanyFinder/1.0 (contact@mz-personalvermittlung.de)");
+    await page.setDefaultTimeout(20000);
+    for (const v of candidates) {
+      if (!v.url) continue;
+      try {
+        if (await isListingDead(page, v.url)) deadIds.push(v.id);
+      } catch { /* inconclusive — leave for the stale-based cleanup */ }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  } finally {
+    await browser.close();
   }
   return deleteVacancies(deadIds);
 }

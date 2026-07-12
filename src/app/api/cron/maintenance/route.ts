@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
+import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
@@ -75,6 +76,11 @@ export async function POST(req: NextRequest) {
       log.partTime = await deletePartTimeVacancies();
       log.nonGerman = await deleteNonGermanVacancies();
       log.expired = await deleteExpiredVacancies();
+    }
+    // Cross-source dead-listing sweep (visits URLs) — only on the dedicated
+    // cleanup tick, not every reply poll, since it drives a headless browser.
+    if ((job === "cleanup" || job === "all") && process.env.DEAD_SWEEP_ENABLED !== "false") {
+      log.deadSwept = await sweepDeadVacancies();
     }
     if (job === "followups" || job === "all") {
       // Make sure replies are current right before follow-ups, so we never chase
