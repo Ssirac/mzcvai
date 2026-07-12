@@ -27,7 +27,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape") => {
+  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape" | "applyscan") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -80,6 +80,15 @@ export async function register() {
     setTimeout(() => void fire("scrape"), 90_000); // first run ~90s after boot
     setInterval(() => void fire("scrape"), scrapeHours * HOUR);
     console.log(`[scheduler] scraping cycle every ${scrapeHours}h`);
+  }
+
+  // Apply scanner — opt-in (drives a headless browser). Classifies form-apply
+  // jobs and queues captcha/OTP/form items for human confirmation.
+  if (process.env.APPLY_SCAN_ENABLED === "true") {
+    const applyHours = Math.max(1, parseFloat(process.env.APPLY_SCAN_INTERVAL_HOURS ?? "6"));
+    setTimeout(() => void fire("applyscan"), 120_000);
+    setInterval(() => void fire("applyscan"), applyHours * HOUR);
+    console.log(`[scheduler] apply scan every ${applyHours}h`);
   }
 
   console.log(`[scheduler] started (replies hourly, job refresh every 4h, cleanup every ${cleanupMin}m, follow-ups ~08:00)`);

@@ -348,3 +348,24 @@ model EmployerOutreachLog {
   @@index([employerId, sentAt])
   @@index([status])
 }
+
+// Audit log of external form-based job applications (Feature: apply scanner).
+// One row per (candidate, vacancy); status tracks the human-in-the-loop lifecycle.
+model JobApplicationLog {
+  id          String   @id @default(cuid())
+  candidateId String
+  vacancyId   String
+  company     String
+  position    String
+  link        String
+  source      String
+  // APPLIED | ALREADY_APPLIED | WAITING_CAPTCHA | WAITING_OTP | FILLED | ERROR | INTERVIEW | OFFER
+  status      String
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([candidateId, vacancyId])
+  @@index([status, createdAt])
+  @@index([candidateId])
+}

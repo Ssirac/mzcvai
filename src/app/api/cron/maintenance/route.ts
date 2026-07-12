@@ -3,6 +3,7 @@ import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
 import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
+import { runApplyScan } from "@/services/applyScanner";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
@@ -100,6 +101,11 @@ export async function POST(req: NextRequest) {
     // Script-based scraping cycle (Group A→C sites), rate-limited & queued.
     if (job === "scrape") {
       log.scrape = await runScrapeCycle();
+    }
+    // Apply scanner: classify form-apply jobs, queue captcha/OTP/form for the
+    // human (raises the badge) and log every attempt.
+    if (job === "applyscan") {
+      log.applyScan = await runApplyScan();
     }
     return NextResponse.json({ ok: true, job, ...log });
   } catch (err) {

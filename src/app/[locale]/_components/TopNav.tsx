@@ -70,6 +70,21 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     return () => { alive = false; clearInterval(id); window.removeEventListener("inbox-read", load); };
   }, []);
 
+  // Robot-confirmation badge on the captcha tab — items waiting for a human to
+  // clear a captcha/OTP so an application can proceed.
+  const [robotCount, setRobotCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch("/api/captcha-queue/count")
+        .then((r) => r.json())
+        .then((d) => { if (alive) setRobotCount(Number(d?.count ?? 0)); })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
   // Mobile burger menu open/closed
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -161,6 +176,11 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                   {tab.key === "inbox" && unread > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
                       {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                  {tab.key === "captcha" && robotCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none animate-pulse">
+                      {robotCount > 99 ? "99+" : robotCount}
                     </span>
                   )}
                 </span>
