@@ -299,3 +299,27 @@ model IngestionRun {
   startedAt        DateTime @default(now())
   finishedAt       DateTime?
 }
+
+// Human-in-the-loop queue for external job applications that hit a captcha /
+// bot-wall the automation must NOT solve. Instead of failing silently, the apply
+// flow enqueues the application here so an admin can open the direct link, clear
+// the captcha by hand and finish it. See services/captcha.
+model CaptchaQueue {
+  id             String    @id @default(cuid())
+  jobId          String
+  candidateId    String
+  platform       String    // HOGAPAGE, StepStone, Indeed, LinkedIn, …
+  jobTitle       String
+  company        String
+  applicationUrl String    // DIRECT application link the admin opens
+  matchScore     Float
+  blockedReason  String    // "recaptcha_v2", "cloudflare", "hcaptcha", …
+  prefilledData  Json      // snapshot of the fields to fill in
+  status         String    @default("PENDING") // PENDING|IN_PROGRESS|SUBMITTED|SKIPPED|FAILED
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([jobId, candidateId])
+  @@index([status, createdAt])
+}

@@ -85,7 +85,25 @@
     "analytics": "Analytik",
     "outreach": "Outreach",
     "review": "Prüfung",
+    "captcha": "Robot-Queue",
     "logout": "Abmelden"
+  },
+  "captchaQueue": {
+    "title": "Warteschlange Robot-Bestätigung",
+    "subtitle": "Bewerbungen mit Captcha — Link öffnen und manuell bestätigen (wird nie automatisch gelöst)",
+    "empty": "Warteschlange ist leer — keine Bewerbungen zur Robot-Bestätigung.",
+    "jobsWaiting": "{count} Job(s) warten auf Robot-Bestätigung",
+    "open": "Öffnen & bestätigen",
+    "fillData": "Daten ausfüllen / kopieren",
+    "copyAll": "Alles kopieren",
+    "copied": "Kopiert",
+    "matchScore": "Match",
+    "blocked": "Blockiert",
+    "markSubmitted": "Abgeschickt",
+    "markSkipped": "Überspringen",
+    "statusUpdated": "Status aktualisiert",
+    "actionFailed": "Aktion fehlgeschlagen",
+    "refresh": "Aktualisieren"
   },
   "review": {
     "title": "Bewerbungen prüfen",

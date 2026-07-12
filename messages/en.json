@@ -85,7 +85,25 @@
     "analytics": "Analytics",
     "outreach": "Outreach",
     "review": "Review",
+    "captcha": "Robot queue",
     "logout": "Sign out"
+  },
+  "captchaQueue": {
+    "title": "Robot confirmation queue",
+    "subtitle": "Applications that hit a captcha — open the link and confirm by hand (never solved automatically)",
+    "empty": "Queue is empty — no applications waiting for robot confirmation.",
+    "jobsWaiting": "{count} job(s) awaiting robot confirmation",
+    "open": "Open & confirm",
+    "fillData": "Fill / copy data",
+    "copyAll": "Copy all",
+    "copied": "Copied",
+    "matchScore": "Match",
+    "blocked": "Blocked",
+    "markSubmitted": "Submitted",
+    "markSkipped": "Skip",
+    "statusUpdated": "Status updated",
+    "actionFailed": "Action failed",
+    "refresh": "Refresh"
   },
   "review": {
     "title": "Outreach review",

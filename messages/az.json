@@ -85,7 +85,25 @@
     "analytics": "Analitika",
     "outreach": "Müraciətlər",
     "review": "Təsdiq",
+    "captcha": "Robot növbəsi",
     "logout": "Çıxış"
+  },
+  "captchaQueue": {
+    "title": "Robot təsdiqi növbəsi",
+    "subtitle": "Captcha-ya rast gələn müraciətlər — linki açıb əl ilə təsdiqləyin (heç vaxt avtomatik həll edilmir)",
+    "empty": "Növbə boşdur — robot təsdiqi gözləyən müraciət yoxdur.",
+    "jobsWaiting": "{count} iş robot təsdiqi gözləyir",
+    "open": "Aç və təsdiqlə",
+    "fillData": "Məlumatları doldur / kopyala",
+    "copyAll": "Hamısını kopyala",
+    "copied": "Kopyalandı",
+    "matchScore": "Uyğunluq",
+    "blocked": "Bloklandı",
+    "markSubmitted": "Göndərildi",
+    "markSkipped": "Keç",
+    "statusUpdated": "Status yeniləndi",
+    "actionFailed": "Əməliyyat uğursuz oldu",
+    "refresh": "Yenilə"
   },
   "review": {
     "title": "Müraciətlərin təsdiqi",

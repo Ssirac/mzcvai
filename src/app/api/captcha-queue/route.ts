@@ -1,0 +1,49 @@
+import { NextRequest, NextResponse } from "next/server";
+import { apiError } from "@/lib/apiError";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+// GET /api/captcha-queue?status=PENDING (default: PENDING + IN_PROGRESS)
+// Returns the queue grouped by candidate, so the admin sees e.g.
+// "Vəli — 4 matching jobs awaiting robot confirmation".
+export async function GET(req: NextRequest) {
+  try {
+    const statusParam = new URL(req.url).searchParams.get("status");
+    const where = statusParam
+      ? { status: statusParam }
+      : { status: { in: ["PENDING", "IN_PROGRESS"] } };
+
+    const rows = await prisma.captchaQueue.findMany({
+      where,
+      orderBy: [{ matchScore: "desc" }, { createdAt: "asc" }],
+      take: 500,
+    });
+
+    // Resolve candidate names (CaptchaQueue stores candidateId as a plain string).
+    const candIds = Array.from(new Set(rows.map((r) => r.candidateId)));
+    const cands = await prisma.candidate.findMany({
+      where: { id: { in: candIds } },
+      select: { id: true, name: true, beruf: true },
+    });
+    const nameOf = new Map(cands.map((c) => [c.id, c]));
+
+    const groupMap = new Map<string, { candidateId: string; candidateName: string; beruf: string; items: typeof rows }>();
+    for (const r of rows) {
+      const c = nameOf.get(r.candidateId);
+      const g = groupMap.get(r.candidateId) ?? {
+        candidateId: r.candidateId,
+        candidateName: c?.name ?? "—",
+        beruf: c?.beruf ?? "",
+        items: [] as typeof rows,
+      };
+      g.items.push(r);
+      groupMap.set(r.candidateId, g);
+    }
+
+    const groups = Array.from(groupMap.values()).sort((a, b) => b.items.length - a.items.length);
+    return NextResponse.json({ groups, total: rows.length });
+  } catch (err) {
+    return apiError(err);
+  }
+}
