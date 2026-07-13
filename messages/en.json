@@ -373,6 +373,7 @@
     "resetFilters": "Reset filters",
     "filterSponsor": "Sponsor",
     "filterEmailReady": "Email ready",
+    "applyAll": "All", "applyEmail": "Email", "applyForm": "Form",
     "sortColon": "Sort",
     "sortFit": "Fit",
     "fitTooltip": "Fit: {score}",

@@ -374,6 +374,7 @@
     "resetFilters": "Filtrləri sıfırla",
     "filterSponsor": "Sponsor",
     "filterEmailReady": "Email hazır",
+    "applyAll": "Hamısı", "applyEmail": "Email", "applyForm": "Forma",
     "sortColon": "Sırala",
     "sortFit": "Uyğunluq (fit)",
     "fitTooltip": "Uyğunluq: {score}",

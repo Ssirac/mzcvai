@@ -283,7 +283,7 @@ export default function CandidatesPage() {
   // Per-candidate unread-reply counts → green dot in the candidate list.
   const [unreadByCandidate, setUnreadByCandidate] = useState<Record<string, number>>({});
   const [listSort, setListSort] = useState<"status" | "matches" | "unread" | "recent">("status");
-  const [matchFilters, setMatchFilters] = useState<{ sponsor: boolean; emailReady: boolean }>({ sponsor: false, emailReady: false });
+  const [matchFilters, setMatchFilters] = useState<{ sponsor: boolean; applyType: "all" | "email" | "form" }>({ sponsor: false, applyType: "all" });
   const [matchSort, setMatchSort] = useState<"email" | "fit">("email");
   const [expandedFit, setExpandedFit] = useState<string | null>(null);
 
@@ -302,7 +302,12 @@ export default function CandidatesPage() {
     // stay in the list so it can be retried, not silently disappear.
     .filter((m) => !m.outreach.some((o) => o.status === "SENT"))
     .filter((m) => !matchFilters.sponsor || m.employer.sponsorshipSignal === "YES")
-    .filter((m) => !matchFilters.emailReady || !!m.employer.genericEmail)
+    // Apply type: "email" = employer has a generic address (we mail it);
+    // "form" = no address, apply via the job's own form/link (human + extension).
+    .filter((m) =>
+      matchFilters.applyType === "all" ? true
+        : matchFilters.applyType === "email" ? !!m.employer.genericEmail
+          : !m.employer.genericEmail)
     .sort((a, b) =>
       matchSort === "fit"
         ? (b.fitScore ?? 0) - (a.fitScore ?? 0)
@@ -311,7 +316,9 @@ export default function CandidatesPage() {
   // How many pending matches exist ignoring the active filters (to tell "all
   // sent" apart from "filters hid everything").
   const pendingUnfiltered = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT")).length;
-  const matchFilterActive = matchFilters.sponsor || matchFilters.emailReady;
+  const matchFilterActive = matchFilters.sponsor || matchFilters.applyType !== "all";
+  const emailCount = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT") && !!m.employer.genericEmail).length;
+  const formCount = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT") && !m.employer.genericEmail).length;
 
   function toggleMatchSelect(id: string) {
     setSelectedMatchIds((prev) => {
@@ -1561,7 +1568,7 @@ export default function CandidatesPage() {
                       <div className="text-3xl mb-2">🔎</div>
                       <div className="text-ink-2 text-sm mb-3">{t("filterNoMatch", { count: pendingUnfiltered })}</div>
                       <button
-                        onClick={() => setMatchFilters({ sponsor: false, emailReady: false })}
+                        onClick={() => setMatchFilters({ sponsor: false, applyType: "all" })}
                         className="btn btn-ghost text-xs"
                       >
                         {t("resetFilters")}
@@ -1655,12 +1662,22 @@ export default function CandidatesPage() {
                       >
                         ★ {t("filterSponsor")}
                       </button>
-                      <button
-                        onClick={() => setMatchFilters((f) => ({ ...f, emailReady: !f.emailReady }))}
-                        className={`text-xs px-2.5 py-1 rounded-md border ${matchFilters.emailReady ? "bg-blue-500/15 text-blue-400 border-blue-500/40" : "bg-card-2 text-ink-2 border-line hover:bg-line"}`}
-                      >
-                        ✉️ {t("filterEmailReady")}
-                      </button>
+                      {/* Apply type: separate email-apply from form-apply jobs */}
+                      <div className="inline-flex rounded-md border border-line overflow-hidden">
+                        {([
+                          ["all", t("applyAll"), ""],
+                          ["email", `✉️ ${t("applyEmail")} (${emailCount})`, "text-blue-400"],
+                          ["form", `📝 ${t("applyForm")} (${formCount})`, "text-amber-400"],
+                        ] as const).map(([key, label, color]) => (
+                          <button
+                            key={key}
+                            onClick={() => setMatchFilters((f) => ({ ...f, applyType: key }))}
+                            className={`text-xs px-2.5 py-1 ${matchFilters.applyType === key ? `bg-line-strong text-ink ${color}` : "bg-card-2 text-ink-3 hover:bg-line"}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                       <div className="ml-auto flex items-center gap-1 text-xs text-ink-3">
                         <span>{t("sortColon")}:</span>
                         <select
