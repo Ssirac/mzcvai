@@ -237,12 +237,18 @@ model Match {
   fitScore     Int
   fitBreakdown Json?
   status       MatchStatus @default(SUGGESTED)
+  // Recruiter feedback (GOOD | BAD) — captured to tune future scoring.
+  feedback     String?
+  feedbackNote String?
+  feedbackBy   String?
+  feedbackAt   DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   outreach     Outreach[]
 
   @@unique([candidateId, vacancyId])
   @@index([status])
+  @@index([feedback])
 }
 
 // GDPR: toAddress must be generic company contact only — enforced at service layer
