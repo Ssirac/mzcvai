@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/auth";
+import { logAudit } from "@/services/audit";
 
 // GET /api/candidates/[id] — full candidate record (for editing)
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -27,23 +29,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       data: { status },
     });
+    await logAudit({ actor: await getSessionUser(req), action: "CANDIDATE_UPDATE", targetType: "candidate", targetId: params.id, meta: { status } });
     return NextResponse.json({ ok: true, candidate });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
 
-// DELETE /api/candidates/[id] — remove candidate and all dependent records
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+// DELETE /api/candidates/[id] — GDPR-complete erasure: the candidate (incl. CV
+// bytes) and EVERY record that references them, including the ones with no FK
+// cascade (JobApplicationLog, CaptchaQueue, EmployerOutreachLog).
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const actor = await getSessionUser(req);
+    const id = params.id;
     const matchIds = (
-      await prisma.match.findMany({ where: { candidateId: params.id }, select: { id: true } })
+      await prisma.match.findMany({ where: { candidateId: id }, select: { id: true } })
     ).map((m) => m.id);
 
     await prisma.outreach.deleteMany({ where: { matchId: { in: matchIds } } });
-    await prisma.match.deleteMany({ where: { candidateId: params.id } });
-    await prisma.candidate.delete({ where: { id: params.id } });
+    await prisma.match.deleteMany({ where: { candidateId: id } });
+    // Non-FK personal-data tables keyed by candidateId (string):
+    await prisma.jobApplicationLog.deleteMany({ where: { candidateId: id } });
+    await prisma.captchaQueue.deleteMany({ where: { candidateId: id } });
+    await prisma.employerOutreachLog.deleteMany({ where: { candidateId: id } });
+    await prisma.candidate.delete({ where: { id } });
 
+    await logAudit({ actor, action: "GDPR_DELETE", targetType: "candidate", targetId: id });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
