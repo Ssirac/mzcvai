@@ -88,7 +88,17 @@
     "captcha": "Robot növbəsi",
     "outreachReview": "Gözləyən mail",
     "applications": "Müraciətlər",
+    "system": "Sistem",
     "logout": "Çıxış"
+  },
+  "system": {
+    "title": "Sistem",
+    "subtitle": "Vəziyyət, cron işləri və audit jurnalı",
+    "refresh": "Yenilə",
+    "status": "Vəziyyət", "mail": "Poçt", "sending": "Göndəriş", "paused": "DAYANDIRILIB", "active": "Aktiv",
+    "cronRuns": "Cron işləri", "job": "İş", "cronStatus": "Status", "duration": "Müddət", "started": "Başladı",
+    "auditLog": "Audit jurnalı", "when": "Vaxt", "actor": "İstifadəçi", "action": "Əməliyyat", "target": "Hədəf",
+    "empty": "Qeyd yoxdur."
   },
   "applications": {
     "title": "Müraciət jurnalı",

@@ -88,7 +88,17 @@
     "captcha": "Robot queue",
     "outreachReview": "Held mail",
     "applications": "Applications",
+    "system": "System",
     "logout": "Sign out"
+  },
+  "system": {
+    "title": "System",
+    "subtitle": "Health, cron runs and audit trail",
+    "refresh": "Refresh",
+    "status": "Status", "mail": "Mail", "sending": "Sending", "paused": "PAUSED", "active": "Active",
+    "cronRuns": "Cron runs", "job": "Job", "cronStatus": "Status", "duration": "Duration", "started": "Started",
+    "auditLog": "Audit log", "when": "When", "actor": "Actor", "action": "Action", "target": "Target",
+    "empty": "No entries."
   },
   "applications": {
     "title": "Application log",

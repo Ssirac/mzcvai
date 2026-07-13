@@ -88,7 +88,17 @@
     "captcha": "Robot-Queue",
     "outreachReview": "Freigaben",
     "applications": "Bewerbungen",
+    "system": "System",
     "logout": "Abmelden"
+  },
+  "system": {
+    "title": "System",
+    "subtitle": "Zustand, Cron-Läufe und Audit-Protokoll",
+    "refresh": "Aktualisieren",
+    "status": "Status", "mail": "Mail", "sending": "Versand", "paused": "PAUSIERT", "active": "Aktiv",
+    "cronRuns": "Cron-Läufe", "job": "Job", "cronStatus": "Status", "duration": "Dauer", "started": "Gestartet",
+    "auditLog": "Audit-Protokoll", "when": "Zeit", "actor": "Akteur", "action": "Aktion", "target": "Ziel",
+    "empty": "Keine Einträge."
   },
   "applications": {
     "title": "Bewerbungsprotokoll",
