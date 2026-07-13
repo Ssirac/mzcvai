@@ -10,32 +10,45 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import type { SponsorshipSignal } from "@prisma/client";
+import { normalizeEmployerName, normalizeDomain, domainOfEmail } from "@/lib/normalize";
 
-function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\b(gmbh|ag|kg|ohg|mbh|ug|e\.?\s?v\.?|kgaa|co\.?|&|\+)\b/g, " ")
-    .replace(/[^a-z0-9äöüß]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+const EMP_SELECT = {
+  id: true, name: true, region: true, city: true, genericEmail: true,
+  score: true, sponsorshipSignal: true, optedOut: true, bouncedEmails: true,
+  website: true, createdAt: true,
+} as const;
+
+type Emp = { id: string; name: string; region: string | null; city: string | null;
+  genericEmail: string | null; score: number; sponsorshipSignal: SponsorshipSignal; optedOut: boolean;
+  bouncedEmails: string[]; website: string | null; createdAt: Date };
+
+/**
+ * Merge employers into canonical rows. Two passes on freshly-queried data:
+ *   1. normalized name + region + city  (conservative: same name, same place)
+ *   2. shared real domain (website / generic-email host, excluding free webmail)
+ * Same domain ⇒ same company, even across differing city spellings.
+ */
+export async function mergeDuplicateEmployers(): Promise<{ groups: number; merged: number }> {
+  const byName = await mergeByKey(
+    (e) => {
+      const n = normalizeEmployerName(e.name);
+      return n.length < 3 ? null : `${n}|${(e.region ?? "").toLowerCase()}|${(e.city ?? "").toLowerCase()}`;
+    }
+  );
+  const byDomain = await mergeByKey((e) => normalizeDomain(e.website) ?? domainOfEmail(e.genericEmail));
+  return { groups: byName.groups + byDomain.groups, merged: byName.merged + byDomain.merged };
 }
 
-export async function mergeDuplicateEmployers(): Promise<{ groups: number; merged: number }> {
-  const employers = await prisma.employer.findMany({
-    select: {
-      id: true, name: true, region: true, city: true, genericEmail: true,
-      score: true, sponsorshipSignal: true, optedOut: true, bouncedEmails: true,
-      website: true, createdAt: true,
-    },
-  });
+// Bucket freshly-queried employers by keyFn (null key = skip) and fold each
+// bucket of ≥2 into a single canonical row.
+async function mergeByKey(keyFn: (e: Emp) => string | null): Promise<{ groups: number; merged: number }> {
+  const employers = (await prisma.employer.findMany({ select: EMP_SELECT })) as Emp[];
 
-  type Emp = (typeof employers)[number];
-
-  // Bucket by normalized name + region + city.
   const buckets = new Map<string, Emp[]>();
   for (const e of employers) {
-    const key = `${normalizeName(e.name)}|${(e.region ?? "").toLowerCase()}|${(e.city ?? "").toLowerCase()}`;
-    if (normalizeName(e.name).length < 3) continue; // too vague to merge safely
+    const key = keyFn(e);
+    if (!key) continue;
     (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(e);
   }
 
