@@ -18,6 +18,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendAllForCandidate } from "@/services/outreach";
 import { runEmployerOutreachCycle, runEmployerOutreachForCandidate } from "@/services/employerOutreach";
+import { isSendingPaused } from "@/services/deliverability";
 
 // Feature 3 supersession: when the governed employer-outreach flow is enabled
 // (AUTO_EMAIL_ENABLED=true), ALL auto-send goes through it (consent, dedupe,
@@ -41,6 +42,8 @@ export interface AutoPilotResult {
 // safety rails (caps, cooldown, opt-out, generic-email-only) live in the send
 // path itself.
 export async function autoSendForCandidate(candidateId: string): Promise<void> {
+  // Deliverability guard: never auto-send while paused (high bounce rate / kill switch).
+  if (await isSendingPaused()) return;
   // Governed path takes over entirely when enabled.
   if (governed()) { await runEmployerOutreachForCandidate(candidateId); return; }
   if (process.env.AUTO_SEND_ENABLED === "false") return;
@@ -56,6 +59,10 @@ export async function autoSendForCandidate(candidateId: string): Promise<void> {
 
 export async function runAutoSend(): Promise<AutoPilotResult> {
   const result: AutoPilotResult = { candidates: 0, sent: 0, skipped: 0, errors: [] };
+
+  // Deliverability guard: pause the whole run on a dangerous bounce rate / kill switch.
+  const pause = await isSendingPaused();
+  if (pause) { result.disabled = true; result.errors.push("paused: deliverability guard"); return result; }
 
   // Governed path takes over entirely when enabled — map its summary onto the
   // AutoPilotResult the callers already log.
