@@ -8,6 +8,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { log } from "@/lib/log";
 
 // Try to acquire the named lock. Returns the owner token on success, else null.
 // Exported for callers (e.g. the long nightly handler) that must hold the lock
@@ -56,6 +57,7 @@ export async function withCronLock<T>(job: string, ttlMs: number, fn: () => Prom
   const owner = await acquire(job, ttlMs);
   if (!owner) {
     await prisma.cronRun.create({ data: { job, status: "skipped_locked", finishedAt: new Date(), durationMs: 0 } }).catch(() => {});
+    log.warn("cron.skipped_locked", { job });
     return { ran: false, skipped: "locked" };
   }
 
@@ -64,6 +66,7 @@ export async function withCronLock<T>(job: string, ttlMs: number, fn: () => Prom
   try {
     const result = await fn();
     const durationMs = Date.now() - started;
+    log.info("cron.completed", { job, durationMs });
     if (run) {
       await prisma.cronRun.update({
         where: { id: run.id },
@@ -74,6 +77,7 @@ export async function withCronLock<T>(job: string, ttlMs: number, fn: () => Prom
   } catch (err) {
     const durationMs = Date.now() - started;
     const error = (err as Error).message;
+    log.error("cron.failed", { job, durationMs, error });
     if (run) {
       await prisma.cronRun.update({
         where: { id: run.id },
