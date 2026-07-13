@@ -103,6 +103,8 @@
     "status": "Status", "mail": "Mail", "sending": "Versand", "paused": "PAUSIERT", "active": "Aktiv",
     "cronRuns": "Cron-Läufe", "job": "Job", "cronStatus": "Status", "duration": "Dauer", "started": "Gestartet",
     "auditLog": "Audit-Protokoll", "when": "Zeit", "actor": "Akteur", "action": "Aktion", "target": "Ziel",
+    "campaigns": "Kampagnen", "campaign": "Kampagne", "template": "Vorlage", "sent": "Gesendet", "replied": "Geantwortet",
+    "replyRate": "Antwortrate", "bounceRate": "Bounce-Rate",
     "empty": "Keine Einträge."
   },
   "applications": {

@@ -8,6 +8,7 @@ import { jsonFetch } from "@/lib/clientApi";
 interface Audit { id: string; actor: string; action: string; targetType: string | null; targetId: string | null; createdAt: string }
 interface Cron { id: string; job: string; status: string; startedAt: string; durationMs: number | null; error: string | null }
 interface Health { status: string; db: string; mailProvider: string; sending: { paused: boolean; reason: string | null; rate: number } | null }
+interface Campaign { campaign: string; templateVersion: string; sent: number; delivered: number; opened: number; replied: number; bounced: number; replyRate: number; bounceRate: number }
 
 const CRON_STYLE: Record<string, string> = {
   completed: "bg-emerald-600/15 text-emerald-500",
@@ -23,18 +24,21 @@ export default function SystemPage() {
   const [audit, setAudit] = useState<Audit[]>([]);
   const [cron, setCron] = useState<Cron[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [a, c, h] = await Promise.all([
+    const [a, c, h, cm] = await Promise.all([
       jsonFetch("/api/audit?limit=100"),
       jsonFetch("/api/cron-runs?limit=50"),
       jsonFetch("/api/health"),
+      jsonFetch("/api/campaigns"),
     ]);
     setAudit((a.data.items as Audit[]) ?? []);
     setCron((c.data.items as Cron[]) ?? []);
     setHealth(h.data as unknown as Health);
+    setCampaigns((cm.data.campaigns as Campaign[]) ?? []);
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -63,6 +67,34 @@ export default function SystemPage() {
             <Tile label={t("mail")} value={health.mailProvider} ok={health.mailProvider !== "none"} />
             <Tile label={t("sending")} value={health.sending?.paused ? t("paused") : t("active")} ok={!health.sending?.paused} />
           </div>
+        )}
+
+        {/* Campaigns */}
+        {campaigns.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-ink">{t("campaigns")}</h2>
+            <div className="overflow-x-auto border border-line rounded-xl">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead><tr className="text-left text-ink-3 text-xs border-b border-line">
+                  <th className="px-3 py-2 font-medium">{t("campaign")}</th><th className="px-3 py-2 font-medium">{t("template")}</th>
+                  <th className="px-3 py-2 font-medium">{t("sent")}</th><th className="px-3 py-2 font-medium">{t("replied")}</th>
+                  <th className="px-3 py-2 font-medium">{t("replyRate")}</th><th className="px-3 py-2 font-medium">{t("bounceRate")}</th>
+                </tr></thead>
+                <tbody>
+                  {campaigns.map((c, i) => (
+                    <tr key={i} className="border-b border-line/60">
+                      <td className="px-3 py-2 text-ink">{c.campaign}</td>
+                      <td className="px-3 py-2 text-ink-3">{c.templateVersion}</td>
+                      <td className="px-3 py-2 text-ink-2 tabular-nums">{c.sent}</td>
+                      <td className="px-3 py-2 text-ink-2 tabular-nums">{c.replied}</td>
+                      <td className="px-3 py-2 text-emerald-500 tabular-nums">{(c.replyRate * 100).toFixed(1)}%</td>
+                      <td className={`px-3 py-2 tabular-nums ${c.bounceRate > 0.1 ? "text-rose-500" : "text-ink-3"}`}>{(c.bounceRate * 100).toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         {/* Cron runs */}

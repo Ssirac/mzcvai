@@ -274,7 +274,11 @@ export async function createOutreachDraft(matchId: string): Promise<string> {
   const { subject, body } = await generateDraft(matchId);
 
   const outreach = await prisma.outreach.create({
-    data: { matchId, draftBody: body, subject, channel: "EMAIL", toAddress, status: "DRAFT" },
+    data: {
+      matchId, draftBody: body, subject, channel: "EMAIL", toAddress, status: "DRAFT",
+      campaign: process.env.OUTREACH_CAMPAIGN || "default",
+      templateVersion: process.env.OUTREACH_TEMPLATE_VERSION || "de-v1",
+    },
   });
 
   return outreach.id;

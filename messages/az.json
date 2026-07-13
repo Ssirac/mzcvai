@@ -103,6 +103,8 @@
     "status": "Vəziyyət", "mail": "Poçt", "sending": "Göndəriş", "paused": "DAYANDIRILIB", "active": "Aktiv",
     "cronRuns": "Cron işləri", "job": "İş", "cronStatus": "Status", "duration": "Müddət", "started": "Başladı",
     "auditLog": "Audit jurnalı", "when": "Vaxt", "actor": "İstifadəçi", "action": "Əməliyyat", "target": "Hədəf",
+    "campaigns": "Kampaniyalar", "campaign": "Kampaniya", "template": "Şablon", "sent": "Göndərildi", "replied": "Cavab",
+    "replyRate": "Cavab dərəcəsi", "bounceRate": "Bounce dərəcəsi",
     "empty": "Qeyd yoxdur."
   },
   "applications": {

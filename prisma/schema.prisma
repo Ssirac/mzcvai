@@ -261,6 +261,9 @@ model Outreach {
   channel    OutreachChannel @default(EMAIL)
   toAddress  String?
   status     OutreachStatus  @default(DRAFT)
+  // Attribution: which campaign + which letter-template version produced this.
+  campaign        String?
+  templateVersion String?
   approvedBy String?
   approvedAt DateTime?
   sentAt     DateTime?
