@@ -91,6 +91,11 @@
     "system": "System",
     "logout": "Abmelden"
   },
+  "funnel": {
+    "title": "Pipeline",
+    "ingested": "Erfasst", "matched": "Gematcht", "reviewed": "Geprüft", "sent": "Gesendet",
+    "delivered": "Zugestellt", "replied": "Geantwortet", "interview": "Interview", "placed": "Vermittelt"
+  },
   "system": {
     "title": "System",
     "subtitle": "Zustand, Cron-Läufe und Audit-Protokoll",

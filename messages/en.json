@@ -91,6 +91,11 @@
     "system": "System",
     "logout": "Sign out"
   },
+  "funnel": {
+    "title": "Pipeline",
+    "ingested": "Ingested", "matched": "Matched", "reviewed": "Reviewed", "sent": "Sent",
+    "delivered": "Delivered", "replied": "Replied", "interview": "Interview", "placed": "Placed"
+  },
   "system": {
     "title": "System",
     "subtitle": "Health, cron runs and audit trail",

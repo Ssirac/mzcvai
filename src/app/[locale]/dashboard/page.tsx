@@ -224,6 +224,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <PipelineFunnel />
+
         {/* Signature — reply rate readout + live funnel. The reply is the money
             metric, so it opens the console. */}
         <div className="card card-lift p-5 sm:p-6 grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr] lg:items-center">
@@ -667,6 +669,36 @@ export default function DashboardPage() {
           )}
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// Pipeline funnel: ingested → matched → reviewed → sent → delivered → replied →
+// interview → placed. Self-contained; fetches /api/funnel.
+function PipelineFunnel() {
+  const t = useTranslations("funnel");
+  const [stages, setStages] = useState<{ key: string; count: number }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/funnel").then((r) => r.json()).then((d) => { if (alive) setStages(d.stages ?? []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (stages.length === 0) return null;
+  const max = Math.max(1, ...stages.map((s) => s.count));
+  return (
+    <div className="bg-card border border-line rounded-xl p-3 sm:p-4">
+      <div className="text-xs font-semibold text-ink-3 mb-3">{t("title")}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        {stages.map((s) => (
+          <div key={s.key} className="min-w-0">
+            <div className="text-[11px] text-ink-3 truncate">{t(s.key)}</div>
+            <div className="text-lg font-bold text-ink tabular-nums">{s.count.toLocaleString()}</div>
+            <div className="h-1.5 mt-1 rounded-full bg-card-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${Math.round((s.count / max) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

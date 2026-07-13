@@ -91,6 +91,11 @@
     "system": "Sistem",
     "logout": "Çıxış"
   },
+  "funnel": {
+    "title": "Pipeline",
+    "ingested": "Toplandı", "matched": "Uyğunlaşdı", "reviewed": "Baxıldı", "sent": "Göndərildi",
+    "delivered": "Çatdırıldı", "replied": "Cavab", "interview": "Müsahibə", "placed": "Yerləşdirildi"
+  },
   "system": {
     "title": "Sistem",
     "subtitle": "Vəziyyət, cron işləri və audit jurnalı",
