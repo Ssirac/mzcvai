@@ -17,6 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { agencySignature, complianceFooter } from "@/services/outreach";
+import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 
 export interface FollowUpResult {
   eligible: number;
@@ -63,7 +64,7 @@ export async function runFollowUps(): Promise<FollowUpResult> {
       match: {
         select: {
           employerId: true,
-          candidate: { select: { name: true } },
+          candidate: { select: { id: true, name: true, cvData: true, cvFileName: true } },
           employer: { select: { name: true, optedOut: true } },
           vacancy: { select: { title: true, beruf: true } },
         },
@@ -94,10 +95,30 @@ export async function runFollowUps(): Promise<FollowUpResult> {
         ? (o.subject.startsWith("Erinnerung") ? o.subject : `Erinnerung: ${o.subject}`)
         : `Erinnerung: Bewerbung ${candidateName}`;
 
+      // Attach the candidate's CV to the reminder too (same as the first mail):
+      // uploaded original if present, otherwise a generated Lebenslauf PDF.
+      const cand = o.match.candidate;
+      let attachments: { filename: string; content: Buffer }[] = [];
+      if (cand.cvData) {
+        attachments = [{ filename: cand.cvFileName || cvFileName(candidateName), content: Buffer.from(cand.cvData) }];
+      } else {
+        try {
+          const full = await prisma.candidate.findUnique({ where: { id: cand.id } });
+          if (full) {
+            const pdf = await Promise.race([
+              generateCandidateCvPdf(full),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error("PDF timeout")), 25000)),
+            ]);
+            attachments = [{ filename: cvFileName(candidateName), content: pdf }];
+          }
+        } catch { /* non-fatal — send the reminder without attachment */ }
+      }
+
       const sendResult = await sendMail({
         to: o.toAddress!,
         subject,
         text: followUpBody(candidateName, employerName, position, o.sentAt!) + complianceFooter(o.match.employerId),
+        attachments,
       });
 
       await prisma.outreach.update({
