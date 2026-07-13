@@ -385,3 +385,26 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([targetType, targetId])
 }
+
+// Distributed lock for cron jobs — prevents a second run (another instance or an
+// overlapping tick) from starting the same job. Expired locks are stealable.
+model CronLock {
+  name      String   @id
+  owner     String
+  lockedAt  DateTime @default(now())
+  expiresAt DateTime
+}
+
+// Persisted cron-run history (status, duration, result) for the admin UI.
+model CronRun {
+  id         String    @id @default(cuid())
+  job        String
+  status     String    // running | completed | failed | skipped_locked
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  result     Json?
+  error      String?
+
+  @@index([job, startedAt])
+}

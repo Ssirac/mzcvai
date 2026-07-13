@@ -4,6 +4,7 @@ import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
 import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
 import { runApplyScan } from "@/services/applyScanner";
+import { withCronLock } from "@/services/cron";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
@@ -92,20 +93,25 @@ export async function POST(req: NextRequest) {
     // Intraday job refresh — new vacancies land within hours, not next day.
     // Auto-pilot then sends applications for the fresh matches immediately.
     if (job === "refresh") {
-      log.refresh = await refreshJobs();
-      log.autoSend = await runAutoSend();
+      const o = await withCronLock("refresh", 30 * 60 * 1000, async () => ({
+        refresh: await refreshJobs(),
+        autoSend: await runAutoSend(),
+      }));
+      Object.assign(log, o.ran ? o.result : { refresh: { skipped: o.skipped ?? o.error } });
     }
     if (job === "autosend") {
       log.autoSend = await runAutoSend();
     }
     // Script-based scraping cycle (Group A→C sites), rate-limited & queued.
     if (job === "scrape") {
-      log.scrape = await runScrapeCycle();
+      const o = await withCronLock("scrape", 55 * 60 * 1000, () => runScrapeCycle());
+      log.scrape = o.ran ? o.result : { skipped: o.skipped ?? o.error };
     }
     // Apply scanner: classify form-apply jobs, queue captcha/OTP/form for the
     // human (raises the badge) and log every attempt.
     if (job === "applyscan") {
-      log.applyScan = await runApplyScan();
+      const o = await withCronLock("applyscan", 30 * 60 * 1000, () => runApplyScan());
+      log.applyScan = o.ran ? o.result : { skipped: o.skipped ?? o.error };
     }
     return NextResponse.json({ ok: true, job, ...log });
   } catch (err) {

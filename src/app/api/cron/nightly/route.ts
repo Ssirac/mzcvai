@@ -13,6 +13,7 @@ import { runFollowUps } from "@/services/followup";
 import { runAutoSend } from "@/services/autopilot";
 import { deletePartTimeVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
+import { acquireCronLock, releaseCronLock } from "@/services/cron";
 import { prisma } from "@/lib/prisma";
 
 // Core occupations always covered nightly.
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Single-flight: a second nightly (overlap / another instance) must not run.
+  const lockOwner = await acquireCronLock("nightly", 3 * 60 * 60 * 1000);
+  if (!lockOwner) {
+    return NextResponse.json({ ok: true, skipped: "locked" });
   }
 
   const log: string[] = [];
@@ -177,5 +184,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, log });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message, log }, { status: 500 });
+  } finally {
+    await releaseCronLock("nightly", lockOwner);
   }
 }
