@@ -110,13 +110,18 @@
   async function onFill() {
     const { mzBaseUrl, mzCandidateId } = await chrome.storage.sync.get(["mzBaseUrl", "mzCandidateId"]);
     if (!mzBaseUrl || !mzCandidateId) { toast("MZ Autofill: bitte im Popup Basis-URL und Kandidat wählen.", false); return; }
-    let res, data;
+    // Fetch via the background service worker (extension context) so the MZ
+    // session cookie is sent — a content-script fetch here would be cross-site
+    // and the SameSite=Lax cookie would be dropped.
+    let resp;
     try {
-      res = await fetch(`${mzBaseUrl.replace(/\/+$/, "")}/api/candidates/${mzCandidateId}/prefill`, { credentials: "include" });
-    } catch { toast("MZ Autofill: keine Verbindung zur MZ-App.", false); return; }
-    if (res.status === 401) { toast("MZ Autofill: nicht eingeloggt. Bitte in der MZ-App anmelden.", false); return; }
-    if (!res.ok) { toast(`MZ Autofill: Fehler ${res.status}.`, false); return; }
-    data = await res.json();
+      resp = await chrome.runtime.sendMessage({ type: "mzPrefill", baseUrl: mzBaseUrl, candidateId: mzCandidateId });
+    } catch { toast("MZ Autofill: interner Fehler.", false); return; }
+    if (!resp) { toast("MZ Autofill: keine Antwort.", false); return; }
+    if (resp.error === "unauth") { toast("MZ Autofill: nicht eingeloggt. Bitte in der MZ-App anmelden.", false); return; }
+    if (resp.error === "network") { toast("MZ Autofill: keine Verbindung zur MZ-App.", false); return; }
+    if (resp.error) { toast(`MZ Autofill: Fehler (${resp.error}).`, false); return; }
+    const data = resp.data;
     const { filled, cvNote } = fillForm(data);
     copyPanel(data); // fallback: fields also on the clipboard
     toast(`MZ Autofill: ${filled} Felder ausgefüllt${cvNote}. CAPTCHA & Absenden bitte selbst.`, true);

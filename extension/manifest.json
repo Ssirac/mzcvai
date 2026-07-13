@@ -12,6 +12,7 @@
     "default_popup": "popup.html",
     "default_title": "MZ Autofill"
   },
+  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
