@@ -322,6 +322,8 @@
     "findingEmails": "Suche läuft...",
     "selectAll": "Alle auswählen",
     "sendSelected": "An Ausgewählte senden ({count})",
+    "rejectSelected": "Ablehnen ({count})",
+    "rejectedResult": "{count} Match(es) abgelehnt",
     "sendingAll": "Wird gesendet...",
     "sendAllConfirm": "An {count} Arbeitgeber bewerben? (Tageslimit und Cooldown werden eingehalten)",
     "bulkResult": "{sent} gesendet, {skipped} übersprungen",

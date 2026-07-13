@@ -801,6 +801,31 @@ export default function CandidatesPage() {
     }
   }
 
+  const [rejecting, setRejecting] = useState(false);
+  // Bulk reject: mark selected matches BAD so they leave the queue and are never
+  // (re)sent. Uses the per-match feedback endpoint.
+  async function bulkRejectMatches() {
+    if (!selectedId || selectedMatchIds.size === 0) return;
+    const ids = Array.from(selectedMatchIds);
+    setRejecting(true);
+    try {
+      let ok = 0;
+      for (const id of ids) {
+        const r = await jsonFetch(`/api/matches/${id}/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ verdict: "BAD" }),
+        });
+        if (r.ok) ok++;
+      }
+      toast(t("rejectedResult", { count: ok }), "success");
+      setSelectedMatchIds(new Set());
+      loadMatches(selectedId);
+    } finally {
+      setRejecting(false);
+    }
+  }
+
   async function sendAllOutreach() {
     if (!selectedId) return;
     // If the user ticked specific jobs, send only those; otherwise send to all.
@@ -1611,6 +1636,15 @@ export default function CandidatesPage() {
                             <>✉️ {t("sendAll")}</>
                           )}
                         </button>
+                        {selectedMatchIds.size > 0 && (
+                          <button
+                            onClick={bulkRejectMatches}
+                            disabled={rejecting || sendingAll}
+                            className="bg-card-2 hover:bg-line text-rose-500 border border-line-strong disabled:opacity-50 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          >
+                            {rejecting ? "…" : <>✕ {t("rejectSelected", { count: selectedMatchIds.size })}</>}
+                          </button>
+                        )}
                       </div>
                     </div>
                     {/* Filter + sort */}

@@ -322,6 +322,8 @@
     "findingEmails": "Axtarılır...",
     "selectAll": "Hamısını seç",
     "sendSelected": "Seçilənlərə göndər ({count})",
+    "rejectSelected": "Rədd et ({count})",
+    "rejectedResult": "{count} uyğunluq rədd edildi",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",
     "bulkResult": "{sent} göndərildi, {skipped} ötürüldü",
