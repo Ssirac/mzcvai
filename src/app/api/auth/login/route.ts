@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createToken, checkCredentials, SESSION_COOKIE, SESSION_TTL_MS } from "@/lib/auth";
 import { rateLimit, rateLimitReset, clientIp } from "@/lib/rateLimit";
+import { logAudit } from "@/services/audit";
 
 // Brute-force protection: max 8 attempts per IP per 15 minutes.
 const MAX_ATTEMPTS = 8;
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     rateLimitReset(key);
 
     const token = await createToken(username);
+    await logAudit({ actor: username, action: "LOGIN", meta: { ip } });
     const res = NextResponse.json({ ok: true });
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,

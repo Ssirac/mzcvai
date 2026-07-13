@@ -74,6 +74,32 @@ export async function verifyToken(token: string | undefined | null): Promise<{ u
   }
 }
 
+// Resolve the logged-in username from a request's session cookie. Used by
+// mutating API routes to record WHO performed an action (audit trail) instead of
+// a hardcoded placeholder. Returns null if unauthenticated (middleware already
+// blocks that, so this is defence-in-depth).
+export async function getSessionUser(
+  req: { cookies: { get(name: string): { value: string } | undefined } }
+): Promise<string | null> {
+  const token = req.cookies.get(COOKIE_NAME)?.value;
+  const s = await verifyToken(token);
+  return s?.u ?? null;
+}
+
+// Resolve a username → role. Foundation for RBAC on top of the single-admin
+// login: an optional ROLE_MAP env (JSON {"user":"RECRUITER"}) overrides the
+// DEFAULT_ROLE. Today there is effectively one admin; this gives a single source
+// of truth to grow into a real user store.
+export function roleFor(username: string | null): "ADMIN" | "RECRUITER" {
+  let mapped: string | undefined;
+  try {
+    const map = process.env.ROLE_MAP ? (JSON.parse(process.env.ROLE_MAP) as Record<string, string>) : {};
+    if (username) mapped = map[username];
+  } catch { /* invalid ROLE_MAP → ignore */ }
+  const role = mapped || process.env.DEFAULT_ROLE || "ADMIN";
+  return role === "RECRUITER" ? "RECRUITER" : "ADMIN";
+}
+
 // Verify provided credentials against env-configured admin account
 export function checkCredentials(username: string, password: string): boolean {
   const u = process.env.ADMIN_USER || "admin";

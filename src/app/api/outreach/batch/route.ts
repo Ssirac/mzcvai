@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { approveOutreach, sendOutreach } from "@/services/outreach";
+import { getSessionUser } from "@/lib/auth";
+import { logAudit } from "@/services/audit";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 300;
@@ -22,7 +24,8 @@ export async function POST(req: NextRequest) {
       ? body.ids.filter((x: unknown): x is string => typeof x === "string")
       : [];
     const action: string = body.action;
-    const userId: string = typeof body.userId === "string" && body.userId ? body.userId : "review-panel";
+    // Actor = the logged-in user, recorded as approver on each outreach.
+    const userId: string = (await getSessionUser(req)) ?? "review-panel";
 
     if (!ids.length) return NextResponse.json({ error: "ids required" }, { status: 400 });
     if (!["approve", "send", "approve-and-send"].includes(action)) {
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await logAudit({ actor: userId, action: action === "send" || action === "approve-and-send" ? "OUTREACH_SEND" : "OUTREACH_APPROVE", meta: { ...summary, ids: ids.length } });
     return NextResponse.json({ ok: true, action, ...summary, results });
   } catch (err) {
     return apiError(err);

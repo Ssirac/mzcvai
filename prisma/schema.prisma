@@ -369,3 +369,19 @@ model JobApplicationLog {
   @@index([status, createdAt])
   @@index([candidateId])
 }
+
+// Security audit trail: who did what, when. Written for sensitive actions
+// (login, candidate CRUD, CV up/download, outreach approve/send, opt-out, GDPR
+// export/delete). Append-only; never exposed to the client verbatim.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String   // session username (or "system" for automated actions)
+  action     String   // LOGIN | CANDIDATE_CREATE | CV_DOWNLOAD | OUTREACH_SEND | OPT_OUT | GDPR_EXPORT | GDPR_DELETE ...
+  targetType String?  // candidate | outreach | employer | ...
+  targetId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}

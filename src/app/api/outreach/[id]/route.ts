@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { approveOutreach, sendOutreach } from "@/services/outreach";
+import { getSessionUser } from "@/lib/auth";
+import { logAudit } from "@/services/audit";
 import { prisma } from "@/lib/prisma";
 
 // PATCH /api/outreach/[id] — action: approve | send | update-draft
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { action, userId, draftBody, subject } = await req.json();
+    const { action, draftBody, subject } = await req.json();
     const id = params.id;
+    // The approver/sender is the logged-in user, not a client-supplied value.
+    const actor = await getSessionUser(req);
 
     if (action === "approve") {
-      if (!userId) return NextResponse.json({ error: "userId required for approval" }, { status: 400 });
-      await approveOutreach(id, userId);
+      await approveOutreach(id, actor ?? "unknown");
+      await logAudit({ actor, action: "OUTREACH_APPROVE", targetType: "outreach", targetId: id });
       return NextResponse.json({ ok: true, status: "APPROVED" });
     }
 
     if (action === "send") {
       await sendOutreach(id);
+      await logAudit({ actor, action: "OUTREACH_SEND", targetType: "outreach", targetId: id });
       return NextResponse.json({ ok: true, status: "SENT" });
     }
 
