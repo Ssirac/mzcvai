@@ -214,6 +214,7 @@ async function processMatches(candidateIds: string[] | null): Promise<OutreachCy
   const matches = await prisma.match.findMany({
     where: {
       fitScore: { gte: Math.ceil(cfg.matchThreshold) },
+      feedback: { not: "BAD" }, // recruiter-rejected matches are never auto-sent
       ...(candidateIds ? { candidateId: { in: candidateIds } } : { candidate: { status: { in: ["ACTIVE", "PENDING"] } } }),
     },
     orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],

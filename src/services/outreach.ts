@@ -455,6 +455,8 @@ export async function sendAllForCandidate(
   const matches = await prisma.match.findMany({
     where: {
       candidateId,
+      // Never (re)send a match a recruiter has explicitly rejected.
+      feedback: { not: "BAD" },
       ...(matchIds && matchIds.length > 0 ? { id: { in: matchIds } } : {}),
     },
     orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],
