@@ -40,6 +40,7 @@ export default function CaptchaQueuePage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [openPanel, setOpenPanel] = useState<string | null>(null);
+  const [view, setView] = useState<"all" | "ready" | "verify">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +71,17 @@ export default function CaptchaQueuePage() {
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
 
+  // "ready" = a plain form the extension can fill and the human just submits;
+  // "verify" = a captcha/OTP that needs a human check first. Doing the ready ones
+  // in a batch is much faster, so let the user focus on them.
+  const isReady = (reason: string) => /form/i.test(reason);
+  const readyCount = groups.reduce((n, g) => n + g.items.filter((i) => isReady(i.blockedReason)).length, 0);
+  const verifyCount = total - readyCount;
+  const match = (reason: string) => view === "all" || (view === "ready" ? isReady(reason) : !isReady(reason));
+  const shownGroups = groups
+    .map((g) => ({ ...g, items: g.items.filter((it) => match(it.blockedReason)) }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <div className="min-h-screen bg-surface">
       <TopNav active="captcha" />
@@ -93,13 +105,30 @@ export default function CaptchaQueuePage() {
           </button>
         </div>
 
+        {!loading && total > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["all", `Hamısı ${total}`],
+              ["ready", `✅ Hazır (form) ${readyCount}`],
+              ["verify", `🔒 Captcha/OTP ${verifyCount}`],
+            ] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setView(key)}
+                className={`text-xs font-medium rounded-full px-3 py-1.5 border ${view === key ? "bg-accent/15 text-accent border-accent/40" : "bg-card-2 text-ink-2 border-line hover:text-ink"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center text-ink-3 py-16 text-sm">…</div>
         ) : total === 0 ? (
           <div className="text-center text-ink-3 py-16 text-sm border border-dashed border-line rounded-xl">{t("empty")}</div>
+        ) : shownGroups.length === 0 ? (
+          <div className="text-center text-ink-3 py-16 text-sm border border-dashed border-line rounded-xl">Bu filtrdə iş yoxdur.</div>
         ) : (
           <div className="space-y-5">
-            {groups.map((g) => (
+            {shownGroups.map((g) => (
               <div key={g.candidateId} className="space-y-2">
                 <div className="flex items-center gap-2 px-1">
                   <span className="font-semibold text-ink">{g.candidateName}</span>
