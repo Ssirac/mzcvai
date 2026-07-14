@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import { BERUF_LIST, REGIONS_DE } from "@/lib/berufMap";
 import TopNav from "../_components/TopNav";
 import AttentionCard from "../_components/AttentionCard";
+import EmployerCrmPanel from "../_components/EmployerCrmPanel";
 import { useToast } from "../_components/Toast";
 
 interface Stats {
@@ -641,26 +642,34 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-2.5 text-right text-ink-2 tabular">{emp._count.vacancies}</td>
                       </tr>
-                      {expandedScore === emp.id && emp.scoreBreakdown && (
+                      {expandedScore === emp.id && (
                         <tr>
                           <td colSpan={4} className="py-2 px-2 sm:px-4 bg-card-2 text-xs">
-                            <div className="grid grid-cols-5 gap-2 sm:gap-3 text-center py-2">
-                              {["sponsorship", "vacancy", "channel", "behavior", "context"].map((key) => (
-                                <div key={key}>
-                                  <div className="text-ink-3 uppercase text-[10px]">{t(key as never)}</div>
-                                  <div className="text-ink font-bold text-base sm:text-lg tabular">
-                                    {(emp.scoreBreakdown as Record<string, number>)?.[key] ?? 0}
-                                  </div>
+                            {emp.scoreBreakdown && (
+                              <>
+                                <div className="grid grid-cols-5 gap-2 sm:gap-3 text-center py-2">
+                                  {["sponsorship", "vacancy", "channel", "behavior", "context"].map((key) => (
+                                    <div key={key}>
+                                      <div className="text-ink-3 uppercase text-[10px]">{t(key as never)}</div>
+                                      <div className="text-ink font-bold text-base sm:text-lg tabular">
+                                        {(emp.scoreBreakdown as Record<string, number>)?.[key] ?? 0}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                            {Array.isArray((emp.scoreBreakdown as Record<string, unknown>)?.signals) && (
-                              <ul className="text-ink-2 space-y-0.5 mt-1">
-                                {((emp.scoreBreakdown as Record<string, string[]>).signals ?? []).map((s, i) => (
-                                  <li key={i}>• {s}</li>
-                                ))}
-                              </ul>
+                                {Array.isArray((emp.scoreBreakdown as Record<string, unknown>)?.signals) && (
+                                  <ul className="text-ink-2 space-y-0.5 mt-1">
+                                    {((emp.scoreBreakdown as Record<string, string[]>).signals ?? []).map((s, i) => (
+                                      <li key={i}>• {s}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
                             )}
+                            {/* Employer CRM — status, notes, follow-up log */}
+                            <div className="mt-2">
+                              <EmployerCrmPanel employerId={emp.id} />
+                            </div>
                           </td>
                         </tr>
                       )}
