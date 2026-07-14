@@ -113,19 +113,24 @@
     setTimeout(() => t.remove(), 5000);
   }
 
+  // Known MZ app origin — used as a fallback when the popup's Base-URL is unset
+  // (e.g. right after a fresh install) so auto-fill still works with no setup.
+  const MZ_FALLBACK_BASE = "https://mzcvai-production.up.railway.app";
+
   // Core fill routine. candidateOverride (from the #mzfill hash) wins over the
   // popup's saved candidate, so a job opened from the MZ queue fills for THAT
   // candidate — not just the single one configured in the popup.
   async function doFill(candidateOverride) {
     const { mzBaseUrl, mzCandidateId } = await chrome.storage.sync.get(["mzBaseUrl", "mzCandidateId"]);
     const candidateId = candidateOverride || mzCandidateId;
-    if (!mzBaseUrl || !candidateId) { toast("MZ Autofill: bitte im Popup Basis-URL und Kandidat wählen.", false); return; }
+    const baseUrl = mzBaseUrl || MZ_FALLBACK_BASE; // background also self-heals to prod
+    if (!candidateId) { toast("MZ Autofill: bitte im Popup einen Kandidaten wählen (oder aus der Robot-Queue öffnen).", false); return; }
     // Fetch via the background service worker (extension context) so the MZ
     // session cookie is sent — a content-script fetch here would be cross-site
     // and the SameSite=Lax cookie would be dropped.
     let resp;
     try {
-      resp = await chrome.runtime.sendMessage({ type: "mzPrefill", baseUrl: mzBaseUrl, candidateId });
+      resp = await chrome.runtime.sendMessage({ type: "mzPrefill", baseUrl, candidateId });
     } catch { toast("MZ Autofill: interner Fehler.", false); return; }
     if (!resp) { toast("MZ Autofill: keine Antwort.", false); return; }
     if (resp.error === "unauth") { toast("MZ Autofill: nicht eingeloggt. Bitte in der MZ-App anmelden.", false); return; }
@@ -151,9 +156,14 @@
     if (!m) return;
     const candidateId = decodeURIComponent(m[1]);
     const { mzBaseUrl } = await chrome.storage.sync.get(["mzBaseUrl"]);
-    if (!mzBaseUrl) return;
+    // Only auto-fill when the page was opened FROM an MZ app origin (the saved
+    // Base-URL or the known production URL), so a random site can't craft the
+    // hash to harvest candidate data.
+    const allowed = new Set();
+    try { allowed.add(new URL(MZ_FALLBACK_BASE).origin); } catch { /* ignore */ }
+    if (mzBaseUrl) { try { allowed.add(new URL(mzBaseUrl).origin); } catch { /* ignore */ } }
     try {
-      if (!document.referrer || new URL(document.referrer).origin !== new URL(mzBaseUrl).origin) return;
+      if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) return;
     } catch { return; }
     // The form may render slightly after load; try a couple of times.
     for (let i = 0; i < 4; i++) {
