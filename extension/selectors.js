@@ -28,3 +28,21 @@ window.MZ_FILE_MATCH = {
   names: ["lebenslauf", "cv", "resume", "datei", "anhang", "upload", "file", "dokument"],
   labels: ["Lebenslauf", "CV", "Anhang", "Datei", "Dokument", "Bewerbungsunterlagen"],
 };
+
+// ---- Platform overrides -----------------------------------------------------
+// hotelcareer.de (StepStone) uses a quick-apply form whose inputs have NO labels
+// or placeholders — only opaque, site-wide property ids (bewdata[PROP_xx]). Map
+// each id to the right field so the form is recognised. (The fill is also scoped
+// to the application <form> in content.js, so the page's search/login boxes are
+// left untouched.)
+(function () {
+  if (!/(^|\.)hotelcareer\.de$/i.test(location.hostname)) return;
+  const S = window.MZ_SELECTORS;
+  const add = (key, id) => { if (S[key] && S[key].names) S[key].names.push(id); };
+  add("anrede", "prop_95");
+  add("vorname", "prop_88");
+  add("nachname", "prop_84");
+  add("email", "prop_31");
+  add("telefon", "prop_39");
+  add("beruf", "prop_96");
+})();

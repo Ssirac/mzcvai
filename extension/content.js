@@ -57,8 +57,21 @@
     return new File([arr], name, { type: mime });
   }
 
+  // Scope the fill to the real application form when a site mixes it with a
+  // search/login box on the same page (e.g. hotelcareer.de, whose apply fields
+  // live in <form id="perdata"> alongside an unrelated search and login form).
+  function appRoot() {
+    if (/(^|\.)hotelcareer\.de$/i.test(location.hostname)) {
+      const b = document.querySelector('[name^="bewdata["]');
+      const f = b && b.closest("form");
+      if (f) return f;
+    }
+    return document;
+  }
+
   function fillForm(data) {
-    const inputs = Array.from(document.querySelectorAll("input, textarea, select"))
+    const root = appRoot();
+    const inputs = Array.from(root.querySelectorAll("input, textarea, select"))
       .filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button" && !el.disabled && el.offsetParent !== null);
     let filled = 0;
     // Each input is filled at most once. Fields are iterated most-specific first
@@ -82,7 +95,7 @@
     let cvNote = "";
     if (data.cv) {
       const fileInput = inputs.find((i) => i.type === "file" && matches(i, FILE_MATCH))
-        || document.querySelector('input[type="file"]');
+        || root.querySelector('input[type="file"]');
       if (fileInput) {
         try {
           const file = fileFromBase64(data.cv.dataBase64, data.cv.filename, data.cv.mimeType);
@@ -168,10 +181,11 @@
   // email or file field — so a stray form (e.g. a newsletter box) is never
   // auto-filled while an arm is active.
   function isApplicationForm() {
-    const inputs = Array.from(document.querySelectorAll("input, textarea"))
+    const root = appRoot();
+    const inputs = Array.from(root.querySelectorAll("input, textarea"))
       .filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button" && !el.disabled && el.offsetParent !== null);
     const hasName = inputs.some((i) => matches(i, S.vorname) || matches(i, S.nachname));
-    const hasEmailOrFile = inputs.some((i) => matches(i, S.email)) || !!document.querySelector('input[type="file"]');
+    const hasEmailOrFile = inputs.some((i) => matches(i, S.email)) || !!root.querySelector('input[type="file"]');
     return hasName && hasEmailOrFile;
   }
 
