@@ -139,9 +139,12 @@ const SYNONYM_GROUPS: string[][] = [
    "küche", "commis", "commis de cuisine", "chef de partie", "demichef", "demi chef de partie",
    "sous chef", "souschef", "küchenchef", "chefkoch", "chef de cuisine", "gardemanger",
    "saucier", "cook", "linecook", "line cook"],
-  ["service", "servicekraft", "servicemitarbeiter", "servicepersonal", "kellner", "kellnerin",
+  // NOTE: bare "service" removed — it matched "Service Desk", "Servicetechniker",
+  // "Kundenservice" etc. (IT/technical), pulling off-field jobs to gastronomy
+  // candidates. Keep the specific gastro service terms only.
+  ["servicekraft", "servicemitarbeiter", "servicepersonal", "kellner", "kellnerin",
    "chef de rang", "commis de rang", "restaurantfachmann", "restaurantfachfrau",
-   "restaurantmitarbeiter", "saalpersonal", "runner", "food and beverage", "f&b service",
+   "restaurantmitarbeiter", "saalpersonal", "food and beverage", "f&b service",
    "waiter", "waitress", "servierkraft"],
   ["rezeption", "rezeptionist", "rezeptionistin", "empfang", "empfangsmitarbeiter",
    "front office", "front desk", "night audit", "guest service", "gästebetreuung",
