@@ -56,6 +56,110 @@ export interface ReplyPollResult {
   errors: string[];
 }
 
+export interface ReconcileMove {
+  employer: string | null;
+  from: string; // candidate the reply was wrongly attached to
+  to: string;   // candidate the reply actually belongs to
+  via: "code" | "name";
+  subject: string;
+}
+export interface ReconcileResult {
+  applied: boolean;
+  scanned: number;     // stored replies examined
+  reassigned: number;  // replies moved to the correct candidate
+  conflicts: number;   // correct owner already held its own reply — left untouched
+  unmatched: number;   // couldn't identify a different owner — left as-is
+  moves: ReconcileMove[];
+}
+
+/**
+ * One-off repair for replies that were attached to the wrong candidate before
+ * the subject-code / name matching existed. Works purely on data already stored
+ * in the DB (no IMAP): for every outreach that holds a stored reply, it finds
+ * the true owner among the outreaches to the same employer — by the subject
+ * reference code first, then by the candidate name appearing in the reply — and,
+ * when that owner differs, moves the reply onto it and resets the wrongly-tagged
+ * outreach back to SENT.
+ *
+ * Dry-run by default: pass apply=true to write. A reply is never moved onto an
+ * outreach that already holds its own distinct reply (reported as a conflict for
+ * manual review), so nothing real is ever clobbered.
+ */
+export async function reconcileReplies(apply = false): Promise<ReconcileResult> {
+  const result: ReconcileResult = { applied: apply, scanned: 0, reassigned: 0, conflicts: 0, unmatched: 0, moves: [] };
+
+  const replied = await prisma.outreach.findMany({
+    where: { status: "REPLIED", replySubject: { not: null } },
+    select: {
+      id: true, matchId: true, repliedAt: true, replyFrom: true, replySubject: true, replyText: true,
+      match: { select: { employerId: true, employer: { select: { name: true } }, candidate: { select: { name: true } } } },
+    },
+  });
+  if (replied.length === 0) return result;
+
+  const employerIds = Array.from(new Set(replied.map((r) => r.match?.employerId).filter(Boolean) as string[]));
+  const siblings = await prisma.outreach.findMany({
+    where: { match: { employerId: { in: employerIds } } },
+    select: {
+      id: true, matchId: true, status: true, replySubject: true,
+      match: { select: { employerId: true, candidate: { select: { name: true } } } },
+    },
+  });
+  const byEmployer = new Map<string, typeof siblings>();
+  for (const s of siblings) {
+    const e = s.match?.employerId;
+    if (e) (byEmployer.get(e) ?? byEmployer.set(e, []).get(e)!).push(s);
+  }
+
+  for (const o of replied) {
+    result.scanned++;
+    const employerId = o.match?.employerId;
+    if (!employerId) { result.unmatched++; continue; }
+    const group = byEmployer.get(employerId) ?? [];
+    const hay = `${o.replySubject ?? ""} ${o.replyText ?? ""}`.toLowerCase();
+
+    const ref = parseRefTag(o.replySubject);
+    const owner =
+      (ref ? group.find((s) => outreachRef(s.id) === ref) : undefined) ||
+      group.find((s) => {
+        const nm = s.match?.candidate?.name?.toLowerCase();
+        return nm && nm.length > 2 && hay.includes(nm);
+      });
+
+    if (!owner) { result.unmatched++; continue; }   // can't tell — leave as is
+    if (owner.id === o.id) continue;                 // already correct
+    if (owner.status === "REPLIED" && owner.replySubject) { result.conflicts++; continue; }
+
+    result.reassigned++;
+    result.moves.push({
+      employer: o.match?.employer?.name ?? null,
+      from: o.match?.candidate?.name ?? o.id,
+      to: owner.match?.candidate?.name ?? owner.id,
+      via: ref && group.find((s) => outreachRef(s.id) === ref) ? "code" : "name",
+      subject: (o.replySubject ?? "").slice(0, 120),
+    });
+
+    if (apply) {
+      // Move the reply onto the correct outreach…
+      await prisma.outreach.update({
+        where: { id: owner.id },
+        data: { status: "REPLIED", repliedAt: o.repliedAt, replyFrom: o.replyFrom, replySubject: o.replySubject, replyText: o.replyText },
+      });
+      await prisma.match.update({ where: { id: owner.matchId }, data: { status: "REPLIED" } }).catch(() => {});
+      // …and reset the wrongly-attributed one back to just-sent (it never
+      // actually received a reply, so it can still get follow-ups and its own).
+      await prisma.outreach.update({
+        where: { id: o.id },
+        data: { status: "SENT", repliedAt: null, replyFrom: null, replySubject: null, replyText: null },
+      });
+      await prisma.match.update({ where: { id: o.matchId }, data: { status: "SENT" } }).catch(() => {});
+      // Keep the in-memory group consistent for the rest of this run.
+      owner.status = "REPLIED"; owner.replySubject = o.replySubject;
+    }
+  }
+  return result;
+}
+
 export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
   const result: ReplyPollResult = { scanned: 0, matched: 0, errors: [] };
 

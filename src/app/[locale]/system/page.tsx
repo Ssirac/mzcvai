@@ -9,6 +9,8 @@ interface Audit { id: string; actor: string; action: string; targetType: string 
 interface Cron { id: string; job: string; status: string; startedAt: string; durationMs: number | null; error: string | null }
 interface Health { status: string; db: string; mailProvider: string; sending: { paused: boolean; reason: string | null; rate: number } | null }
 interface Campaign { campaign: string; templateVersion: string; sent: number; delivered: number; opened: number; replied: number; bounced: number; replyRate: number; bounceRate: number }
+interface ReconcileMove { employer: string | null; from: string; to: string; via: string; subject: string }
+interface Reconcile { applied: boolean; scanned: number; reassigned: number; conflicts: number; unmatched: number; moves: ReconcileMove[] }
 
 const CRON_STYLE: Record<string, string> = {
   completed: "bg-emerald-600/15 text-emerald-500",
@@ -26,6 +28,19 @@ export default function SystemPage() {
   const [health, setHealth] = useState<Health | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recon, setRecon] = useState<Reconcile | null>(null);
+  const [reconBusy, setReconBusy] = useState(false);
+
+  const runReconcile = useCallback(async (apply: boolean) => {
+    if (apply && !window.confirm("Səhv bağlanmış cavablar düzgün namizədə köçürüləcək. Davam edilsin?")) return;
+    setReconBusy(true);
+    try {
+      const r = await jsonFetch("/api/replies/reconcile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apply }) });
+      setRecon(r.data as unknown as Reconcile);
+    } finally {
+      setReconBusy(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +111,55 @@ export default function SystemPage() {
             </div>
           </section>
         )}
+
+        {/* Reply reconciliation (one-off repair) */}
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Cavabları yenidən uyğunlaşdır</h2>
+              <p className="text-xs text-ink-3">Səhv namizədə bağlanmış köhnə cavabları düzgün namizədə köçürür.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => void runReconcile(false)} disabled={reconBusy}
+                className="text-sm text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-3 py-2 disabled:opacity-50">Yoxla</button>
+              <button onClick={() => void runReconcile(true)} disabled={reconBusy || !recon || recon.reassigned === 0}
+                className="text-sm text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg px-3 py-2 disabled:opacity-50">Düzəlt</button>
+            </div>
+          </div>
+          {recon && (
+            <div className="border border-line rounded-xl p-3 space-y-2">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="px-2 py-1 rounded bg-card-2 text-ink-2">Yoxlanan: {recon.scanned}</span>
+                <span className="px-2 py-1 rounded bg-emerald-600/15 text-emerald-500">{recon.applied ? "Köçürüldü" : "Köçürüləcək"}: {recon.reassigned}</span>
+                <span className="px-2 py-1 rounded bg-amber-500/15 text-amber-500">Konflikt: {recon.conflicts}</span>
+                <span className="px-2 py-1 rounded bg-card-2 text-ink-3">Tapılmadı: {recon.unmatched}</span>
+              </div>
+              {recon.moves.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[560px]">
+                    <thead><tr className="text-left text-ink-3 text-xs border-b border-line">
+                      <th className="px-3 py-2 font-medium">Şirkət</th><th className="px-3 py-2 font-medium">Səhv namizəd</th>
+                      <th className="px-3 py-2 font-medium">Düzgün namizəd</th><th className="px-3 py-2 font-medium">Üsul</th>
+                    </tr></thead>
+                    <tbody>
+                      {recon.moves.map((m, i) => (
+                        <tr key={i} className="border-b border-line/60">
+                          <td className="px-3 py-2 text-ink-3">{m.employer ?? "—"}</td>
+                          <td className="px-3 py-2 text-rose-500">{m.from}</td>
+                          <td className="px-3 py-2 text-emerald-500">{m.to}</td>
+                          <td className="px-3 py-2 text-ink-3">{m.via === "code" ? "kod" : "ad"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {recon.applied && <p className="text-xs text-emerald-500">Tamamlandı — cavablar düzgün namizədlərə bağlandı.</p>}
+              {!recon.applied && recon.reassigned > 0 && <p className="text-xs text-ink-3">Yuxarıdakı köçürmələri təsdiqləmək üçün “Düzəlt” düyməsinə basın.</p>}
+              {!recon.applied && recon.reassigned === 0 && <p className="text-xs text-ink-3">Düzəldiləsi cavab tapılmadı.</p>}
+            </div>
+          )}
+        </section>
 
         {/* Cron runs */}
         <section className="space-y-2">
