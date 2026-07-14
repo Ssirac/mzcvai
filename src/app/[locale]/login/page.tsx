@@ -52,9 +52,11 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-500/20 ring-1 ring-white/10">
-            MZ
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          {/* Full brand logo on a white card so it reads on the dark page. */}
+          <div className="bg-white rounded-2xl px-5 py-4 shadow-lg ring-1 ring-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="MZ Personalvermittlung" className="h-11 w-auto" />
           </div>
           <div>
             <div className="text-ink font-bold leading-tight">{t("title")}</div>

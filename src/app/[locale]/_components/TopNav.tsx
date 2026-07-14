@@ -165,7 +165,8 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
       <div className="px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
         {/* Brand */}
         <a href={`/${locale}/dashboard`} className="flex items-center gap-2.5 shrink-0 group">
-          <span className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20 ring-1 ring-white/10 transition-transform group-hover:scale-105">MZ</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-icon.jpeg" alt="MZ" className="w-8 h-8 rounded-xl object-cover shadow-lg ring-1 ring-white/10 transition-transform group-hover:scale-105" />
           <span className="flex flex-col leading-none">
             <span className="text-ink font-semibold text-sm tracking-tight">Talent Intelligence</span>
             <span className="hidden sm:block text-ink-3 text-[10px] tracking-wide">MZ Personalvermittlung</span>

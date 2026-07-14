@@ -15,7 +15,8 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "az",
     orientation: "portrait-primary",
     icons: [
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      { src: "/logo-icon.jpeg", sizes: "512x512", type: "image/jpeg", purpose: "any" },
+      { src: "/logo-icon.jpeg", sizes: "192x192", type: "image/jpeg", purpose: "maskable" },
       { src: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
     ],
   };
