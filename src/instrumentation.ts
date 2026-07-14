@@ -70,13 +70,15 @@ export async function register() {
   setTimeout(() => void fire("cleanup"), 45_000);
   setInterval(() => void fire("cleanup"), cleanupMin * 60 * 1000);
 
-  // Script-based scraping cycle (Group A→C job boards) — configurable interval,
-  // default hourly. Disable with SCRAPE_ENABLED=false, or slow it via
-  // SCRAPE_INTERVAL_HOURS (e.g. "0.5" = every 30 min, "4" = every 4h). Overlapping
-  // runs are skipped by an in-flight guard in runScrapeCycle, so a cycle that
-  // runs long never piles up on the next tick.
+  // Script-based scraping cycle (Group A→C job boards) — runs continuously and
+  // never stops, but on a spaced interval so it doesn't overload the box or the
+  // source sites. Default every 3h (fresh enough for recruitment; ~3× lighter
+  // than hourly). Disable with SCRAPE_ENABLED=false, or tune via
+  // SCRAPE_INTERVAL_HOURS (e.g. "1" = hourly, "6" = every 6h). Overlapping runs
+  // are skipped by an in-flight guard in runScrapeCycle, so a long cycle never
+  // piles up on the next tick.
   if (process.env.SCRAPE_ENABLED !== "false") {
-    const scrapeHours = Math.max(0.25, parseFloat(process.env.SCRAPE_INTERVAL_HOURS ?? "1"));
+    const scrapeHours = Math.max(0.25, parseFloat(process.env.SCRAPE_INTERVAL_HOURS ?? "3"));
     setTimeout(() => void fire("scrape"), 90_000); // first run ~90s after boot
     setInterval(() => void fire("scrape"), scrapeHours * HOUR);
     console.log(`[scheduler] scraping cycle every ${scrapeHours}h`);
