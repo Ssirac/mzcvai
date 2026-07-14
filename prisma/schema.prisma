@@ -112,6 +112,58 @@ enum CandidateStatus {
   ARCHIVED // arxivləndi / archiviert
 }
 
+// Recruiter placement pipeline — a candidate's stage from intake to placement.
+// Additive alongside CandidateStatus (which stays for backward compat).
+enum PipelineStage {
+  NEW
+  PROFILE_READY
+  MATCHED
+  PRESENTED
+  INTERVIEW
+  VISA
+  PLACED
+  REJECTED
+  ARCHIVED
+}
+
+// Employer relationship stage (CRM).
+enum CrmStatus {
+  LEAD
+  CONTACTED
+  ACTIVE
+  PARTNER
+  DORMANT
+  BLOCKED
+}
+
+// Visa-readiness / document checklist item types + states.
+enum DocType {
+  PASSPORT
+  DIPLOMA
+  CERTIFICATE
+  LANGUAGE_CERT
+  CV
+  PHOTO
+  VISA
+  OTHER
+}
+enum DocStatus {
+  MISSING
+  UPLOADED
+  VERIFIED
+}
+
+// Why a match was marked bad — feeds future scoring tuning.
+enum FeedbackReason {
+  SKILL_MISMATCH
+  SALARY
+  LOCATION
+  VISA
+  LANGUAGE
+  OVERQUALIFIED
+  OTHER
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 // GDPR note: only generic company contacts stored here, never personal HR data
@@ -142,16 +194,22 @@ model Employer {
   scoreUpdatedAt     DateTime?
   lastEnrichedAt     DateTime?
   enrichmentError    String?
+  // CRM (recruiter relationship management) — additive, all optional/default.
+  crmStatus          CrmStatus         @default(LEAD)
+  crmNotes           String?           @db.Text
+  lastContactAt      DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
   vacancies   Vacancy[]
   signalLogs  EmployerSignalLog[]
   matches     Match[]
+  followUps   EmployerFollowUp[]
 
   @@unique([website, name])
   @@index([score])
   @@index([region, sponsorshipSignal])
+  @@index([crmStatus])
 }
 
 model Vacancy {
@@ -194,6 +252,8 @@ model Candidate {
   visaStatus       String?
   notes            String?
   status           CandidateStatus @default(ACTIVE)
+  // Recruiter placement pipeline stage (additive alongside `status`).
+  pipelineStage    PipelineStage   @default(NEW)
   // ── Detailed CV data ──
   dateOfBirth       DateTime?
   gender            String?
@@ -224,6 +284,10 @@ model Candidate {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   matches          Match[]
+  pipelineEvents   PipelineEvent[]
+  documents        CandidateDocument[]
+
+  @@index([pipelineStage])
 }
 
 model Match {
@@ -238,10 +302,11 @@ model Match {
   fitBreakdown Json?
   status       MatchStatus @default(SUGGESTED)
   // Recruiter feedback (GOOD | BAD) — captured to tune future scoring.
-  feedback     String?
-  feedbackNote String?
-  feedbackBy   String?
-  feedbackAt   DateTime?
+  feedback       String?
+  feedbackReason FeedbackReason? // structured "why bad" category (additive)
+  feedbackNote   String?
+  feedbackBy     String?
+  feedbackAt     DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   outreach     Outreach[]
@@ -437,4 +502,51 @@ model CronRun {
   error      String?
 
   @@index([job, startedAt])
+}
+
+// ─── Recruiter CRM & Placement Pipeline (additive) ────────────────────────────
+
+// Stage-transition history for a candidate's placement pipeline.
+model PipelineEvent {
+  id          String        @id @default(cuid())
+  candidateId String
+  candidate   Candidate     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  fromStage   PipelineStage?
+  toStage     PipelineStage
+  actor       String?       // session user who moved it
+  note        String?
+  createdAt   DateTime      @default(now())
+
+  @@index([candidateId, createdAt])
+}
+
+// A logged touchpoint with an employer (recruiter CRM follow-up trail).
+model EmployerFollowUp {
+  id            String    @id @default(cuid())
+  employerId    String
+  employer      Employer  @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  contactedAt   DateTime  @default(now())
+  outcome       String?
+  nextStep      String?
+  nextStepDueAt DateTime?
+  actor         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([employerId, contactedAt])
+  @@index([nextStepDueAt])
+}
+
+// Visa-readiness / document checklist item for a candidate.
+model CandidateDocument {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  type        DocType
+  status      DocStatus @default(MISSING)
+  note        String?
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  @@unique([candidateId, type])
+  @@index([candidateId])
 }
