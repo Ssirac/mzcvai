@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 import { familyCompatibility } from "@/lib/occupationFamily";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export const maxDuration = 120;
 // occupation-family gate existed. Dry-run by default; { apply:true } deletes.
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     let apply = false;
     try { apply = !!(await req.json())?.apply; } catch { /* dry-run */ }
 

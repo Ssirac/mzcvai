@@ -4,6 +4,7 @@ import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
 import { withCronLock } from "@/services/cron";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,6 +22,8 @@ export const maxDuration = 300;
  */
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     const actor = await getSessionUser(req);
     const outcome = await withCronLock("dead-sweep-manual", 300_000, () =>
       sweepDeadVacancies({

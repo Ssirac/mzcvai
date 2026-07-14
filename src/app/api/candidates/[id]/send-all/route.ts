@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { sendAllForCandidate } from "@/services/outreach";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 
 export const maxDuration = 300;
 
@@ -11,6 +12,8 @@ export const maxDuration = 300;
 // daily cap, per-employer cooldown and generic-email-only rules.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const authz = await authorize(req, "outreach.bulk");
+    if (!authz.ok) return authz.response;
     const body = await req.json().catch(() => ({}));
     // Approver = the logged-in user (recorded on every outreach), not client input.
     const actor = await getSessionUser(req);

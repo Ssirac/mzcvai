@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const authz = await authorize(req, "gdpr");
+    if (!authz.ok) return authz.response;
     const id = params.id;
     const candidate = await prisma.candidate.findUnique({ where: { id } });
     if (!candidate) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       captchaQueue: captcha,
     };
 
-    await logAudit({ actor: await getSessionUser(req), action: "GDPR_EXPORT", targetType: "candidate", targetId: id });
+    await logAudit({ actor: authz.actor, action: "GDPR_EXPORT", targetType: "candidate", targetId: id });
 
     return new NextResponse(JSON.stringify(data, null, 2), {
       headers: {

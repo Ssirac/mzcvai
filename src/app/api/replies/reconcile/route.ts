@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 import { reconcileReplies } from "@/services/replies";
 
 export const maxDuration = 120;
@@ -11,6 +12,8 @@ export const maxDuration = 120;
 // body { apply: true } writes the moves. Session-protected by middleware.
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     let apply = false;
     try { apply = !!(await req.json())?.apply; } catch { /* no body → dry-run */ }
 

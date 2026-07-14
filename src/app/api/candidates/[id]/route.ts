@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 
 // GET /api/candidates/[id] — full candidate record (for editing)
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -41,7 +42,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // cascade (JobApplicationLog, CaptchaQueue, EmployerOutreachLog).
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const actor = await getSessionUser(req);
+    const authz = await authorize(req, "candidate.delete");
+    if (!authz.ok) return authz.response;
+    const actor = authz.actor;
     const id = params.id;
     const matchIds = (
       await prisma.match.findMany({ where: { candidateId: id }, select: { id: true } })

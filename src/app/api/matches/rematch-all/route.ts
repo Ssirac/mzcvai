@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 import { matchCandidateToVacancies } from "@/services/scoring";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export const maxDuration = 300;
 // outreach, which are kept for history). This never sends email.
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     const actor = await getSessionUser(req);
     const candidates = await prisma.candidate.findMany({
       where: { status: "ACTIVE" },

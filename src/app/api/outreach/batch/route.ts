@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { approveOutreach, sendOutreach } from "@/services/outreach";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 300;
@@ -19,6 +20,8 @@ export const maxDuration = 300;
  */
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "outreach.bulk");
+    if (!authz.ok) return authz.response;
     const body = await req.json().catch(() => ({}));
     const ids: string[] = Array.isArray(body.ids)
       ? body.ids.filter((x: unknown): x is string => typeof x === "string")
