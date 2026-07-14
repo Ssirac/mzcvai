@@ -17,6 +17,14 @@ import { load } from "cheerio";
 import { prisma } from "@/lib/prisma";
 import { launchBrowser } from "@/lib/browser";
 import { detectCaptcha, enqueueCaptcha, buildPrefillData } from "@/services/captcha";
+import { BLOCKED_HOSTS } from "@/lib/actionable";
+
+// Phrases that mean the listing is gone — don't queue a dead job for a human.
+const DEAD_PHRASES = [
+  "nicht mehr verfügbar", "nicht mehr verfuegbar", "nicht mehr online", "nicht mehr aktuell",
+  "stelle ist besetzt", "position wurde besetzt", "abgelaufen", "leider nicht mehr",
+  "no longer available", "position filled", "this job has expired", "seite nicht gefunden",
+];
 
 const OTP_MARKERS = [
   "one-time", "one time password", "otp", "verification code", "bestätigungscode",
@@ -83,7 +91,14 @@ export async function runApplyScan(opts?: { candidateId?: string; limit?: number
         const cap = await detectCaptcha(page);
         const rawHtml = await page.content();
         const html = rawHtml.toLowerCase();
-        if (cap) { reason = cap; status = "WAITING_CAPTCHA"; r.captcha++; }
+        // Where did we actually land? An aggregator often redirects to a site we
+        // can't apply on (StepStone, LinkedIn…) — don't queue those.
+        const finalHost = (() => { try { return new URL(page.url()).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } })();
+        if (finalHost && BLOCKED_HOSTS.some((b) => finalHost.includes(b))) {
+          status = "BLOCKED"; r.noForm++; // reason stays null → not queued
+        } else if (DEAD_PHRASES.some((p) => html.includes(p))) {
+          status = "DEAD"; r.noForm++; // dead listing → not queued
+        } else if (cap) { reason = cap; status = "WAITING_CAPTCHA"; r.captcha++; }
         else if (OTP_MARKERS.some((k) => html.includes(k))) { reason = "otp"; status = "WAITING_OTP"; r.otp++; }
         else {
           // Fillable form? Count visible text/email/tel inputs inside a <form>
