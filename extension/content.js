@@ -113,15 +113,19 @@
     setTimeout(() => t.remove(), 5000);
   }
 
-  async function onFill() {
+  // Core fill routine. candidateOverride (from the #mzfill hash) wins over the
+  // popup's saved candidate, so a job opened from the MZ queue fills for THAT
+  // candidate — not just the single one configured in the popup.
+  async function doFill(candidateOverride) {
     const { mzBaseUrl, mzCandidateId } = await chrome.storage.sync.get(["mzBaseUrl", "mzCandidateId"]);
-    if (!mzBaseUrl || !mzCandidateId) { toast("MZ Autofill: bitte im Popup Basis-URL und Kandidat wählen.", false); return; }
+    const candidateId = candidateOverride || mzCandidateId;
+    if (!mzBaseUrl || !candidateId) { toast("MZ Autofill: bitte im Popup Basis-URL und Kandidat wählen.", false); return; }
     // Fetch via the background service worker (extension context) so the MZ
     // session cookie is sent — a content-script fetch here would be cross-site
     // and the SameSite=Lax cookie would be dropped.
     let resp;
     try {
-      resp = await chrome.runtime.sendMessage({ type: "mzPrefill", baseUrl: mzBaseUrl, candidateId: mzCandidateId });
+      resp = await chrome.runtime.sendMessage({ type: "mzPrefill", baseUrl: mzBaseUrl, candidateId });
     } catch { toast("MZ Autofill: interner Fehler.", false); return; }
     if (!resp) { toast("MZ Autofill: keine Antwort.", false); return; }
     if (resp.error === "unauth") { toast("MZ Autofill: nicht eingeloggt. Bitte in der MZ-App anmelden.", false); return; }
@@ -132,6 +136,31 @@
     const { filled, cvNote } = fillForm(data);
     copyPanel(data); // fallback: fields also on the clipboard
     toast(`MZ Autofill: ${filled} Felder ausgefüllt${cvNote}. CAPTCHA & Absenden bitte selbst.`, true);
+    return filled;
+  }
+
+  const onFill = () => doFill();
+
+  // Auto-fill when a job was opened from the MZ queue: the queue appends
+  // "#mzfill=<candidateId>" to the URL. To keep this safe we ONLY auto-fill when
+  // the page was actually opened FROM the MZ app (referrer origin === Basis-URL),
+  // so a random site can't craft the hash to harvest candidate data. Never
+  // submits — the human still clears the captcha and presses send.
+  async function maybeAutoFill() {
+    const m = location.hash.match(/mzfill=([^&]+)/);
+    if (!m) return;
+    const candidateId = decodeURIComponent(m[1]);
+    const { mzBaseUrl } = await chrome.storage.sync.get(["mzBaseUrl"]);
+    if (!mzBaseUrl) return;
+    try {
+      if (!document.referrer || new URL(document.referrer).origin !== new URL(mzBaseUrl).origin) return;
+    } catch { return; }
+    // The form may render slightly after load; try a couple of times.
+    for (let i = 0; i < 4; i++) {
+      const filled = await doFill(candidateId);
+      if (filled && filled > 0) break;
+      await new Promise((r) => setTimeout(r, 1200));
+    }
   }
 
   function mountButton() {
@@ -144,6 +173,11 @@
     document.documentElement.appendChild(btn);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountButton);
-  else mountButton();
+  function start() {
+    mountButton();
+    void maybeAutoFill();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
 })();

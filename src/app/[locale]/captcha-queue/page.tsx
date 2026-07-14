@@ -26,6 +26,14 @@ interface Group {
   items: QItem[];
 }
 
+// Append the candidate id to the job URL's hash so the MZ Autofill extension can
+// auto-fill for the right candidate when the page opens (the extension only acts
+// on it when the referrer is the MZ app, so it's safe to put in the URL).
+function withFillHash(url: string, candidateId: string): string {
+  const sep = url.includes("#") ? "&" : "#";
+  return `${url}${sep}mzfill=${encodeURIComponent(candidateId)}`;
+}
+
 export default function CaptchaQueuePage() {
   const t = useTranslations("captchaQueue");
   const toast = useToast();
@@ -113,7 +121,7 @@ export default function CaptchaQueuePage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <a href={it.applicationUrl} target="_blank" rel="noopener noreferrer"
+                          <a href={withFillHash(it.applicationUrl, it.candidateId)} target="_blank" rel="noopener"
                             className="text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-2.5 py-1.5">
                             {t("open")}
                           </a>
