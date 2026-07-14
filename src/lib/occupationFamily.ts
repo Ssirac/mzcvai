@@ -162,9 +162,10 @@ export function occupationFamilies(text: string): Set<string> {
 // classifying it would re-introduce the exact bug we're fixing — a facility job
 // ingested under a gastronomy search would look like gastronomy. Only the TITLE
 // (real) is used. The param is kept so callers can pass beruf harmlessly.
-export function familyCompatibility(candidateProfile: string, vacancyTitle: string, _vacancyBeruf = ""):
+export function familyCompatibility(candidateProfile: string, vacancyTitle: string, vacancyBeruf = ""):
   | { decided: true; compatible: boolean; candidate: string[]; vacancy: string[] }
   | { decided: false } {
+  void vacancyBeruf; // accepted for call-site convenience but intentionally unused (polluted)
   const cand = occupationFamilies(candidateProfile);
   const vac = occupationFamilies(vacancyTitle);
   if (cand.size === 0 || vac.size === 0) return { decided: false };
