@@ -428,10 +428,12 @@ export default function CandidatesPage() {
     try {
       const { ok, data } = await jsonFetch("/api/vacancies/sweep-dead", { method: "POST" });
       if (!ok) { toast(String(data.error ?? t("sweepFailed")), "error"); return; }
-      const deleted = Number(data.deleted ?? 0);
+      // "removed" = hard-deleted + soft-expired (applied jobs kept for history but
+      // hidden from matches); both mean the dead listing no longer shows.
+      const removed = Number(data.deleted ?? 0) + Number(data.expired ?? 0);
       const checked = Number(data.checked ?? 0);
-      toast(t("sweepDone", { deleted, checked }), deleted > 0 ? "success" : "info");
-      if (deleted > 0 && selectedId) await loadMatches(selectedId);
+      toast(t("sweepDone", { deleted: removed, checked }), removed > 0 ? "success" : "info");
+      if (removed > 0 && selectedId) await loadMatches(selectedId);
     } finally {
       setSweeping(false);
     }

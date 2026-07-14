@@ -66,23 +66,45 @@ export async function isListingDead(page: Page, url: string, extraMarkers: strin
   }
 }
 
-// FK-safe delete of a set of vacancy ids (skips any tied to a SENT outreach).
-async function deleteVacancies(ids: string[]): Promise<number> {
-  if (ids.length === 0) return 0;
+/**
+ * Retire a set of dead vacancy ids:
+ *  - vacancies with NO sent application are hard-deleted (FK-safe);
+ *  - vacancies tied to a SENT outreach are soft-expired (status → EXPIRED) so
+ *    they drop out of candidates' matches while the application history is kept.
+ * Previously the sent-tied ones were skipped entirely, so an applied job that
+ * later went dead ("nicht mehr aktuell") stayed ACTIVE and kept showing.
+ */
+async function retireDeadVacancies(ids: string[]): Promise<{ deleted: number; expired: number }> {
+  if (ids.length === 0) return { deleted: 0, expired: 0 };
   const rows = await prisma.vacancy.findMany({
-    where: {
-      id: { in: ids },
-      matches: { none: { outreach: { some: { status: "SENT" } } } },
-    },
-    select: { id: true, matches: { select: { id: true } } },
+    where: { id: { in: ids } },
+    select: { id: true, matches: { select: { id: true, outreach: { select: { status: true } } } } },
   });
-  const vacIds = rows.map((v) => v.id);
-  const matchIds = rows.flatMap((v) => v.matches.map((m) => m.id));
-  if (vacIds.length === 0) return 0;
-  await prisma.outreach.deleteMany({ where: { matchId: { in: matchIds } } });
-  await prisma.match.deleteMany({ where: { id: { in: matchIds } } });
-  const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: vacIds } } });
-  return count;
+
+  const deletableVacIds: string[] = [];
+  const deletableMatchIds: string[] = [];
+  const expireVacIds: string[] = [];
+  for (const v of rows) {
+    const hasSent = v.matches.some((m) => m.outreach.some((o) => o.status === "SENT"));
+    if (hasSent) {
+      expireVacIds.push(v.id);
+    } else {
+      deletableVacIds.push(v.id);
+      deletableMatchIds.push(...v.matches.map((m) => m.id));
+    }
+  }
+
+  let deleted = 0;
+  let expired = 0;
+  if (deletableVacIds.length) {
+    await prisma.outreach.deleteMany({ where: { matchId: { in: deletableMatchIds } } });
+    await prisma.match.deleteMany({ where: { id: { in: deletableMatchIds } } });
+    ({ count: deleted } = await prisma.vacancy.deleteMany({ where: { id: { in: deletableVacIds } } }));
+  }
+  if (expireVacIds.length) {
+    ({ count: expired } = await prisma.vacancy.updateMany({ where: { id: { in: expireVacIds } }, data: { status: "EXPIRED" } }));
+  }
+  return { deleted, expired };
 }
 
 /**
@@ -114,7 +136,8 @@ export async function pruneDeadVacancies(
     if (await isListingDead(page, v.url, opts.extraMarkers)) deadIds.push(v.id);
     await new Promise((r) => setTimeout(r, opts.delayMs)); // respect the site's rate limit
   }
-  return deleteVacancies(deadIds);
+  const { deleted, expired } = await retireDeadVacancies(deadIds);
+  return deleted + expired;
 }
 
 /**
@@ -127,7 +150,7 @@ export async function pruneDeadVacancies(
  */
 export async function sweepDeadVacancies(
   opts?: { limit?: number; notSeenMins?: number; delayMs?: number; maxMs?: number }
-): Promise<{ checked: number; deleted: number }> {
+): Promise<{ checked: number; deleted: number; expired: number }> {
   const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "30");
   const notSeenMins = opts?.notSeenMins ?? parseInt(process.env.DEAD_SWEEP_NOT_SEEN_MINS ?? "360"); // 6h
   const delayMs = opts?.delayMs ?? 1200;
@@ -142,14 +165,15 @@ export async function sweepDeadVacancies(
       status: "ACTIVE",
       url: { not: null },
       lastSeenAt: { lt: cutoff },
-      // Never touch a vacancy already tied to a sent application (history).
-      matches: { none: { outreach: { some: { status: "SENT" } } } },
+      // Applied-to vacancies are included: retireDeadVacancies soft-expires those
+      // (keeping the history) instead of deleting them, so a job that went dead
+      // after we applied still drops out of the candidate's matches.
     },
     orderBy: { lastSeenAt: "asc" },
     take: limit,
     select: { id: true, url: true },
   });
-  if (candidates.length === 0) return { checked: 0, deleted: 0 };
+  if (candidates.length === 0) return { checked: 0, deleted: 0, expired: 0 };
 
   const browser = await launchBrowser();
   const deadIds: string[] = [];
@@ -170,6 +194,6 @@ export async function sweepDeadVacancies(
   } finally {
     await browser.close();
   }
-  const deleted = await deleteVacancies(deadIds);
-  return { checked, deleted };
+  const { deleted, expired } = await retireDeadVacancies(deadIds);
+  return { checked, deleted, expired };
 }
