@@ -1,0 +1,125 @@
+/**
+ * Occupation FAMILY classification — the hard gate that stops cross-profession
+ * matches (e.g. a gastronomy candidate being matched to a "Technischer
+ * Objektverwalter" facility role).
+ *
+ * Why this exists: every ingest source stamps a vacancy's `beruf` with the
+ * SEARCH term, not the job's real occupation, so `beruf` can't be trusted for
+ * matching. The job TITLE, however, is real. This module maps a candidate's
+ * occupation and a vacancy's title each to a set of coarse occupation families,
+ * and matching requires the two sets to overlap.
+ *
+ * Families are deliberately broad buckets, not exact jobs. A term only counts
+ * when it appears as a whole word (short terms) or as a clear substring (long
+ * terms), so generic words never trigger a family. If a text matches no family
+ * it is "unknown" — the caller then falls back to keyword matching rather than
+ * hard-blocking, so an unusual-but-valid title is never silently dropped.
+ */
+
+// family → distinctive terms (German + English + common transliterations).
+// Order doesn't matter; a text can belong to several families.
+const FAMILIES: Record<string, string[]> = {
+  gastro: [
+    "koch", "köchin", "kochhilfe", "küchenhilfe", "küchenmitarbeiter", "küche", "beikoch",
+    "commis", "chef de partie", "sous chef", "souschef", "küchenchef", "chefkoch", "gardemanger",
+    "saucier", "cook", "service", "servicekraft", "servicemitarbeiter", "kellner", "kellnerin",
+    "chef de rang", "commis de rang", "restaurantfachmann", "restaurantfachfrau",
+    "restaurantmitarbeiter", "restaurant", "gastronomie", "systemgastronomie", "waiter", "waitress",
+    "bar", "barkeeper", "barmann", "bartender", "barista", "catering", "bankett", "bankettmitarbeiter",
+    "spülkraft", "spüler", "abwäscher", "geschirrspüler", "dishwasher", "konditor", "bäcker", "patissier",
+    "metzger", "fleischer",
+  ],
+  hotel: [
+    "rezeption", "rezeptionist", "empfang", "empfangsmitarbeiter", "front office", "front desk",
+    "night audit", "guest service", "gästebetreuung", "hotelfachmann", "hotelfachfrau", "hotelfach",
+    "hotelkaufmann", "reception", "receptionist", "housekeeping", "zimmermädchen", "zimmermaedchen",
+    "roomboy", "room attendant", "etagenservice", "hausdame", "zimmerreinigung",
+  ],
+  cleaning: [
+    "reinigung", "reinigungskraft", "gebäudereiniger", "gebaeudereiniger", "raumpflege", "raumpfleger",
+    "unterhaltsreinigung", "glasreiniger", "cleaner", "cleaning", "hauswirtschaft", "wäscherei",
+  ],
+  logistics: [
+    "lager", "lagerarbeiter", "lagerhelfer", "lagerist", "kommissionierer", "kommissionierung",
+    "staplerfahrer", "stapler", "warehouse", "logistik", "logistiker", "versand", "wareneingang",
+    "fahrer", "kraftfahrer", "berufskraftfahrer", "lkw", "auslieferungsfahrer", "driver", "truck",
+    "produktionshelfer", "produktion", "montage", "fertigung", "maschinenbediener", "packer", "verpackung",
+  ],
+  construction: [
+    "bau", "bauarbeiter", "bauhelfer", "hochbau", "tiefbau", "maurer", "polier", "bauleiter",
+    "baustelle", "bauprojekt", "bautechniker", "baukoordinator", "construction", "gerüstbauer",
+    "betonbauer", "estrichleger", "trockenbau",
+  ],
+  trades: [
+    "elektrik", "elektriker", "elektroniker", "elektroinstallateur", "electrician", "installateur",
+    "sanitär", "sanitaer", "anlagenmechaniker", "shk", "heizung", "klempner", "schweißer", "schweisser",
+    "welder", "maler", "lackierer", "painter", "tischler", "schreiner", "carpenter", "schlosser",
+    "metallbau", "metallbauer", "zerspanung", "cnc", "mechaniker", "mechatroniker", "kfz",
+  ],
+  facility: [
+    "objektverwalter", "objektbetreuer", "objektleiter", "hausmeister", "haustechnik", "haustechniker",
+    "gebäudetechnik", "gebaeudetechnik", "facility", "facility management", "gebäudemanagement",
+    "technischer objektverwalter", "immobilien", "property manager",
+  ],
+  care: [
+    "pflege", "pflegekraft", "pflegehelfer", "pflegehilfskraft", "altenpfleger", "altenpflege",
+    "krankenpfleger", "krankenpflege", "pflegefachkraft", "gesundheits", "nurse", "care", "betreuer",
+    "betreuungskraft", "erzieher", "sozialarbeiter",
+  ],
+  office: [
+    "verwaltung", "büro", "buero", "sachbearbeiter", "sekretär", "sekretariat", "assistenz",
+    "buchhaltung", "buchhalter", "accountant", "kaufmann", "kauffrau", "kaufmännisch", "office",
+    "empfangssekretär", "personalsachbearbeiter", "disponent", "projektkoordinator", "projektassistenz",
+    "projektmanagement", "projektmanager", "projektleiter",
+  ],
+  sales: [
+    "verkäufer", "verkäuferin", "verkauf", "vertrieb", "sales", "einzelhandel", "kasse", "kassierer",
+    "filiale", "filialleiter", "filialleitung", "verkaufsberater", "kundenberater", "account manager",
+    "retail", "shop",
+  ],
+  it: [
+    "software", "softwareentwickler", "entwickler", "developer", "programmierer", "programmer",
+    "fachinformatiker", "informatiker", "it-", "it administrator", "systemadministrator", "devops",
+    "data scientist", "web developer",
+  ],
+};
+
+// Word-boundary aware containment: long terms (>=5) match as substrings so
+// German compounds work ("koch" would be too short, so it's whole-word; but
+// "objektverwalter" matches inside "Technischer Objektverwalter"); short terms
+// (3–4) must be whole words so "bau" doesn't fire inside "Umbau"-unrelated words.
+function hit(haystack: string, term: string): boolean {
+  if (term.length < 3) return false;
+  if (term.length >= 5) return haystack.includes(term);
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-zäöüß])${esc}([^a-zäöüß]|$)`, "i").test(haystack);
+}
+
+/** Occupation families a free-text occupation/title belongs to (may be empty). */
+export function occupationFamilies(text: string): Set<string> {
+  const t = (text || "").toLowerCase();
+  const fams = new Set<string>();
+  if (!t.trim()) return fams;
+  for (const [family, terms] of Object.entries(FAMILIES)) {
+    if (terms.some((term) => hit(t, term))) fams.add(family);
+  }
+  return fams;
+}
+
+/**
+ * Decide whether a candidate's occupation is compatible with a vacancy.
+ *  - If BOTH sides classify into families, they must overlap.
+ *  - If EITHER side is unclassifiable, return null → the caller falls back to
+ *    its normal keyword match (so unusual-but-valid roles aren't hard-dropped).
+ */
+export function familyCompatibility(candidateProfile: string, vacancyTitle: string, vacancyBeruf = ""):
+  | { decided: true; compatible: boolean; candidate: string[]; vacancy: string[] }
+  | { decided: false } {
+  const cand = occupationFamilies(candidateProfile);
+  // The vacancy signal is its TITLE (real); beruf is polluted, but a real-looking
+  // beruf can still add a family, so include it as a weak secondary hint.
+  const vac = occupationFamilies(`${vacancyTitle} ${vacancyBeruf}`);
+  if (cand.size === 0 || vac.size === 0) return { decided: false };
+  const compatible = Array.from(cand).some((f) => vac.has(f));
+  return { decided: true, compatible, candidate: Array.from(cand), vacancy: Array.from(vac) };
+}

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
 import { berufSearchKeywords, seniorityLevel } from "@/lib/berufMap";
+import { familyCompatibility } from "@/lib/occupationFamily";
 
 // Minimum fitScore to create a Match. The vacancy pool is ALREADY restricted to
 // occupation-relevant jobs by the search query, so a solid occupation + region
@@ -115,6 +116,18 @@ export async function matchCandidateToVacancies(candidateId: string) {
   const skipped: string[] = [];
 
   for (const vacancy of vacancies) {
+    // Occupation-family gate: the vacancy's TITLE (real) must be in the same
+    // occupation family as the candidate. This stops cross-profession matches
+    // that the polluted `beruf` field (= the ingest search term) would otherwise
+    // score as perfect (e.g. a gastronomy candidate → "Technischer
+    // Objektverwalter"). When either side is unclassifiable the gate abstains and
+    // the normal fit score below decides, so unusual-but-valid roles still match.
+    const fam = familyCompatibility(searchProfile, vacancy.title, vacancy.beruf);
+    if (fam.decided && !fam.compatible) {
+      skipped.push(vacancy.id);
+      continue;
+    }
+
     const fit = calculateFitScore({
       candidateBeruf: searchProfile,
       candidateMaxLevel: maxLevel,

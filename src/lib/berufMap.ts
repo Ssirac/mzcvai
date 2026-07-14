@@ -151,8 +151,11 @@ const SYNONYM_GROUPS: string[][] = [
   ["housekeeping", "zimmermädchen", "zimmermaedchen", "roomboy", "room attendant",
    "etagenservice", "etagenmädchen", "zimmerreinigung", "zimmerpflege", "hausdame",
    "executive housekeeper", "housekeeping supervisor"],
+  // NOTE: "facility" removed — a "Facility Manager / Technischer Objektverwalter"
+  // is a technical/management role, NOT a cleaning job, and must not match a
+  // Reinigungskraft search.
   ["reinigung", "reinigungskraft", "gebäudereiniger", "gebaeudereiniger", "raumpflege",
-   "raumpfleger", "unterhaltsreinigung", "glasreiniger", "facility", "cleaner", "cleaning"],
+   "raumpfleger", "unterhaltsreinigung", "glasreiniger", "cleaner", "cleaning"],
   ["spülkraft", "spuelkraft", "spüler", "spueler", "abwäscher", "abwaescher", "spülhilfe",
    "geschirrspüler", "dishwasher", "küchenreinigung"],
   ["catering", "bankett", "bankettmitarbeiter", "bankettservice", "veranstaltung", "event",
@@ -320,6 +323,17 @@ export function seniorityLevel(text: string): number {
   return 1;
 }
 
+// Generic words that appear across ALL occupations and must never, on their own,
+// cause a match (e.g. "Mitarbeiter", "Allround"). Filtered out of token/keyword
+// overlap so "Allround-Mitarbeiter" doesn't match every "…-Mitarbeiter" title.
+const MATCH_STOPWORDS = new Set([
+  "mitarbeiter", "mitarbeiterin", "mitarbeiter/in", "allround", "allrounder", "kraft", "fachkraft",
+  "hilfskraft", "aushilfe", "helfer", "personal", "job", "jobs", "stelle", "stellenangebot",
+  "vollzeit", "teilzeit", "team", "quereinsteiger", "quereinsteigerin", "worker", "staff",
+  "sonstige", "sonstiges", "sucht", "gesucht", "und", "oder", "für", "der", "die", "das",
+]);
+const isStopword = (w: string) => MATCH_STOPWORDS.has(w.toLowerCase());
+
 export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacancyTitle = ""): boolean {
   const c = candidateBeruf.trim().toLowerCase();
   const v = vacancyBeruf.trim().toLowerCase();
@@ -331,14 +345,16 @@ export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacan
   if (v.length >= 4 && c.includes(v)) return true;
   if (c.length >= 4 && v.includes(c)) return true;
 
-  // Synonym-group match: candidate family term appears in vacancy beruf/title
+  // Synonym-group match: candidate family term appears in vacancy beruf/title.
+  // Generic words (Mitarbeiter, Allround, …) are excluded so they can't match
+  // across unrelated occupations.
   const candKeywords = berufSearchKeywords(candidateBeruf)
     .map((k) => k.toLowerCase())
-    .filter((k) => k.length >= 3);
+    .filter((k) => k.length >= 3 && !isStopword(k));
   if (candKeywords.some((kw) => termIncludes(v, kw) || termIncludes(title, kw))) return true;
 
-  // token overlap against vacancy beruf/title
-  const tokens = c.split(/[\s/,-]+/).filter((t) => t.length >= 3);
+  // token overlap against vacancy beruf/title (stopwords excluded)
+  const tokens = c.split(/[\s/,-]+/).filter((t) => t.length >= 3 && !isStopword(t));
   return tokens.some((t) => termIncludes(v, t) || termIncludes(title, t));
 }
 
