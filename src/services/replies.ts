@@ -17,6 +17,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
+import { outreachRef, parseRefTag } from "@/lib/outreachRef";
 
 function domainOf(email: string | null | undefined): string | null {
   if (!email) return null;
@@ -140,19 +141,22 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         const candidates =
           byAddress.get(fromAddr) ?? byDomain.get(senderDomain) ?? [];
         const eligible = candidates.filter((o) => o.sentAt && o.sentAt <= msgDate);
-        // When several candidates were mailed to the same company, the domain
-        // alone can't tell them apart. Our sent subject is
-        // "Bewerbung als <title> – <candidate name>", so the reply subject
-        // ("AW: … – <candidate name>") names the exact candidate. Prefer the
-        // outreach whose candidate name appears in the reply subject; only fall
-        // back to the first open thread when no name matches (e.g. auto-reply
-        // that stripped the subject).
+
+        // 1) Unambiguous: match the unique reference code carried in the subject
+        //    ("… [MZ-1A2B3C4]"). This is exact even when several candidates — or
+        //    two same-named candidates — were mailed to the same company.
+        const replyRef = parseRefTag(subject);
+        // 2) Fallback for older emails sent before the code existed: our subject
+        //    was "Bewerbung als <title> – <candidate name>", so the reply names
+        //    the candidate. 3) Last resort: the first open thread on the domain.
         const subjLc = subject.toLowerCase();
         const target =
+          (replyRef && eligible.find((o) => outreachRef(o.id) === replyRef)) ||
           eligible.find((o) => {
             const nm = o.match?.candidate?.name?.toLowerCase();
             return nm && nm.length > 2 && subjLc.includes(nm);
-          }) ?? eligible[0];
+          }) ||
+          eligible[0];
 
         // Parse the full message body (needed both for the inbox text and for
         // opt-out phrase detection, including on already-replied threads).

@@ -16,6 +16,7 @@ import { anthropic } from "@/lib/anthropic";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 import { enrichSingleEmployer } from "@/services/enrichment";
 import { sendMail } from "@/lib/mailer";
+import { withRefTag } from "@/lib/outreachRef";
 
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
@@ -409,7 +410,10 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   // preview matches what an employer would receive). Test routing only changes
   // the recipient address, not the content.
   const body = outreach.draftBody + complianceFooter(outreach.match.employerId);
-  const subject = outreach.subject ?? "Bewerbung";
+  // Carry a unique reference code in the subject so the employer's reply can be
+  // matched back to this exact outreach — unambiguous even when several
+  // candidates (or two same-named candidates) were mailed to the same company.
+  const subject = withRefTag(outreach.subject ?? "Bewerbung", outreachId);
 
   // Send via Resend (HTTPS API) when configured, else SMTP
   const sendResult = await sendMail({ to: recipient, subject, text: body, attachments: cvAttachment });
