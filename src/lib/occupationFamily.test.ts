@@ -65,6 +65,14 @@ describe("occupation family gate", () => {
     if (bau.decided) expect(bau.compatible).toBe(false);
   });
 
+  it("ignores the polluted vacancy beruf and blocks on the real title", () => {
+    // A facility job ingested under a gastronomy search has beruf="Restaurant…".
+    // The gate must still block it for a gastronomy candidate, using the title.
+    const r = familyCompatibility(ALYAR, "Technischer Objektverwalter (m/w/d)", "Restaurantmitarbeiter Systemgastronomie");
+    expect(r.decided).toBe(true);
+    if (r.decided) expect(r.compatible).toBe(false);
+  });
+
   it("classifies the key titles into the expected families", () => {
     expect(occupationFamilies("Technischer Objektverwalter").has("facility")).toBe(true);
     expect(occupationFamilies("Technischer Objektverwalter").has("gastro")).toBe(false);

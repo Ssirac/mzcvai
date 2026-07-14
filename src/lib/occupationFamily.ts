@@ -157,13 +157,16 @@ export function occupationFamilies(text: string): Set<string> {
  *  - If EITHER side is unclassifiable, return null → the caller falls back to
  *    its normal keyword match (so unusual-but-valid roles aren't hard-dropped).
  */
-export function familyCompatibility(candidateProfile: string, vacancyTitle: string, vacancyBeruf = ""):
+// NOTE: the second vacancy arg is intentionally IGNORED. A vacancy's stored
+// `beruf` is polluted (it's the ingest SEARCH term, not the real occupation), so
+// classifying it would re-introduce the exact bug we're fixing — a facility job
+// ingested under a gastronomy search would look like gastronomy. Only the TITLE
+// (real) is used. The param is kept so callers can pass beruf harmlessly.
+export function familyCompatibility(candidateProfile: string, vacancyTitle: string, _vacancyBeruf = ""):
   | { decided: true; compatible: boolean; candidate: string[]; vacancy: string[] }
   | { decided: false } {
   const cand = occupationFamilies(candidateProfile);
-  // The vacancy signal is its TITLE (real); beruf is polluted, but a real-looking
-  // beruf can still add a family, so include it as a weak secondary hint.
-  const vac = occupationFamilies(`${vacancyTitle} ${vacancyBeruf}`);
+  const vac = occupationFamilies(vacancyTitle);
   if (cand.size === 0 || vac.size === 0) return { decided: false };
   // Compatible if they share a cluster (broader than an exact family), so
   // adjacent roles within hospitality / technical / commercial still match.
