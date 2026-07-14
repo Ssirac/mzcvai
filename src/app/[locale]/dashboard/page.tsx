@@ -195,7 +195,7 @@ export default function DashboardPage() {
     await fetch(`/api/outreach/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "approve", userId: "dashboard-user" }),
+      body: JSON.stringify({ action: "approve" }),
     });
     fetchOutreaches();
   }
