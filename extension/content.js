@@ -190,10 +190,11 @@
     try { allowed.add(new URL(MZ_FALLBACK_BASE).origin); } catch { /* ignore */ }
     if (mzBaseUrl) { try { allowed.add(new URL(mzBaseUrl).origin); } catch { /* ignore */ } }
     try {
-      if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) return false;
+      if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) { console.warn("[MZAF] referrer not allowed:", document.referrer); return false; }
     } catch { return false; }
     // Arm first, so a redirect-to-ATS still knows the candidate.
     await armCandidate(candidateId);
+    console.warn("[MZAF] armed candidate:", candidateId);
     // If the form is on THIS page, fill it now and consume the arm.
     for (let i = 0; i < 4; i++) {
       const filled = await doFill(candidateId);
@@ -208,10 +209,14 @@
   // (fill once — never on an unrelated page).
   async function maybeAutoFillFromArm() {
     const candidateId = await readArmedCandidate();
+    console.warn("[MZAF] arm read:", candidateId);
     if (!candidateId) return;
     for (let i = 0; i < 8; i++) {
-      if (isApplicationForm()) {
+      const isForm = isApplicationForm();
+      console.warn("[MZAF] try", i, "isForm:", isForm);
+      if (isForm) {
         const filled = await doFill(candidateId);
+        console.warn("[MZAF] filled:", filled);
         if (filled && filled > 0) { await clearArm(); return; }
       }
       await sleep(1200);
