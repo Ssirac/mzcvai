@@ -53,6 +53,11 @@ const FAMILIES: Record<string, string[]> = {
     "bau", "bauarbeiter", "bauhelfer", "hochbau", "tiefbau", "maurer", "polier", "bauleiter",
     "baustelle", "bauprojekt", "bautechniker", "baukoordinator", "construction", "gerüstbauer",
     "betonbauer", "estrichleger", "trockenbau",
+    // Engineering / planning / environmental — technical building roles that also
+    // belong to the technical cluster (a sales/hospitality candidate is not one).
+    "projektentwickler", "projektingenieur", "windpark", "windkraft", "photovoltaik", "solar",
+    "altlasten", "umwelttechnik", "umweltingenieur", "geotechnik", "vermessung", "tragwerksplaner",
+    "erneuerbare energien", "anlagenplaner", "elektroplaner", "versorgungstechnik",
   ],
   trades: [
     "elektrik", "elektriker", "elektroniker", "elektroinstallateur", "electrician", "installateur",
