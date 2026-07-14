@@ -13,6 +13,7 @@ export type AuditAction =
   | "OUTREACH_APPROVE" | "OUTREACH_SEND"
   | "OPT_OUT"
   | "DEAD_SWEEP"
+  | "PIPELINE_STAGE" | "DOCUMENT_UPDATE" | "EMPLOYER_UPDATE" | "FOLLOWUP_ADD"
   | "GDPR_EXPORT" | "GDPR_DELETE";
 
 export async function logAudit(p: {

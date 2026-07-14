@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BERUF_LIST, REGIONS_DE, GERMAN_LEVELS } from "@/lib/berufMap";
 import TopNav from "../_components/TopNav";
+import PipelineDocsPanel from "../_components/PipelineDocsPanel";
 import { useToast } from "../_components/Toast";
 import { jsonFetch } from "@/lib/clientApi";
 
@@ -1528,6 +1529,9 @@ export default function CandidatesPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Placement pipeline + visa/document checklist */}
+              <PipelineDocsPanel candidateId={selectedCandidate.id} />
 
               {/* Tabs — sticky so they stay reachable while scrolling long lists */}
               <div className="flex gap-1 border-b border-line mb-4 sticky top-0 z-20 bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
