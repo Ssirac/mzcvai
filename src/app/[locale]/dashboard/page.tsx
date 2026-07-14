@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { Fragment, useEffect, useState } from "react";
 import { BERUF_LIST, REGIONS_DE } from "@/lib/berufMap";
 import TopNav from "../_components/TopNav";
+import AttentionCard from "../_components/AttentionCard";
 import { useToast } from "../_components/Toast";
 
 interface Stats {
@@ -223,6 +224,8 @@ export default function DashboardPage() {
             <p className="text-sm text-ink-3">{t("subtitle")}</p>
           </div>
         </div>
+
+        <AttentionCard />
 
         <PipelineFunnel />
 
