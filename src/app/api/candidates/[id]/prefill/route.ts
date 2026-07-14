@@ -30,6 +30,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const vorname = parts[0] ?? "";
     const nachname = parts.length > 1 ? parts.slice(1).join(" ") : "";
     const anrede = c.gender === "male" ? "Herr" : c.gender === "female" ? "Frau" : "";
+    // Always the MZ agency address (not the candidate's), so an employer who
+    // replies from the application form reaches MZ — the same inbox the reply
+    // detection monitors. This keeps MZ in the loop as the broker.
+    const contactEmail = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "info@mz-personalvermittlung.de";
 
     // German application forms overwhelmingly use these field labels/names; the
     // extension's selector map (config/selectors.json) resolves each to inputs.
@@ -38,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       vorname,
       nachname,
       name: c.name,
-      email: c.email ?? "",
+      email: contactEmail,
       telefon: c.phone ?? "",
       geburtsdatum: c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : "",
       nationalitaet: c.nationality ?? "",
