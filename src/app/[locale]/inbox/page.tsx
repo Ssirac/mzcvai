@@ -32,10 +32,26 @@ function fmt(d: string | null) {
   return new Date(d).toLocaleString();
 }
 
-// Reply straight from the app (no IONOS webmail), with optional file attachments.
-function ReplyComposer({ outreachId, onSent }: { outreachId: string; onSent: (r: OutboundReply) => void }) {
+// German quick-reply templates for the most common employer follow-ups. `cv`
+// marks the one that should also attach the candidate's CV.
+function replyTemplates(candidate: string): { label: string; text: string; cv?: boolean }[] {
+  const sig = "\n\nMit freundlichen Grüßen\nMZ Personalvermittlung";
+  return [
+    { label: "📎 CV göndər", cv: true,
+      text: `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihr Interesse. Anbei erhalten Sie den Lebenslauf von ${candidate}. Für Rückfragen stehen wir Ihnen gerne zur Verfügung.${sig}` },
+    { label: "📅 Müsahibə təklif et",
+      text: `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihre Rückmeldung. Gerne vereinbaren wir ein Vorstellungsgespräch mit ${candidate}. Welche Termine würden Ihnen in den kommenden Tagen passen?${sig}` },
+    { label: "🙏 Təşəkkür / maraqlıyıq",
+      text: `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihre Nachricht — ${candidate} hat großes Interesse an der Position. Gerne besprechen wir die nächsten Schritte.${sig}` },
+  ];
+}
+
+// Reply straight from the app (no IONOS webmail), with quick templates, the
+// candidate's CV in one click, and optional file attachments.
+function ReplyComposer({ outreachId, candidateName, onSent }: { outreachId: string; candidateName: string; onSent: (r: OutboundReply) => void }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [attachCv, setAttachCv] = useState(false);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -45,12 +61,13 @@ function ReplyComposer({ outreachId, onSent }: { outreachId: string; onSent: (r:
     try {
       const fd = new FormData();
       fd.append("text", text);
+      if (attachCv) fd.append("attachCv", "true");
       for (const f of files) fd.append("files", f);
       const res = await fetch(`/api/inbox/${outreachId}/reply`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setErr(String(data.error ?? "Göndərilmədi")); return; }
       onSent(data.reply as OutboundReply);
-      setText(""); setFiles([]);
+      setText(""); setFiles([]); setAttachCv(false);
     } catch {
       setErr("Şəbəkə xətası");
     } finally {
@@ -61,6 +78,15 @@ function ReplyComposer({ outreachId, onSent }: { outreachId: string; onSent: (r:
   return (
     <div className="mt-3 border border-line rounded-xl p-3 bg-card-2/40 space-y-2">
       <div className="text-xs font-medium text-ink-2">↩ Cavab yaz</div>
+      <div className="flex flex-wrap gap-1.5">
+        {replyTemplates(candidateName).map((tpl, i) => (
+          <button key={i}
+            onClick={() => { setText(tpl.text); if (tpl.cv) setAttachCv(true); }}
+            className="text-[11px] bg-card border border-line-strong text-ink-2 hover:text-ink hover:bg-line rounded-full px-2.5 py-1">
+            {tpl.label}
+          </button>
+        ))}
+      </div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -80,11 +106,17 @@ function ReplyComposer({ outreachId, onSent }: { outreachId: string; onSent: (r:
       )}
       {err && <div className="text-xs text-red-400">{err}</div>}
       <div className="flex items-center justify-between gap-2">
-        <label className="text-xs text-ink-2 hover:text-ink cursor-pointer bg-card border border-line rounded-lg px-3 py-2">
-          📎 Fayl əlavə et
-          <input type="file" multiple className="hidden"
-            onChange={(e) => { setFiles((p) => [...p, ...Array.from(e.target.files ?? [])]); e.target.value = ""; }} />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-ink-2 hover:text-ink cursor-pointer bg-card border border-line rounded-lg px-3 py-2">
+            📎 Fayl
+            <input type="file" multiple className="hidden"
+              onChange={(e) => { setFiles((p) => [...p, ...Array.from(e.target.files ?? [])]); e.target.value = ""; }} />
+          </label>
+          <label className={`text-xs cursor-pointer rounded-lg px-3 py-2 border ${attachCv ? "bg-emerald-600/15 text-emerald-500 border-emerald-600/40" : "bg-card text-ink-2 border-line hover:text-ink"}`}>
+            <input type="checkbox" checked={attachCv} onChange={(e) => setAttachCv(e.target.checked)} className="hidden" />
+            {attachCv ? "✓ " : ""}CV qoşulu
+          </label>
+        </div>
         <button onClick={send} disabled={sending || !text.trim()}
           className="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg px-4 py-2 disabled:opacity-50">
           {sending ? "Göndərilir…" : "Göndər"}
@@ -235,6 +267,7 @@ export default function InboxPage() {
                       {/* Reply composer — answer straight from the app */}
                       <ReplyComposer
                         outreachId={r.id}
+                        candidateName={r.match.candidate.name}
                         onSent={(reply) => setReplies((prev) => prev.map((x) =>
                           x.id === r.id ? { ...x, outboundReplies: [...x.outboundReplies, reply] } : x
                         ))}

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
 import { sendMail, type MailAttachment } from "@/lib/mailer";
+import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -58,6 +59,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const buf = Buffer.from(await f.arrayBuffer());
       attachments.push({ filename: f.name || "anhang", content: buf });
       attachmentsMeta.push({ filename: f.name || "anhang", size: f.size });
+    }
+
+    // One-click "send the candidate's CV": attach the stored CV (or a generated
+    // PDF) for the candidate this thread is about — no manual upload needed.
+    if (String(form.get("attachCv") ?? "") === "true" && outreach.match?.candidateId) {
+      const cand = await prisma.candidate.findUnique({ where: { id: outreach.match.candidateId } });
+      if (cand) {
+        try {
+          const content = cand.cvData ? Buffer.from(cand.cvData) : await generateCandidateCvPdf(cand);
+          const filename = cand.cvFileName || cvFileName(cand.name);
+          attachments.push({ filename, content });
+          attachmentsMeta.push({ filename, size: content.length });
+        } catch (e) {
+          console.error("[inbox-reply] CV attach failed:", (e as Error).message);
+        }
+      }
     }
 
     const subject = replySubject(outreach.replySubject || outreach.subject);
