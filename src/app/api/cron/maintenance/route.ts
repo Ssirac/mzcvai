@@ -9,6 +9,7 @@ import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { runAutoSend } from "@/services/autopilot";
 import { runScrapeCycle } from "@/services/scraper/cycle";
+import { sendDailyDigest } from "@/services/digest";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -101,6 +102,9 @@ export async function POST(req: NextRequest) {
     }
     if (job === "autosend") {
       log.autoSend = await runAutoSend();
+    }
+    if (job === "digest") {
+      log.digest = await sendDailyDigest();
     }
     // Script-based scraping cycle (Group A→C sites), rate-limited & queued.
     if (job === "scrape") {

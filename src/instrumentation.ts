@@ -27,7 +27,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape" | "applyscan") => {
+  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape" | "applyscan" | "digest") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -56,6 +56,7 @@ export async function register() {
     if (now.getHours() === 8 && lastFollowUpDay !== today) {
       lastFollowUpDay = today;
       void fire("followups");
+      void fire("digest"); // morning "what needs you today" summary email
     }
   };
 
