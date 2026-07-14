@@ -323,6 +323,7 @@
     "selectAll": "Hamısını seç",
     "sendSelected": "Seçilənlərə göndər ({count})",
     "rejectSelected": "Rədd et ({count})",
+    "rejectReasonLabel": "Səbəb (istəyə bağlı)",
     "rejectedResult": "{count} uyğunluq rədd edildi",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",

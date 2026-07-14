@@ -226,6 +226,14 @@ const STATUS_COLOR: Record<string, string> = {
 const STATUS_ORDER: Record<string, number> = { ACTIVE: 0, PENDING: 1, PLACED: 2, ARCHIVED: 3 };
 const STATUS_OPTIONS = ["ACTIVE", "PENDING", "PLACED", "ARCHIVED"] as const;
 
+// "Why bad" reason for match feedback (structured, feeds scoring). Trilingual.
+const REJECT_REASONS = ["SKILL_MISMATCH", "SALARY", "LOCATION", "VISA", "LANGUAGE", "OVERQUALIFIED", "OTHER"] as const;
+const REASON_LABELS: Record<string, Record<string, string>> = {
+  az: { SKILL_MISMATCH: "İxtisas uyğun deyil", SALARY: "Maaş", LOCATION: "Məkan", VISA: "Viza", LANGUAGE: "Dil", OVERQUALIFIED: "Həddən artıq ixtisaslı", OTHER: "Digər" },
+  de: { SKILL_MISMATCH: "Qualifikation passt nicht", SALARY: "Gehalt", LOCATION: "Standort", VISA: "Visum", LANGUAGE: "Sprache", OVERQUALIFIED: "Überqualifiziert", OTHER: "Sonstige" },
+  en: { SKILL_MISMATCH: "Skill mismatch", SALARY: "Salary", LOCATION: "Location", VISA: "Visa", LANGUAGE: "Language", OVERQUALIFIED: "Overqualified", OTHER: "Other" },
+};
+
 const SCORE_COLOR = (s: number) =>
   s >= 80 ? "text-emerald-400" : s >= 60 ? "text-blue-400" : s >= 40 ? "text-yellow-400" : "text-ink-2";
 
@@ -812,8 +820,9 @@ export default function CandidatesPage() {
   }
 
   const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   // Bulk reject: mark selected matches BAD so they leave the queue and are never
-  // (re)sent. Uses the per-match feedback endpoint.
+  // (re)sent. An optional reason (why) is stored on each for scoring feedback.
   async function bulkRejectMatches() {
     if (!selectedId || selectedMatchIds.size === 0) return;
     const ids = Array.from(selectedMatchIds);
@@ -824,7 +833,7 @@ export default function CandidatesPage() {
         const r = await jsonFetch(`/api/matches/${id}/feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ verdict: "BAD" }),
+          body: JSON.stringify({ verdict: "BAD", reason: rejectReason || null }),
         });
         if (r.ok) ok++;
       }
@@ -1650,13 +1659,26 @@ export default function CandidatesPage() {
                           )}
                         </button>
                         {selectedMatchIds.size > 0 && (
-                          <button
-                            onClick={bulkRejectMatches}
-                            disabled={rejecting || sendingAll}
-                            className="bg-card-2 hover:bg-line text-rose-500 border border-line-strong disabled:opacity-50 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
-                          >
-                            {rejecting ? "…" : <>✕ {t("rejectSelected", { count: selectedMatchIds.size })}</>}
-                          </button>
+                          <>
+                            <select
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              title={t("rejectReasonLabel")}
+                              className="bg-card-2 text-ink-2 border border-line-strong text-xs rounded-lg px-2 py-2.5 sm:py-2"
+                            >
+                              <option value="">{t("rejectReasonLabel")}</option>
+                              {REJECT_REASONS.map((r) => (
+                                <option key={r} value={r}>{(REASON_LABELS[locale] ?? REASON_LABELS.az)[r]}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={bulkRejectMatches}
+                              disabled={rejecting || sendingAll}
+                              className="bg-card-2 hover:bg-line text-rose-500 border border-line-strong disabled:opacity-50 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                            >
+                              {rejecting ? "…" : <>✕ {t("rejectSelected", { count: selectedMatchIds.size })}</>}
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

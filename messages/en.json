@@ -323,6 +323,7 @@
     "selectAll": "Select all",
     "sendSelected": "Send to selected ({count})",
     "rejectSelected": "Reject ({count})",
+    "rejectReasonLabel": "Reason (optional)",
     "rejectedResult": "{count} match(es) rejected",
     "sendingAll": "Sending...",
     "sendAllConfirm": "Apply to {count} employers? (Daily limit and cooldown are respected)",
