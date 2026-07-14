@@ -145,31 +145,60 @@
   }
 
   const onFill = () => doFill();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const send = (m) => { try { return chrome.runtime.sendMessage(m); } catch { return Promise.resolve(null); } };
+
+  // Does this page actually look like an application form? (a visible name/email
+  // field). Used to gate the downstream (armed) auto-fill so a random page in an
+  // armed tab is never touched.
+  function looksLikeAppForm() {
+    const inputs = Array.from(document.querySelectorAll("input, textarea"))
+      .filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button" && !el.disabled && el.offsetParent !== null);
+    return inputs.some((i) => matches(i, S.vorname) || matches(i, S.nachname) || matches(i, S.email));
+  }
 
   // Auto-fill when a job was opened from the MZ queue: the queue appends
-  // "#mzfill=<candidateId>" to the URL. To keep this safe we ONLY auto-fill when
-  // the page was actually opened FROM the MZ app (referrer origin === Basis-URL),
-  // so a random site can't craft the hash to harvest candidate data. Never
-  // submits — the human still clears the captcha and presses send.
+  // "#mzfill=<candidateId>" to the URL. We ONLY act when the page was opened FROM
+  // an MZ app origin (referrer check), so a random site can't craft the hash to
+  // harvest candidate data. We also ARM this tab, so if the "Apply" button then
+  // redirects to an external ATS the candidate carries across (see background.js).
+  // Returns true if a form on THIS page was filled. Never submits.
   async function maybeAutoFill() {
     const m = location.hash.match(/mzfill=([^&]+)/);
-    if (!m) return;
+    if (!m) return false;
     const candidateId = decodeURIComponent(m[1]);
     const { mzBaseUrl } = await chrome.storage.sync.get(["mzBaseUrl"]);
-    // Only auto-fill when the page was opened FROM an MZ app origin (the saved
-    // Base-URL or the known production URL), so a random site can't craft the
-    // hash to harvest candidate data.
     const allowed = new Set();
     try { allowed.add(new URL(MZ_FALLBACK_BASE).origin); } catch { /* ignore */ }
     if (mzBaseUrl) { try { allowed.add(new URL(mzBaseUrl).origin); } catch { /* ignore */ } }
     try {
-      if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) return;
-    } catch { return; }
-    // The form may render slightly after load; try a couple of times.
+      if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) return false;
+    } catch { return false; }
+    // Arm the tab first, so a redirect-to-ATS still knows the candidate.
+    await send({ type: "mzArm", candidateId });
+    // If the form is on THIS page, fill it now and consume the arm.
     for (let i = 0; i < 4; i++) {
       const filled = await doFill(candidateId);
-      if (filled && filled > 0) break;
-      await new Promise((r) => setTimeout(r, 1200));
+      if (filled && filled > 0) { await send({ type: "mzDisarm" }); return true; }
+      await sleep(1200);
+    }
+    return false; // no form here — leave the tab armed for the ATS page
+  }
+
+  // Downstream auto-fill: the page has no hash, but its tab (or the tab it was
+  // opened from) was armed by an MZ-originated page. Fill only if the page really
+  // looks like an application form, then consume the arm (fill once, never on an
+  // unrelated page).
+  async function maybeAutoFillFromArm() {
+    const resp = await send({ type: "mzGetArm" });
+    const candidateId = resp && resp.candidateId;
+    if (!candidateId) return;
+    for (let i = 0; i < 6; i++) {
+      if (looksLikeAppForm()) {
+        const filled = await doFill(candidateId);
+        if (filled && filled > 0) { await send({ type: "mzDisarm" }); return; }
+      }
+      await sleep(1200);
     }
   }
 
@@ -185,7 +214,10 @@
 
   function start() {
     mountButton();
-    void maybeAutoFill();
+    (async () => {
+      const filledHere = await maybeAutoFill(); // hash path (direct form)
+      if (!filledHere) await maybeAutoFillFromArm(); // armed path (redirected ATS)
+    })();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
