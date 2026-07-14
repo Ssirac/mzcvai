@@ -61,15 +61,21 @@
     const inputs = Array.from(document.querySelectorAll("input, textarea, select"))
       .filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button" && !el.disabled && el.offsetParent !== null);
     let filled = 0;
+    // Each input is filled at most once. Fields are iterated most-specific first
+    // (vorname/nachname before the generic full-"name"), so e.g. a "First name"
+    // input — whose label contains "name" and would otherwise also match the
+    // generic `name` field — keeps the first name instead of being overwritten
+    // with the full name.
+    const used = new Set();
     for (const [key, val] of Object.entries(data.fields || {})) {
       if (!val) continue;
       const spec = S[key];
       if (!spec) continue;
-      const el = inputs.find((i) => (i.tagName === "SELECT") === !!spec.select && matches(i, spec));
+      const el = inputs.find((i) => !used.has(i) && (i.tagName === "SELECT") === !!spec.select && matches(i, spec));
       if (!el) continue;
       try {
-        if (el.tagName === "SELECT") { if (setSelect(el, val)) filled++; }
-        else { setValue(el, val); filled++; }
+        if (el.tagName === "SELECT") { if (setSelect(el, val)) { used.add(el); filled++; } }
+        else { setValue(el, val); used.add(el); filled++; }
       } catch { /* skip */ }
     }
     // CV file input
