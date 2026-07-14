@@ -82,6 +82,24 @@ const FAMILIES: Record<string, string[]> = {
     "fachinformatiker", "informatiker", "it-", "it administrator", "systemadministrator", "devops",
     "data scientist", "web developer",
   ],
+  marketing: [
+    "marketing", "online marketing", "social media", "social-media", "smm", "digitale medien",
+    "content", "content creator", "mediengestalter", "grafikdesigner", "grafik", "designer", "seo",
+    "sea", "kampagne", "öffentlichkeitsarbeit", "pr-", "redakteur", "moderator", "community manager",
+    "influencer", "brand", "kommunikation", "werbung",
+  ],
+  security: [
+    "sicherheit", "sicherheitsdienst", "sicherheitsmitarbeiter", "wachmann", "wachschutz",
+    "objektschutz", "security", "türsteher", "pförtner", "werkschutz",
+  ],
+  beauty: [
+    "friseur", "friseurin", "hairdresser", "kosmetik", "kosmetiker", "kosmetikerin", "nageldesigner",
+    "barbier", "barber", "visagist", "make-up",
+  ],
+  agriculture: [
+    "gärtner", "gaertner", "landwirt", "landwirtschaft", "gardener", "agriculture", "florist",
+    "gartenbau", "landschaftsgärtner", "forstwirt",
+  ],
 };
 
 // Word-boundary aware containment: long terms (>=5) match as substrings so

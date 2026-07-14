@@ -40,6 +40,17 @@ describe("occupation family gate", () => {
     if (r.decided) expect(r.compatible).toBe(true);
   });
 
+  it("matches the sales/media candidate to sales & marketing, not construction", () => {
+    const FARID = "Experte für Vertrieb, Digitale Medien & Social Media Management (SMM)";
+    expect(occupationFamilies(FARID).has("sales")).toBe(true);
+    expect(occupationFamilies(FARID).has("marketing")).toBe(true);
+    expect((familyCompatibility(FARID, "Social Media Manager (m/w/d)") as { compatible: boolean }).compatible).toBe(true);
+    expect((familyCompatibility(FARID, "Vertriebsmitarbeiter (m/w/d)") as { compatible: boolean }).compatible).toBe(true);
+    const bau = familyCompatibility(FARID, "Bauleiter (m/w/d)");
+    expect(bau.decided).toBe(true);
+    if (bau.decided) expect(bau.compatible).toBe(false);
+  });
+
   it("classifies the key titles into the expected families", () => {
     expect(occupationFamilies("Technischer Objektverwalter").has("facility")).toBe(true);
     expect(occupationFamilies("Technischer Objektverwalter").has("gastro")).toBe(false);
