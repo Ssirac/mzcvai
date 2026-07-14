@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
 import { berufSearchKeywords, seniorityLevel } from "@/lib/berufMap";
 import { familyCompatibility } from "@/lib/occupationFamily";
+import { isActionable } from "@/lib/actionable";
 
 // Minimum fitScore to create a Match. The vacancy pool is ALREADY restricted to
 // occupation-relevant jobs by the search query, so a solid occupation + region
@@ -116,6 +117,20 @@ export async function matchCandidateToVacancies(candidateId: string) {
   const skipped: string[] = [];
 
   for (const vacancy of vacancies) {
+    // Actionability gate: quality over quantity. Only keep jobs the candidate can
+    // actually apply to — a real email, or a form on a reachable site. Drop the
+    // ones with no contact / on a blocked host (StepStone, LinkedIn, Indeed…).
+    const act = isActionable({
+      applyChannel: vacancy.applyChannel,
+      applyValue: vacancy.applyValue,
+      url: vacancy.url,
+      employerEmail: vacancy.employer.genericEmail,
+    });
+    if (!act.actionable) {
+      skipped.push(vacancy.id);
+      continue;
+    }
+
     // Occupation-family gate: the vacancy's TITLE (real) must be in the same
     // occupation family as the candidate. This stops cross-profession matches
     // that the polluted `beruf` field (= the ingest search term) would otherwise
