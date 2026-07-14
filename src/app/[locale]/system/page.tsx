@@ -6,7 +6,7 @@ import TopNav from "../_components/TopNav";
 import { jsonFetch } from "@/lib/clientApi";
 
 interface Audit { id: string; actor: string; action: string; targetType: string | null; targetId: string | null; createdAt: string }
-interface Cron { id: string; job: string; status: string; startedAt: string; durationMs: number | null; error: string | null }
+interface Cron { id: string; job: string; status: string; startedAt: string; durationMs: number | null; error: string | null; result: Record<string, unknown> | null }
 interface Health { status: string; db: string; mailProvider: string; sending: { paused: boolean; reason: string | null; rate: number } | null }
 interface Campaign { campaign: string; templateVersion: string; sent: number; delivered: number; opened: number; replied: number; bounced: number; replyRate: number; bounceRate: number }
 interface ReconcileMove { employer: string | null; from: string; to: string; via: string; subject: string }
@@ -20,6 +20,21 @@ const CRON_STYLE: Record<string, string> = {
 };
 
 function fmt(d: string) { return new Date(d).toLocaleString(); }
+
+// Compact, human-readable summary of a cron run's stored result. For the dead
+// sweep it shows how many listings were checked / deleted / expired so a
+// reviewer can see what a cleanup actually did.
+function cronResult(result: Record<string, unknown> | null): string {
+  if (!result || typeof result !== "object") return "—";
+  const r = result as Record<string, unknown>;
+  const parts: string[] = [];
+  if ("checked" in r) parts.push(`${Number(r.checked ?? 0)} yoxlanıldı`);
+  if ("deleted" in r) parts.push(`${Number(r.deleted ?? 0)} silindi`);
+  if ("expired" in r) parts.push(`${Number(r.expired ?? 0)} arxivləndi`);
+  if (parts.length) return parts.join(" · ");
+  const entries = Object.entries(r).filter(([, v]) => typeof v === "number" && (v as number) > 0);
+  return entries.length ? entries.map(([k, v]) => `${k}:${v}`).join(" · ") : "—";
+}
 
 export default function SystemPage() {
   const t = useTranslations("system");
@@ -168,6 +183,7 @@ export default function SystemPage() {
             <table className="w-full text-sm min-w-[560px]">
               <thead><tr className="text-left text-ink-3 text-xs border-b border-line">
                 <th className="px-3 py-2 font-medium">{t("job")}</th><th className="px-3 py-2 font-medium">{t("cronStatus")}</th>
+                <th className="px-3 py-2 font-medium">Nəticə</th>
                 <th className="px-3 py-2 font-medium">{t("duration")}</th><th className="px-3 py-2 font-medium">{t("started")}</th>
               </tr></thead>
               <tbody>
@@ -175,11 +191,12 @@ export default function SystemPage() {
                   <tr key={r.id} className="border-b border-line/60">
                     <td className="px-3 py-2 text-ink">{r.job}</td>
                     <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-xs ${CRON_STYLE[r.status] ?? "bg-card-2 text-ink-2"}`}>{r.status}</span>{r.error && <span className="ml-2 text-rose-500 text-xs">{r.error.slice(0, 40)}</span>}</td>
+                    <td className="px-3 py-2 text-ink-3 text-xs">{cronResult(r.result)}</td>
                     <td className="px-3 py-2 text-ink-3">{r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)}s` : "—"}</td>
                     <td className="px-3 py-2 text-ink-3">{fmt(r.startedAt)}</td>
                   </tr>
                 ))}
-                {cron.length === 0 && !loading && <tr><td colSpan={4} className="px-3 py-6 text-center text-ink-3 text-sm">{t("empty")}</td></tr>}
+                {cron.length === 0 && !loading && <tr><td colSpan={5} className="px-3 py-6 text-center text-ink-3 text-sm">{t("empty")}</td></tr>}
               </tbody>
             </table>
           </div>

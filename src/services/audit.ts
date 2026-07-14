@@ -12,6 +12,7 @@ export type AuditAction =
   | "CV_UPLOAD" | "CV_DOWNLOAD"
   | "OUTREACH_APPROVE" | "OUTREACH_SEND"
   | "OPT_OUT"
+  | "DEAD_SWEEP"
   | "GDPR_EXPORT" | "GDPR_DELETE";
 
 export async function logAudit(p: {

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const items = await prisma.cronRun.findMany({
       orderBy: { startedAt: "desc" },
       take: limit,
-      select: { id: true, job: true, status: true, startedAt: true, durationMs: true, error: true },
+      select: { id: true, job: true, status: true, startedAt: true, durationMs: true, error: true, result: true },
     });
     return NextResponse.json({ items, total: items.length });
   } catch (err) {
