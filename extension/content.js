@@ -146,23 +146,41 @@
 
   const onFill = () => doFill();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const send = (m) => { try { return chrome.runtime.sendMessage(m); } catch { return Promise.resolve(null); } };
 
-  // Does this page actually look like an application form? (a visible name/email
-  // field). Used to gate the downstream (armed) auto-fill so a random page in an
-  // armed tab is never touched.
-  function looksLikeAppForm() {
+  // ---- "arm" the intent across a redirect to an external ATS -----------------
+  // Stored in chrome.storage (accessible to content scripts directly — no
+  // background needed). Short-lived and single-use for safety.
+  const ARM_KEY = "mzArm";
+  const ARM_TTL_MS = 3 * 60 * 1000; // 3 minutes
+  async function armCandidate(candidateId) {
+    try { await chrome.storage.local.set({ [ARM_KEY]: { candidateId, expiresAt: Date.now() + ARM_TTL_MS } }); } catch { /* ignore */ }
+  }
+  async function readArmedCandidate() {
+    try {
+      const v = (await chrome.storage.local.get(ARM_KEY))[ARM_KEY];
+      if (v && v.expiresAt > Date.now()) return v.candidateId;
+    } catch { /* ignore */ }
+    return null;
+  }
+  async function clearArm() { try { await chrome.storage.local.remove(ARM_KEY); } catch { /* ignore */ } }
+
+  // Strict check for the ARMED path: the page must have BOTH a name field AND an
+  // email or file field — so a stray form (e.g. a newsletter box) is never
+  // auto-filled while an arm is active.
+  function isApplicationForm() {
     const inputs = Array.from(document.querySelectorAll("input, textarea"))
       .filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button" && !el.disabled && el.offsetParent !== null);
-    return inputs.some((i) => matches(i, S.vorname) || matches(i, S.nachname) || matches(i, S.email));
+    const hasName = inputs.some((i) => matches(i, S.vorname) || matches(i, S.nachname));
+    const hasEmailOrFile = inputs.some((i) => matches(i, S.email)) || !!document.querySelector('input[type="file"]');
+    return hasName && hasEmailOrFile;
   }
 
   // Auto-fill when a job was opened from the MZ queue: the queue appends
   // "#mzfill=<candidateId>" to the URL. We ONLY act when the page was opened FROM
   // an MZ app origin (referrer check), so a random site can't craft the hash to
-  // harvest candidate data. We also ARM this tab, so if the "Apply" button then
-  // redirects to an external ATS the candidate carries across (see background.js).
-  // Returns true if a form on THIS page was filled. Never submits.
+  // harvest candidate data. We also ARM the candidate, so if the "Apply" button
+  // then redirects to an external ATS the candidate carries across. Returns true
+  // if a form on THIS page was filled. Never submits.
   async function maybeAutoFill() {
     const m = location.hash.match(/mzfill=([^&]+)/);
     if (!m) return false;
@@ -174,29 +192,27 @@
     try {
       if (!document.referrer || !allowed.has(new URL(document.referrer).origin)) return false;
     } catch { return false; }
-    // Arm the tab first, so a redirect-to-ATS still knows the candidate.
-    await send({ type: "mzArm", candidateId });
+    // Arm first, so a redirect-to-ATS still knows the candidate.
+    await armCandidate(candidateId);
     // If the form is on THIS page, fill it now and consume the arm.
     for (let i = 0; i < 4; i++) {
       const filled = await doFill(candidateId);
-      if (filled && filled > 0) { await send({ type: "mzDisarm" }); return true; }
+      if (filled && filled > 0) { await clearArm(); return true; }
       await sleep(1200);
     }
-    return false; // no form here — leave the tab armed for the ATS page
+    return false; // no form here — leave the arm for the ATS page
   }
 
-  // Downstream auto-fill: the page has no hash, but its tab (or the tab it was
-  // opened from) was armed by an MZ-originated page. Fill only if the page really
-  // looks like an application form, then consume the arm (fill once, never on an
-  // unrelated page).
+  // Downstream auto-fill: the page has no hash, but an MZ-originated page armed a
+  // candidate moments ago. Fill only real application forms, then consume the arm
+  // (fill once — never on an unrelated page).
   async function maybeAutoFillFromArm() {
-    const resp = await send({ type: "mzGetArm" });
-    const candidateId = resp && resp.candidateId;
+    const candidateId = await readArmedCandidate();
     if (!candidateId) return;
-    for (let i = 0; i < 6; i++) {
-      if (looksLikeAppForm()) {
+    for (let i = 0; i < 8; i++) {
+      if (isApplicationForm()) {
         const filled = await doFill(candidateId);
-        if (filled && filled > 0) { await send({ type: "mzDisarm" }); return; }
+        if (filled && filled > 0) { await clearArm(); return; }
       }
       await sleep(1200);
     }
