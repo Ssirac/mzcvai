@@ -9,10 +9,16 @@ export const maxDuration = 120;
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Hide stale listings (30+ days old) even before the background sweep
-    // deletes them, so the candidate only ever sees currently-open jobs.
-    const EXPIRY_DAYS = 30;
-    const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    // Only ever show jobs that are still open. Three expiry guards, applied at
+    // view time (not just by the background sweep) so an expired listing never
+    // reaches the candidate:
+    //   • foundAt  — first discovered within EXPIRY_DAYS
+    //   • lastSeenAt — the source STILL re-lists it (stale ⇒ pulled/filled)
+    //   • postedAt — the posting itself isn't past its shelf life
+    const day = 24 * 60 * 60 * 1000;
+    const expiryCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_FOUND_MAX_DAYS ?? "30") * day);
+    const staleCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_STALE_DAYS ?? "10") * day);
+    const postedCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "30") * day);
 
     // Never SHOW part-time / mini-job listings, even if some slipped into the DB
     // before the ingest filter — full-time only.
@@ -25,7 +31,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       prisma.match.findMany({
         where: {
           candidateId: params.id,
-          vacancy: { status: "ACTIVE", foundAt: { gte: expiryCutoff }, NOT: { OR: partTimeOr } },
+          vacancy: {
+            status: "ACTIVE",
+            foundAt: { gte: expiryCutoff },
+            lastSeenAt: { gte: staleCutoff },
+            // Hide old postings; rows without a postedAt (null) are kept.
+            NOT: { OR: [...partTimeOr, { postedAt: { lt: postedCutoff } }] },
+          },
         },
         orderBy: [
           { employer: { score: "desc" } },
