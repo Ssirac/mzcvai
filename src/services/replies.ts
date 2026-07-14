@@ -75,7 +75,7 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
       sentAt: { gte: cutoff, not: null },
       toAddress: { not: null },
     },
-    select: { id: true, toAddress: true, sentAt: true, matchId: true, match: { select: { employerId: true } } },
+    select: { id: true, toAddress: true, sentAt: true, matchId: true, match: { select: { employerId: true, candidate: { select: { name: true } } } } },
     orderBy: { sentAt: "desc" },
   });
 
@@ -139,7 +139,20 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         // then same-domain; only ones sent before the reply arrived.
         const candidates =
           byAddress.get(fromAddr) ?? byDomain.get(senderDomain) ?? [];
-        const target = candidates.find((o) => o.sentAt && o.sentAt <= msgDate);
+        const eligible = candidates.filter((o) => o.sentAt && o.sentAt <= msgDate);
+        // When several candidates were mailed to the same company, the domain
+        // alone can't tell them apart. Our sent subject is
+        // "Bewerbung als <title> – <candidate name>", so the reply subject
+        // ("AW: … – <candidate name>") names the exact candidate. Prefer the
+        // outreach whose candidate name appears in the reply subject; only fall
+        // back to the first open thread when no name matches (e.g. auto-reply
+        // that stripped the subject).
+        const subjLc = subject.toLowerCase();
+        const target =
+          eligible.find((o) => {
+            const nm = o.match?.candidate?.name?.toLowerCase();
+            return nm && nm.length > 2 && subjLc.includes(nm);
+          }) ?? eligible[0];
 
         // Parse the full message body (needed both for the inbox text and for
         // opt-out phrase detection, including on already-replied threads).
