@@ -282,11 +282,32 @@ model Outreach {
   // Follow-up sequence
   followUpCount  Int       @default(0)
   lastFollowUpAt DateTime?
+  // Manual replies the user sent back from the inbox (in-app, no IONOS webmail)
+  outboundReplies OutboundReply[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
   @@index([status, sentAt])
   @@index([providerId])
+}
+
+// A reply the user typed and sent from the in-app inbox (with optional file
+// attachments), so they never have to open the IONOS webmail. Stored so the
+// thread shows both the employer's message and our answer.
+model OutboundReply {
+  id          String   @id @default(cuid())
+  outreachId  String
+  outreach    Outreach @relation(fields: [outreachId], references: [id], onDelete: Cascade)
+  toAddress   String
+  subject     String
+  body        String   @db.Text
+  attachments Json?    // [{ filename, size }] — metadata only, not the bytes
+  sentBy      String?  // session user who sent it
+  provider    String?
+  providerId  String?
+  createdAt   DateTime @default(now())
+
+  @@index([outreachId])
 }
 
 model EmployerSignalLog {

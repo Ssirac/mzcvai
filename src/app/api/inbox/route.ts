@@ -25,6 +25,10 @@ export async function GET() {
             vacancy: { select: { title: true, url: true } },
           },
         },
+        outboundReplies: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, subject: true, body: true, attachments: true, toAddress: true, createdAt: true },
+        },
       },
     });
 

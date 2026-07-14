@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import TopNav from "../_components/TopNav";
 
+interface OutboundReply {
+  id: string;
+  subject: string;
+  body: string;
+  toAddress: string;
+  attachments: { filename: string; size: number }[] | null;
+  createdAt: string;
+}
 interface Reply {
   id: string;
   repliedAt: string | null;
@@ -11,6 +19,7 @@ interface Reply {
   replySubject: string | null;
   replyText: string | null;
   toAddress: string | null;
+  outboundReplies: OutboundReply[];
   match: {
     candidate: { id: string; name: string };
     employer: { id: string; name: string; optedOut: boolean };
@@ -21,6 +30,68 @@ interface Reply {
 function fmt(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleString();
+}
+
+// Reply straight from the app (no IONOS webmail), with optional file attachments.
+function ReplyComposer({ outreachId, onSent }: { outreachId: string; onSent: (r: OutboundReply) => void }) {
+  const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send() {
+    if (!text.trim() || sending) return;
+    setSending(true); setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("text", text);
+      for (const f of files) fd.append("files", f);
+      const res = await fetch(`/api/inbox/${outreachId}/reply`, { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(String(data.error ?? "Göndərilmədi")); return; }
+      onSent(data.reply as OutboundReply);
+      setText(""); setFiles([]);
+    } catch {
+      setErr("Şəbəkə xətası");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 border border-line rounded-xl p-3 bg-card-2/40 space-y-2">
+      <div className="text-xs font-medium text-ink-2">↩ Cavab yaz</div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        placeholder="Cavabınızı yazın…"
+        className="w-full bg-surface border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg px-3 py-2 text-sm placeholder:text-ink-3 resize-y"
+      />
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {files.map((f, i) => (
+            <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-card border border-line rounded px-2 py-1 text-ink-2">
+              📎 {f.name}
+              <button onClick={() => setFiles((p) => p.filter((_, j) => j !== i))} className="text-ink-3 hover:text-red-400" aria-label="remove">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {err && <div className="text-xs text-red-400">{err}</div>}
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs text-ink-2 hover:text-ink cursor-pointer bg-card border border-line rounded-lg px-3 py-2">
+          📎 Fayl əlavə et
+          <input type="file" multiple className="hidden"
+            onChange={(e) => { setFiles((p) => [...p, ...Array.from(e.target.files ?? [])]); e.target.value = ""; }} />
+        </label>
+        <button onClick={send} disabled={sending || !text.trim()}
+          className="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg px-4 py-2 disabled:opacity-50">
+          {sending ? "Göndərilir…" : "Göndər"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function InboxPage() {
@@ -149,7 +220,27 @@ export default function InboxPage() {
                       <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">
                         {r.replyText || t("noText")}
                       </div>
-                      <div className="flex items-center gap-3 mt-2">
+
+                      {/* Our sent answers (thread) */}
+                      {r.outboundReplies?.map((o) => (
+                        <div key={o.id} className="mt-2 ml-6 border-l-2 border-emerald-600/40 pl-3">
+                          <div className="text-[11px] text-emerald-500 mb-1">↩ Siz → {o.toAddress} · {fmt(o.createdAt)}</div>
+                          <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-emerald-600/5 rounded-lg p-3">{o.body}</div>
+                          {o.attachments && o.attachments.length > 0 && (
+                            <div className="text-[11px] text-ink-3 mt-1">📎 {o.attachments.map((a) => a.filename).join(", ")}</div>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Reply composer — answer straight from the app */}
+                      <ReplyComposer
+                        outreachId={r.id}
+                        onSent={(reply) => setReplies((prev) => prev.map((x) =>
+                          x.id === r.id ? { ...x, outboundReplies: [...x.outboundReplies, reply] } : x
+                        ))}
+                      />
+
+                      <div className="flex items-center gap-3 mt-3">
                         {r.match.vacancy.url && (
                           <a href={r.match.vacancy.url} target="_blank" rel="noopener noreferrer"
                             className="text-xs text-blue-400 hover:underline">🔗 {t("jobListing")}</a>
