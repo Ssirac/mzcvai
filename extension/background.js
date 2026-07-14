@@ -10,14 +10,20 @@
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg && msg.type === "mzPrefill") {
     (async () => {
+      const base = String(msg.baseUrl || "").replace(/\/+$/, "");
+      if (!/^https?:\/\//i.test(base)) {
+        return sendResponse({ error: "badurl", detail: base || "(leer)" });
+      }
+      const url = `${base}/api/candidates/${msg.candidateId}/prefill`;
       try {
-        const base = String(msg.baseUrl || "").replace(/\/+$/, "");
-        const res = await fetch(`${base}/api/candidates/${msg.candidateId}/prefill`, { credentials: "include" });
+        const res = await fetch(url, { credentials: "include" });
         if (res.status === 401) return sendResponse({ error: "unauth" });
         if (!res.ok) return sendResponse({ error: "http_" + res.status });
         sendResponse({ data: await res.json() });
-      } catch {
-        sendResponse({ error: "network" });
+      } catch (e) {
+        // Surface the real reason (e.g. "Failed to fetch" = host not in
+        // host_permissions / wrong URL / server unreachable) so it's diagnosable.
+        sendResponse({ error: "network", detail: `${(e && e.message) || e} → ${url}` });
       }
     })();
     return true; // keep the message channel open for the async response

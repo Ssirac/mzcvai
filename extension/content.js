@@ -119,7 +119,8 @@
     } catch { toast("MZ Autofill: interner Fehler.", false); return; }
     if (!resp) { toast("MZ Autofill: keine Antwort.", false); return; }
     if (resp.error === "unauth") { toast("MZ Autofill: nicht eingeloggt. Bitte in der MZ-App anmelden.", false); return; }
-    if (resp.error === "network") { toast("MZ Autofill: keine Verbindung zur MZ-App.", false); return; }
+    if (resp.error === "badurl") { toast(`MZ Autofill: ungültige Basis-URL (${resp.detail}). Im Popup korrigieren.`, false); return; }
+    if (resp.error === "network") { toast(`MZ Autofill: keine Verbindung — ${resp.detail || "MZ-App nicht erreichbar"}.`, false); return; }
     if (resp.error) { toast(`MZ Autofill: Fehler (${resp.error}).`, false); return; }
     const data = resp.data;
     const { filled, cvNote } = fillForm(data);
