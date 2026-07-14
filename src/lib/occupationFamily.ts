@@ -30,6 +30,7 @@ const FAMILIES: Record<string, string[]> = {
     "metzger", "fleischer",
   ],
   hotel: [
+    "hotel", "hotellerie", "gastgewerbe", "hospitality",
     "rezeption", "rezeptionist", "empfang", "empfangsmitarbeiter", "front office", "front desk",
     "night audit", "guest service", "gästebetreuung", "hotelfachmann", "hotelfachfrau", "hotelfach",
     "hotelkaufmann", "reception", "receptionist", "housekeeping", "zimmermädchen", "zimmermaedchen",
@@ -38,6 +39,9 @@ const FAMILIES: Record<string, string[]> = {
   cleaning: [
     "reinigung", "reinigungskraft", "gebäudereiniger", "gebaeudereiniger", "raumpflege", "raumpfleger",
     "unterhaltsreinigung", "glasreiniger", "cleaner", "cleaning", "hauswirtschaft", "wäscherei",
+    // housekeeping IS room cleaning — belongs here too, so a candidate who lists
+    // "Reinigung" matches hotel housekeeping roles.
+    "housekeeping", "zimmermädchen", "zimmermaedchen", "zimmerreinigung", "etagenservice", "hausdame",
   ],
   logistics: [
     "lager", "lagerarbeiter", "lagerhelfer", "lagerist", "kommissionierer", "kommissionierung",
@@ -69,8 +73,11 @@ const FAMILIES: Record<string, string[]> = {
   office: [
     "verwaltung", "büro", "buero", "sachbearbeiter", "sekretär", "sekretariat", "assistenz",
     "buchhaltung", "buchhalter", "accountant", "kaufmann", "kauffrau", "kaufmännisch", "office",
-    "empfangssekretär", "personalsachbearbeiter", "disponent", "projektkoordinator", "projektassistenz",
-    "projektmanagement", "projektmanager", "projektleiter",
+    "empfangssekretär", "personalsachbearbeiter", "disponent",
+    // NOTE: generic "Projektleiter/-manager/-koordinator" removed — a project
+    // lead exists in every field (construction, IT, facility) and wrongly linked
+    // office/sales candidates to technical roles. Field-specific project terms
+    // (Bauprojekt…) live in their own family.
   ],
   sales: [
     "verkäufer", "verkäuferin", "verkauf", "vertrieb", "sales", "einzelhandel", "kasse", "kassierer",
@@ -113,6 +120,26 @@ function hit(haystack: string, term: string): boolean {
   return new RegExp(`(^|[^a-zäöüß])${esc}([^a-zäöüß]|$)`, "i").test(haystack);
 }
 
+// Families group into broader CLUSTERS. Two occupations are compatible when they
+// share a cluster, so closely-related roles match (Koch↔Housekeeping↔Reinigung)
+// while genuinely different fields don't (Gastronomie↔Facility, Vertrieb↔Bau).
+const CLUSTER: Record<string, string> = {
+  gastro: "hospitality", hotel: "hospitality", cleaning: "hospitality",
+  construction: "technical", trades: "technical", facility: "technical",
+  logistics: "logistics",
+  office: "commercial", sales: "commercial", marketing: "commercial",
+  care: "care",
+  it: "it",
+  security: "security",
+  beauty: "beauty",
+  agriculture: "agriculture",
+};
+const clustersOf = (fams: Set<string>): Set<string> => {
+  const c = new Set<string>();
+  Array.from(fams).forEach((f) => { if (CLUSTER[f]) c.add(CLUSTER[f]); });
+  return c;
+};
+
 /** Occupation families a free-text occupation/title belongs to (may be empty). */
 export function occupationFamilies(text: string): Set<string> {
   const t = (text || "").toLowerCase();
@@ -138,6 +165,10 @@ export function familyCompatibility(candidateProfile: string, vacancyTitle: stri
   // beruf can still add a family, so include it as a weak secondary hint.
   const vac = occupationFamilies(`${vacancyTitle} ${vacancyBeruf}`);
   if (cand.size === 0 || vac.size === 0) return { decided: false };
-  const compatible = Array.from(cand).some((f) => vac.has(f));
+  // Compatible if they share a cluster (broader than an exact family), so
+  // adjacent roles within hospitality / technical / commercial still match.
+  const candClusters = clustersOf(cand);
+  const vacClusters = clustersOf(vac);
+  const compatible = Array.from(candClusters).some((c) => vacClusters.has(c));
   return { decided: true, compatible, candidate: Array.from(cand), vacancy: Array.from(vac) };
 }

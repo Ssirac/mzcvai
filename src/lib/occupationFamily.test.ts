@@ -29,9 +29,23 @@ describe("occupation family gate", () => {
     }
   });
 
-  it("keeps Omrum matched to cleaning and logistics roles he listed", () => {
+  it("keeps Omrum matched to cleaning, housekeeping and logistics roles he listed", () => {
     expect((familyCompatibility(OMRUM, "Reinigungskraft (m/w/d)") as { compatible: boolean }).compatible).toBe(true);
+    expect((familyCompatibility(OMRUM, "Mitarbeiter Housekeeping (m/w/d)") as { compatible: boolean }).compatible).toBe(true);
     expect((familyCompatibility(OMRUM, "Lagerhelfer (m/w/d)") as { compatible: boolean }).compatible).toBe(true);
+  });
+
+  it("keeps a construction candidate matched to a facility role (same technical cluster)", () => {
+    const r = familyCompatibility(XAZAR, "Technischer Objektverwalter (m/w/d)");
+    expect(r.decided).toBe(true);
+    if (r.decided) expect(r.compatible).toBe(true);
+  });
+
+  it("still blocks a sales/media candidate from a technical facility project lead", () => {
+    const FARID = "Vertrieb, Digitale Medien & Social Media Management";
+    const r = familyCompatibility(FARID, "Projektleiter Technisches Gebäudemanagement (m/w/d)");
+    expect(r.decided).toBe(true);
+    if (r.decided) expect(r.compatible).toBe(false);
   });
 
   it("keeps a construction candidate matched to construction roles", () => {
