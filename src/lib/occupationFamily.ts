@@ -22,7 +22,7 @@ const FAMILIES: Record<string, string[]> = {
   gastro: [
     "koch", "köchin", "kochhilfe", "küchenhilfe", "küchenmitarbeiter", "küche", "beikoch",
     "commis", "chef de partie", "sous chef", "souschef", "küchenchef", "chefkoch", "gardemanger",
-    "saucier", "cook", "service", "servicekraft", "servicemitarbeiter", "kellner", "kellnerin",
+    "saucier", "cook", "servicekraft", "servicemitarbeiter", "servicepersonal", "kellner", "kellnerin",
     "chef de rang", "commis de rang", "restaurantfachmann", "restaurantfachfrau",
     "restaurantmitarbeiter", "restaurant", "gastronomie", "systemgastronomie", "waiter", "waitress",
     "bar", "barkeeper", "barmann", "bartender", "barista", "catering", "bankett", "bankettmitarbeiter",

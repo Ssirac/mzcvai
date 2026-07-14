@@ -206,6 +206,10 @@ export function calculateFitScore(params: {
   vacancyRegion: string;
   vacancyTitle?: string;
   employerSponsorshipSignal: SponsorshipSignal;
+  // Whether the vacancy is in the candidate's line of work (decided by the caller
+  // from the TITLE — the stored beruf is the polluted ingest search term). When
+  // omitted, fall back to a title-only keyword match.
+  occupationRelevant?: boolean;
 }): FitBreakdown {
   const {
     candidateBeruf,
@@ -215,23 +219,24 @@ export function calculateFitScore(params: {
     candidateRegions,
     candidateLanguages,
     candidateNeedsSponsorship,
-    vacancyBeruf,
     vacancyRegion,
     vacancyTitle,
     employerSponsorshipSignal,
+    occupationRelevant,
   } = params;
 
   // Seniority gate: match from the candidate's "willing floor" up to their
   // qualification ceiling — never above (too senior). Out-of-range ⇒ not a match.
-  const vacLevel = seniorityLevel(`${vacancyBeruf} ${vacancyTitle ?? ""}`);
+  // Uses the TITLE only (the stored beruf is polluted).
+  const vacLevel = seniorityLevel(vacancyTitle ?? "");
   const levelInRange = vacLevel <= candidateMaxLevel && vacLevel >= candidateMinLevel;
   if (!levelInRange) {
     return { beruf: 0, region: 0, language: 0, sponsorship: 0, level: vacLevel, total: 0 };
   }
 
-  // Flexible, case-insensitive beruf match (handles free-text occupations)
-  const exact = candidateBeruf.trim().toLowerCase() === vacancyBeruf.trim().toLowerCase();
-  const beruf = exact ? 40 : berufMatches(candidateBeruf, vacancyBeruf, vacancyTitle ?? "") ? 32 : 0;
+  // Occupation score from real relevance (never from the polluted beruf field).
+  const relevant = occupationRelevant ?? berufMatches(candidateBeruf, "", vacancyTitle ?? "");
+  const beruf = relevant ? 32 : 0;
 
   let region = 0;
   if (candidateRegions.length === 0 || candidateRegions.includes("Deutschland") || candidateRegions.includes(vacancyRegion)) {

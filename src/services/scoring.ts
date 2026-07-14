@@ -1,9 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
-import { berufSearchKeywords, seniorityLevel } from "@/lib/berufMap";
+import { berufSearchKeywords, seniorityLevel, berufMatches } from "@/lib/berufMap";
 import { familyCompatibility } from "@/lib/occupationFamily";
 import { isActionable } from "@/lib/actionable";
+
+// Is a vacancy TITLE actually in the candidate's line of work? Uses the vacancy
+// title ONLY (its stored `beruf` is the polluted ingest search term). Occupation
+// families decide when both classify; otherwise fall back to a strict title
+// keyword/synonym match (with generic stopwords excluded). No family + no keyword
+// overlap ⇒ NOT relevant — this closes the leak where an unclassifiable title
+// (e.g. "Operational Excellence Coordinator") slipped through on the polluted
+// beruf's fit score.
+export function occupationRelevant(candidateProfile: string, vacancyTitle: string): boolean {
+  const fam = familyCompatibility(candidateProfile, vacancyTitle);
+  if (fam.decided) return fam.compatible;
+  return berufMatches(candidateProfile, "", vacancyTitle); // title-only keyword match
+}
 
 // Minimum fitScore to create a Match. The vacancy pool is ALREADY restricted to
 // occupation-relevant jobs by the search query, so a solid occupation + region
@@ -131,14 +144,11 @@ export async function matchCandidateToVacancies(candidateId: string) {
       continue;
     }
 
-    // Occupation-family gate: the vacancy's TITLE (real) must be in the same
-    // occupation family as the candidate. This stops cross-profession matches
-    // that the polluted `beruf` field (= the ingest search term) would otherwise
-    // score as perfect (e.g. a gastronomy candidate → "Technischer
-    // Objektverwalter"). When either side is unclassifiable the gate abstains and
-    // the normal fit score below decides, so unusual-but-valid roles still match.
-    const fam = familyCompatibility(searchProfile, vacancy.title, vacancy.beruf);
-    if (fam.decided && !fam.compatible) {
+    // Occupation gate: the vacancy TITLE must be in the candidate's line of work.
+    // Strict — an unclassifiable title with no keyword overlap is dropped (not
+    // given a free pass), so office/IT/finance roles never reach a gastronomy
+    // candidate on the strength of the polluted `beruf` field.
+    if (!occupationRelevant(searchProfile, vacancy.title)) {
       skipped.push(vacancy.id);
       continue;
     }
@@ -155,6 +165,7 @@ export async function matchCandidateToVacancies(candidateId: string) {
       vacancyRegion: vacancy.region,
       vacancyTitle: vacancy.title,
       employerSponsorshipSignal: vacancy.employer.sponsorshipSignal,
+      occupationRelevant: true, // gate above guarantees it
     });
 
     if (fit.total < MATCH_THRESHOLD) {

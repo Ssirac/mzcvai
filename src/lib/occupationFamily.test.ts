@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { familyCompatibility, occupationFamilies } from "./occupationFamily";
+import { berufMatches } from "./berufMap";
 
 // The candidate profiles that surfaced the cross-profession bug.
 const OMRUM = "Servicekraft / Allround-Mitarbeiter in Gastronomie, Hotel, Reinigung oder Logistik";
@@ -71,6 +72,22 @@ describe("occupation family gate", () => {
     const r = familyCompatibility(ALYAR, "Technischer Objektverwalter (m/w/d)", "Restaurantmitarbeiter Systemgastronomie");
     expect(r.decided).toBe(true);
     if (r.decided) expect(r.compatible).toBe(false);
+  });
+
+  it("does not treat a Servicetechniker (IT) as gastronomy service", () => {
+    expect(occupationFamilies("Servicetechniker Telekommunikation & IT").has("gastro")).toBe(false);
+    const r = familyCompatibility(ALYAR, "Servicetechniker Telekommunikation & IT (m/w/d)");
+    expect(r.decided).toBe(true);
+    if (r.decided) expect(r.compatible).toBe(false);
+  });
+
+  it("gives an unclassifiable off-field title no keyword overlap with a restaurant candidate", () => {
+    // familyCompatibility abstains (title has no family) — the caller then relies
+    // on a TITLE keyword match, which must be false for these.
+    expect(familyCompatibility(ALYAR, "Operational Excellence Coordinator (gn)").decided).toBe(false);
+    expect(berufMatches(ALYAR, "", "Operational Excellence Coordinator (gn)")).toBe(false);
+    expect(berufMatches(ALYAR, "", "Prüfungsassistent (m/w/d)")).toBe(false);
+    expect(berufMatches(ALYAR, "", "Steuerberater (m/w/d)")).toBe(false);
   });
 
   it("classifies the key titles into the expected families", () => {
