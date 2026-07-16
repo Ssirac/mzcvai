@@ -94,7 +94,15 @@
   "funnel": {
     "title": "Pipeline",
     "ingested": "Toplandı", "matched": "Uyğunlaşdı", "reviewed": "Baxıldı", "sent": "Göndərildi",
-    "delivered": "Çatdırıldı", "replied": "Cavab", "interview": "Müsahibə", "placed": "Yerləşdirildi"
+    "delivered": "Çatdırıldı", "replied": "Cavab", "interview": "Müsahibə", "placed": "Yerləşdirildi",
+    "pipelineTitle": "Namizəd pipeline-ı",
+    "sourcesTitle": "Mənbə keyfiyyəti",
+    "colSource": "Mənbə", "colVacancies": "Elan", "colMatched": "Uyğun", "colSent": "Göndərildi",
+    "colReplied": "Cavab", "colPlaced": "Yerləşdi", "colReplyRate": "Cavab %",
+    "stage": {
+      "NEW": "Yeni", "PROFILE_READY": "Profil hazır", "MATCHED": "Uyğunlaşdı", "PRESENTED": "Təqdim edildi",
+      "INTERVIEW": "Müsahibə", "VISA": "Viza", "PLACED": "Yerləşdi", "REJECTED": "Rədd edildi", "ARCHIVED": "Arxiv"
+    }
   },
   "system": {
     "title": "Sistem",

@@ -94,7 +94,15 @@
   "funnel": {
     "title": "Pipeline",
     "ingested": "Ingested", "matched": "Matched", "reviewed": "Reviewed", "sent": "Sent",
-    "delivered": "Delivered", "replied": "Replied", "interview": "Interview", "placed": "Placed"
+    "delivered": "Delivered", "replied": "Replied", "interview": "Interview", "placed": "Placed",
+    "pipelineTitle": "Candidate pipeline",
+    "sourcesTitle": "Source quality",
+    "colSource": "Source", "colVacancies": "Jobs", "colMatched": "Matched", "colSent": "Sent",
+    "colReplied": "Replied", "colPlaced": "Placed", "colReplyRate": "Reply %",
+    "stage": {
+      "NEW": "New", "PROFILE_READY": "Profile ready", "MATCHED": "Matched", "PRESENTED": "Presented",
+      "INTERVIEW": "Interview", "VISA": "Visa", "PLACED": "Placed", "REJECTED": "Rejected", "ARCHIVED": "Archived"
+    }
   },
   "system": {
     "title": "System",

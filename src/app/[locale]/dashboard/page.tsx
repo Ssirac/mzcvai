@@ -686,32 +686,101 @@ export default function DashboardPage() {
   );
 }
 
+type FunnelStage = { key: string; count: number };
+type PipelineBucket = { stage: string; count: number };
+type SourceRow = {
+  source: string; vacancies: number; matched: number; sent: number;
+  replied: number; placed: number; replyRate: number;
+};
+
 // Pipeline funnel: ingested → matched → reviewed → sent → delivered → replied →
-// interview → placed. Self-contained; fetches /api/funnel.
+// interview → placed, plus the candidate placement-pipeline distribution and
+// per-source conversion quality. Self-contained; fetches /api/funnel.
 function PipelineFunnel() {
   const t = useTranslations("funnel");
-  const [stages, setStages] = useState<{ key: string; count: number }[]>([]);
+  const [stages, setStages] = useState<FunnelStage[]>([]);
+  const [pipeline, setPipeline] = useState<PipelineBucket[]>([]);
+  const [sources, setSources] = useState<SourceRow[]>([]);
   useEffect(() => {
     let alive = true;
-    fetch("/api/funnel").then((r) => r.json()).then((d) => { if (alive) setStages(d.stages ?? []); }).catch(() => {});
+    fetch("/api/funnel").then((r) => r.json()).then((d) => {
+      if (!alive) return;
+      setStages(d.stages ?? []);
+      setPipeline(d.pipeline ?? []);
+      setSources(d.sources ?? []);
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
   if (stages.length === 0) return null;
   const max = Math.max(1, ...stages.map((s) => s.count));
+  const pipeMax = Math.max(1, ...pipeline.map((p) => p.count));
   return (
-    <div className="bg-card border border-line rounded-xl p-3 sm:p-4">
-      <div className="text-xs font-semibold text-ink-3 mb-3">{t("title")}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {stages.map((s) => (
-          <div key={s.key} className="min-w-0">
-            <div className="text-[11px] text-ink-3 truncate">{t(s.key)}</div>
-            <div className="text-lg font-bold text-ink tabular-nums">{s.count.toLocaleString()}</div>
-            <div className="h-1.5 mt-1 rounded-full bg-card-2 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${Math.round((s.count / max) * 100)}%` }} />
+    <div className="bg-card border border-line rounded-xl p-3 sm:p-4 space-y-4">
+      <div>
+        <div className="text-xs font-semibold text-ink-3 mb-3">{t("title")}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          {stages.map((s) => (
+            <div key={s.key} className="min-w-0">
+              <div className="text-[11px] text-ink-3 truncate">{t(s.key)}</div>
+              <div className="text-lg font-bold text-ink tabular-nums">{s.count.toLocaleString()}</div>
+              <div className="h-1.5 mt-1 rounded-full bg-card-2 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${Math.round((s.count / max) * 100)}%` }} />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+
+      {pipeline.some((p) => p.count > 0) && (
+        <div className="border-t border-line pt-3">
+          <div className="text-xs font-semibold text-ink-3 mb-3">{t("pipelineTitle")}</div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            {pipeline.map((p) => (
+              <div key={p.stage} className="min-w-0">
+                <div className="text-[11px] text-ink-3 truncate">{t(`stage.${p.stage}`)}</div>
+                <div className="text-base font-bold text-ink tabular-nums">{p.count.toLocaleString()}</div>
+                <div className="h-1.5 mt-1 rounded-full bg-card-2 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-sky-500 to-indigo-500" style={{ width: `${Math.round((p.count / pipeMax) * 100)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sources.length > 0 && (
+        <div className="border-t border-line pt-3">
+          <div className="text-xs font-semibold text-ink-3 mb-3">{t("sourcesTitle")}</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-ink-3 text-left">
+                  <th className="font-medium py-1 pr-3">{t("colSource")}</th>
+                  <th className="font-medium py-1 pr-3 text-right tabular-nums">{t("colVacancies")}</th>
+                  <th className="font-medium py-1 pr-3 text-right tabular-nums">{t("colMatched")}</th>
+                  <th className="font-medium py-1 pr-3 text-right tabular-nums">{t("colSent")}</th>
+                  <th className="font-medium py-1 pr-3 text-right tabular-nums">{t("colReplied")}</th>
+                  <th className="font-medium py-1 pr-3 text-right tabular-nums">{t("colPlaced")}</th>
+                  <th className="font-medium py-1 text-right tabular-nums">{t("colReplyRate")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sources.map((s) => (
+                  <tr key={s.source} className="border-t border-line/60">
+                    <td className="py-1.5 pr-3 text-ink font-medium truncate max-w-[10rem]">{s.source}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums text-ink-2">{s.vacancies.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums text-ink-2">{s.matched.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums text-ink-2">{s.sent.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums text-ink-2">{s.replied.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums font-semibold text-emerald-500">{s.placed.toLocaleString()}</td>
+                    <td className="py-1.5 text-right tabular-nums text-ink-2">{s.replyRate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
