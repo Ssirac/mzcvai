@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
+import { authorize } from "@/lib/rbac";
 
 // POST /api/candidates/[id]/reset-outreach
 // Deletes ALL outreach (incl. SENT) for this candidate's matches, so every job
 // returns to "Uyğun işlər" and can be sent again. Also clears the per-employer
 // cooldown (which is derived from SENT outreach records) for these employers.
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     // Collect this candidate's employer ids first (to clear their OUTREACH_SENT
     // behavior logs too, for a clean re-send).
     const matches = await prisma.match.findMany({

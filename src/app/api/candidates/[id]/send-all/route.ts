@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { sendAllForCandidate } from "@/services/outreach";
-import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
 import { authorize } from "@/lib/rbac";
 
@@ -16,7 +15,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!authz.ok) return authz.response;
     const body = await req.json().catch(() => ({}));
     // Approver = the logged-in user (recorded on every outreach), not client input.
-    const actor = await getSessionUser(req);
+    // Already resolved by authorize(); reuse it rather than re-verifying the cookie.
+    const actor = authz.actor;
     const matchIds = Array.isArray(body.matchIds)
       ? body.matchIds.filter((x: unknown): x is string => typeof x === "string")
       : undefined;

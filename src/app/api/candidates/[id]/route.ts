@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
 import { authorize } from "@/lib/rbac";
 
@@ -21,6 +20,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // PATCH /api/candidates/[id] — quick status change (PENDING | PLACED | ARCHIVED)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const authz = await authorize(req, "candidate.write");
+    if (!authz.ok) return authz.response;
     const body = await req.json();
     const status = body.status;
     if (!["ACTIVE", "PENDING", "PLACED", "ARCHIVED"].includes(status)) {
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       data: { status },
     });
-    await logAudit({ actor: await getSessionUser(req), action: "CANDIDATE_UPDATE", targetType: "candidate", targetId: params.id, meta: { status } });
+    await logAudit({ actor: authz.actor, action: "CANDIDATE_UPDATE", targetType: "candidate", targetId: params.id, meta: { status } });
     return NextResponse.json({ ok: true, candidate });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

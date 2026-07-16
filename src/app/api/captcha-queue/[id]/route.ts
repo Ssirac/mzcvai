@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
 import { logAudit } from "@/services/audit";
+import { authorize } from "@/lib/rbac";
 
 const ALLOWED = ["PENDING", "IN_PROGRESS", "SUBMITTED", "SKIPPED", "FAILED"];
 
@@ -19,11 +19,13 @@ const LOG_STATUS: Record<string, string> = {
 // the same (candidate, job), so "Submitted" shows as APPLIED in the log.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const authz = await authorize(req, "candidate.write");
+    if (!authz.ok) return authz.response;
     const { status } = await req.json();
     if (!ALLOWED.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
-    const actor = await getSessionUser(req);
+    const actor = authz.actor;
     const resolved = status === "SUBMITTED" || status === "SKIPPED" || status === "FAILED";
 
     const row = await prisma.captchaQueue.update({
