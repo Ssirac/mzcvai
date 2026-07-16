@@ -33,10 +33,10 @@ const OTP_MARKERS = [
 ];
 
 // Terminal statuses that mean "don't re-scan this pairing".
-const DONE = new Set(["APPLIED", "FILLED", "FORM_FOUND", "WAITING_CAPTCHA", "WAITING_OTP", "INTERVIEW", "OFFER"]);
+const DONE = new Set(["APPLIED", "FILLED", "FORM_FOUND", "WAITING_CAPTCHA", "WAITING_OTP", "WAITING_LOGIN", "INTERVIEW", "OFFER"]);
 
 export interface ApplyScanResult {
-  scanned: number; captcha: number; otp: number; form: number;
+  scanned: number; captcha: number; otp: number; form: number; login: number;
   alreadyApplied: number; noForm: number; errors: number;
 }
 
@@ -44,7 +44,7 @@ export async function runApplyScan(opts?: { candidateId?: string; limit?: number
   const limit = opts?.limit ?? parseInt(process.env.APPLY_SCAN_LIMIT ?? "20");
   const maxMs = opts?.maxMs ?? 0;
   const started = Date.now();
-  const r: ApplyScanResult = { scanned: 0, captcha: 0, otp: 0, form: 0, alreadyApplied: 0, noForm: 0, errors: 0 };
+  const r: ApplyScanResult = { scanned: 0, captcha: 0, otp: 0, form: 0, login: 0, alreadyApplied: 0, noForm: 0, errors: 0 };
 
   const matches = await prisma.match.findMany({
     where: {
@@ -101,15 +101,23 @@ export async function runApplyScan(opts?: { candidateId?: string; limit?: number
         } else if (cap) { reason = cap; status = "WAITING_CAPTCHA"; r.captcha++; }
         else if (OTP_MARKERS.some((k) => html.includes(k))) { reason = "otp"; status = "WAITING_OTP"; r.otp++; }
         else {
-          // Fillable form? Count visible text/email/tel inputs inside a <form>
-          // via cheerio in Node (no $$eval closure → bundler-safe).
           const $ = load(rawHtml);
-          const inputs = $("form input, form textarea").filter((_, e) => {
-            const type = ($(e).attr("type") || "").toLowerCase();
-            return !["hidden", "submit", "button", "checkbox", "radio"].includes(type);
-          }).length;
-          if (inputs >= 2) { reason = "form"; status = "FORM_FOUND"; r.form++; }
-          else { status = "NO_FORM"; r.noForm++; }
+          // Login wall? A password field means "sign in / create an account to
+          // apply" (arbeitsagentur portal, ATS accounts…). Queue it flagged as
+          // "login" so the human sees the 🔑 badge BEFORE opening — previously a
+          // 2-input login form even miscounted as a ready-to-fill form.
+          const hasPassword = $('input[type="password"]').length > 0;
+          if (hasPassword) { reason = "login"; status = "WAITING_LOGIN"; r.login++; }
+          else {
+            // Fillable form? Count visible text/email/tel inputs inside a <form>
+            // via cheerio in Node (no $$eval closure → bundler-safe).
+            const inputs = $("form input, form textarea").filter((_, e) => {
+              const type = ($(e).attr("type") || "").toLowerCase();
+              return !["hidden", "submit", "button", "checkbox", "radio"].includes(type);
+            }).length;
+            if (inputs >= 2) { reason = "form"; status = "FORM_FOUND"; r.form++; }
+            else { status = "NO_FORM"; r.noForm++; }
+          }
         }
       } catch {
         r.errors++;

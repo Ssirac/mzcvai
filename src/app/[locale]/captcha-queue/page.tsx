@@ -75,6 +75,13 @@ export default function CaptchaQueuePage() {
   // "verify" = a captcha/OTP that needs a human check first. Doing the ready ones
   // in a batch is much faster, so let the user focus on them.
   const isReady = (reason: string) => /form/i.test(reason);
+  // 🔑 the job needs an account/login before the form is reachable — either the
+  // scanner saw a password wall, or the apply link goes to the arbeitsagentur
+  // portal (its applications always sit behind a Bundesagentur account).
+  const needsLogin = (it: { blockedReason: string; applicationUrl: string }) => {
+    if (/login/i.test(it.blockedReason)) return true;
+    try { return /(^|\.)arbeitsagentur\.de$/i.test(new URL(it.applicationUrl).hostname); } catch { return false; }
+  };
   const readyCount = groups.reduce((n, g) => n + g.items.filter((i) => isReady(i.blockedReason)).length, 0);
   const verifyCount = total - readyCount;
   const match = (reason: string) => view === "all" || (view === "ready" ? isReady(reason) : !isReady(reason));
@@ -147,6 +154,9 @@ export default function CaptchaQueuePage() {
                             <span className="px-1.5 py-0.5 rounded bg-card-2 text-ink-2 border border-line">{it.platform}</span>
                             <span className="text-ink-3">{t("matchScore")}: {Math.round(it.matchScore)}</span>
                             <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-500">{t("blocked")}: {it.blockedReason}</span>
+                            {needsLogin(it) && (
+                              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-500 font-medium">🔑 {t("loginNeeded")}</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

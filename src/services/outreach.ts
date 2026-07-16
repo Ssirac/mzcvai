@@ -161,6 +161,20 @@ export async function composeApplicationLetter(
   // Excerpt of the actual job posting so the letter can address its requirements
   const jobText = (vacancy.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1500);
 
+  // Structure rotation: pick a different opening/build per (candidate, employer,
+  // vacancy) so letters never share one uniform, template-like skeleton — a
+  // recruiter writing by hand also never structures two letters identically.
+  const STYLE_VARIANTS = [
+    "Beginne mit einem konkreten Bezug zum Betrieb (Branche, Ort oder Ausrichtung von " +
+      "diesem Arbeitgeber) und komme erst im zweiten Satz auf den Kandidaten.",
+    "Beginne direkt mit der stärksten passenden Qualifikation des Kandidaten für genau diese Stelle.",
+    "Beginne mit dem dringendsten Bedarf aus der Stellenanzeige und beantworte ihn sofort mit dem Profil des Kandidaten.",
+    "Beginne knapp und sachlich, fast beiläufig, und werde erst im Mittelteil konkreter.",
+  ];
+  let seed = 0;
+  for (const ch of `${candidate.name}|${employer.name}|${vacancy.title}`) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const styleHint = STYLE_VARIANTS[seed % STYLE_VARIANTS.length];
+
   const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "${AGENCY_NAME}" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
@@ -174,11 +188,18 @@ PFLICHT (unbedingt einhalten):
 - Max. 230 Wörter, professionell, freundlich, konkret (keine Floskeln).
 
 SO ERHÖHST DU DIE ANTWORTQUOTE (Qualität, die Rückmeldungen bringt):
-- Erster Satz = starker, konkreter Einstieg mit direktem Bezug auf ${employer.name} und die ausgeschriebene Stelle — KEINE Standardfloskel wie "hiermit bewerbe ich mich".
+- ${styleHint}
+- KEINE Standardfloskel wie "hiermit bewerbe ich mich" als Einstieg.
 - Greife 2–3 konkrete Anforderungen aus der Anzeige auf und belege sie mit passenden Stationen/Fähigkeiten des Kandidaten (nenne konkrete Tätigkeiten, Jahre, Erfahrung — keine leeren Adjektive).
 - Formuliere aus Arbeitgeber-Sicht: was der Kandidat dem Betrieb konkret bringt (Nutzen), nicht nur, was er sucht.
-- Natürliche, menschliche Sprache in fehlerfreiem Deutsch. KEINE aufgeblähten KI-Formulierungen, keine Wiederholungen, keine übertriebenen Superlative.
 - Kurze, klar lesbare Absätze. Selbstbewusster, aber nie aufdringlicher Ton.
+
+SCHREIBE WIE EIN MENSCH, NICHT WIE EIN SPRACHMODELL (streng einhalten):
+- Unterschiedliche Satzlängen — auch mal ein kurzer Satz. Keine drei parallel gebauten Absätze, keine Aufzählungen in Dreierpacks, keine identisch beginnenden Sätze.
+- VERBOTENE Formulierungen (klingen nach KI): "in der heutigen Zeit", "ich bin überzeugt, dass", "hochmotiviert", "leidenschaftlich", "Darüber hinaus", "Des Weiteren", "nicht nur … sondern auch", "perfekte Ergänzung", "wertvolle Bereicherung", "zeichnet sich durch … aus", "bringt … mit" als Dauerformel.
+- Keine Gedankenstrich-Ketten, keine Superlative, kein Schlusssatz der Marke "Ich freue mich darauf, … beizutragen".
+- Ein Detail darf beiläufig erwähnt werden, wie es ein Mensch beim schnellen Schreiben tut — nicht jeder Punkt gleich stark betont.
+- Der Text muss klingen wie von einer vielbeschäftigten deutschen Personalberaterin getippt: klar, konkret, etwas nüchtern.
 
 Kandidat: ${candidate.name}${candidate.nationality ? ` (${candidate.nationality})` : ""}
 Beruf/Qualifikation: ${candidate.beruf}

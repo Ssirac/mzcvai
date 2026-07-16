@@ -151,10 +151,13 @@ export async function pruneDeadVacancies(
 export async function sweepDeadVacancies(
   opts?: { limit?: number; notSeenMins?: number; delayMs?: number; maxMs?: number }
 ): Promise<{ checked: number; deleted: number; expired: number }> {
-  const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "30");
+  // 60/tick × every-15-min cleanup ≈ 240 listings/hour checked continuously —
+  // the manual "delete dead listings" button stays as a booster, not a necessity.
+  const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "60");
   const notSeenMins = opts?.notSeenMins ?? parseInt(process.env.DEAD_SWEEP_NOT_SEEN_MINS ?? "360"); // 6h
   const delayMs = opts?.delayMs ?? 1200;
-  const maxMs = opts?.maxMs ?? 0; // 0 = no time budget
+  // Default budget keeps a cron tick well inside the route's 300s maxDuration.
+  const maxMs = opts?.maxMs ?? 240_000;
   const started = Date.now();
   // notSeenMins <= 0 means "check everything" (manual full sweep), so use a future
   // cutoff that matches all rows.

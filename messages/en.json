@@ -152,6 +152,7 @@
     "copied": "Copied",
     "matchScore": "Match",
     "blocked": "Blocked",
+    "loginNeeded": "Login required",
     "markSubmitted": "Submitted",
     "markSkipped": "Skip",
     "statusUpdated": "Status updated",
