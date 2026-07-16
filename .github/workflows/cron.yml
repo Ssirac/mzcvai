@@ -1,0 +1,47 @@
+name: External cron backup
+
+# Safety net for the in-process scheduler (src/instrumentation.ts): if the
+# Railway instance sleeps, restarts, or its setInterval drifts, GitHub Actions
+# still pokes the maintenance endpoint on a schedule — which also wakes a
+# sleeping app. All jobs are idempotent and cron-locked, so double-firing
+# alongside the in-process scheduler is safe.
+#
+# Requires one repo secret: CRON_SECRET (must match Railway's CRON_SECRET).
+# Add it in GitHub → Settings → Secrets and variables → Actions.
+
+on:
+  schedule:
+    - cron: "0 * * * *"    # hourly        → replies (+ light cleanup)
+    - cron: "0 */4 * * *"  # every 4 hours → refresh (new listings + auto-send)
+    - cron: "0 8 * * *"    # daily 08:00 UTC → follow-ups + digest
+  workflow_dispatch: {}     # manual "run now" button
+
+# One run at a time — never overlap ourselves.
+concurrency:
+  group: external-cron
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire maintenance job(s)
+        env:
+          BASE: https://mzcvai-production.up.railway.app
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SECRET" ]; then
+            echo "::error::CRON_SECRET repo secret is not set — add it in Settings → Secrets → Actions"
+            exit 1
+          fi
+          fire() {
+            echo "→ job=$1"
+            curl -fsS -X POST "$BASE/api/cron/maintenance?job=$1" \
+              -H "x-cron-secret: $SECRET" --max-time 300 \
+              && echo " ✓ $1 ok" || { echo "::error::job $1 failed"; return 1; }
+          }
+          case "${{ github.event.schedule }}" in
+            "0 8 * * *")   fire followups; fire digest ;;
+            "0 */4 * * *") fire refresh ;;
+            *)             fire replies ;;   # hourly + manual dispatch
+          esac
