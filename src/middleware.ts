@@ -16,8 +16,14 @@ function isPublic(pathname: string): boolean {
   if (pathname === "/api/health") return true;           // monitoring/uptime check
   if (/^\/(?:[a-z]{2}\/)?login$/.test(pathname)) return true; // login page (with/without locale)
   // PWA/browser assets — must load pre-login for install + tab icon
-  if (pathname === "/manifest.webmanifest" || pathname === "/icon.svg" || pathname === "/favicon.ico") return true;
+  if (pathname === "/manifest.webmanifest" || pathname === "/icon.jpeg" || pathname === "/favicon.ico") return true;
   return false;
+}
+
+// Server-to-server callbacks that legitimately carry no browser Origin and are
+// guarded by their own secret — exempt from the same-origin CSRF check.
+function isServerToServer(pathname: string): boolean {
+  return pathname.startsWith("/api/cron") || pathname.startsWith("/api/webhooks");
 }
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -27,20 +33,25 @@ export default async function middleware(req: NextRequest) {
   const session = await verifyToken(req.cookies.get(SESSION_COOKIE)?.value);
   const isApi = pathname.startsWith("/api");
 
-  // CSRF defense: a state-changing API call from a browser always carries an
-  // Origin header; reject it if it doesn't match our host. (Cron is exempt —
-  // it is server-to-server and protected by its own secret.)
-  if (isApi && MUTATING.has(req.method) && !pathname.startsWith("/api/cron")) {
+  // CSRF defense: a state-changing browser request carries an Origin (or at
+  // least a Referer); require one of them to match our host. Server-to-server
+  // callbacks (cron, webhooks) are exempt — they carry no Origin and are guarded
+  // by their own secret. This closes the "no header at all" bypass for the app's
+  // own mutating endpoints.
+  if (isApi && MUTATING.has(req.method) && !isServerToServer(pathname)) {
+    const host = req.headers.get("host");
     const origin = req.headers.get("origin");
-    if (origin) {
-      const host = req.headers.get("host");
-      try {
-        if (new URL(origin).host !== host) {
-          return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
-        }
-      } catch {
-        return NextResponse.json({ error: "Bad origin" }, { status: 403 });
+    const referer = req.headers.get("referer");
+    const sourceUrl = origin || referer;
+    if (!sourceUrl) {
+      return NextResponse.json({ error: "Missing origin" }, { status: 403 });
+    }
+    try {
+      if (new URL(sourceUrl).host !== host) {
+        return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 });
       }
+    } catch {
+      return NextResponse.json({ error: "Bad origin" }, { status: 403 });
     }
   }
 

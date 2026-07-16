@@ -17,6 +17,8 @@ import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 import { enrichSingleEmployer } from "@/services/enrichment";
 import { sendMail } from "@/lib/mailer";
 import { withRefTag } from "@/lib/outreachRef";
+// GDPR personal-email guard — dependency-free, so it stays unit-testable.
+import { looksPersonal } from "@/lib/emailGuard";
 
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
@@ -80,46 +82,8 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
   return { subject, sentTo: recipients, employer: employerName, body };
 }
 
-// Guard: personal email detection (name.surname@ pattern)
-// We block these at write time to enforce GDPR default
-// Local-parts that belong to a company boss/owner, not an application inbox.
-// We never apply via these — a Geschäftsführer reacts badly to a cold pitch.
-// Exact matches (avoid false positives like "chefkoch" = head chef = valid).
-const EXEC_EXACT = new Set([
-  "ceo", "cto", "cfo", "coo", "gf", "inhaber", "inhaberin", "owner", "vorstand",
-  "direktor", "direktorin", "director", "boss", "praesident", "präsident", "president",
-  "geschaeftsfuehrer", "geschäftsführer", "geschaeftsleitung", "geschäftsleitung",
-]);
-// Substrings that unambiguously mark an executive address.
-const EXEC_CONTAINS = ["geschaeftsf", "geschäftsf", "geschaeftsleit", "geschäftsleit", "vorstand", "inhaber"];
-function isExecLocalpart(local: string): boolean {
-  const l = local.toLowerCase().replace(/[.\-_0-9]/g, "");
-  if (EXEC_EXACT.has(l)) return true;
-  return EXEC_CONTAINS.some((t) => l.includes(t));
-}
-
-// Local parts that identify a DEPARTMENT / application inbox, not a person. A
-// generic address often carries a branch or name suffix — e.g.
-// bewerbung-felderer@, jobs-berlin@, hr-nord@, personal-hamburg@ — and is still
-// a valid application address, so it must NOT be treated as personal.
-const GENERIC_LOCAL_PREFIXES = new Set([
-  "info", "bewerbung", "bewerbungen", "jobs", "job", "karriere", "career", "careers",
-  "recruiting", "recruitment", "hr", "personal", "kontakt", "contact", "post", "mail",
-  "office", "stelle", "stellen", "team", "service", "empfang", "zentrale", "verwaltung", "mailbox",
-]);
-
-function looksPersonal(email: string): boolean {
-  const local = (email.split("@")[0] ?? "").toLowerCase();
-  // Boss/owner address → never send (avoids annoying the Geschäftsführer).
-  if (isExecLocalpart(local)) return true;
-  // Department/application inbox with a suffix (bewerbung-felderer, jobs-berlin,
-  // hr-nord) — the first token is a known generic prefix → treat as generic.
-  const firstToken = local.split(/[.\-_]/)[0] ?? "";
-  if (GENERIC_LOCAL_PREFIXES.has(firstToken)) return false;
-  // Otherwise a firstname.lastname / f.lastname / firstname_lastname pattern is
-  // a personal address — block it (GDPR default).
-  return /^[a-z]+[.\-_][a-z]+$/i.test(local);
-}
+// looksPersonal() lives in @/lib/emailGuard (imported above) — the GDPR
+// send-guard, unit-tested there.
 
 // Standard service paragraphs appended to EVERY employer letter (before the
 // signature): visa/process support, the cost-free & non-binding presentation +

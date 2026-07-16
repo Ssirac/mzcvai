@@ -3,7 +3,15 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // Cap the pool so we never exhaust the Postgres connection limit (Railway's
+  // shared Postgres allows relatively few). Idle/connection timeouts keep the
+  // pool from wedging on a dropped socket. Tunable via env for larger plans.
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: parseInt(process.env.DB_POOL_MAX ?? "10"),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
