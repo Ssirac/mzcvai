@@ -21,12 +21,10 @@ import { withRefTag } from "@/lib/outreachRef";
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
 
-// Company/brand name shown in every letter. Deliberately hardcoded (not env-
-// driven) so it reliably reflects the brand regardless of any stale AGENCY_NAME
-// set in the deploy environment. The sending address + website stay as-is
-// (info@mz-personalvermittlung.de / mz-personalvermittlung.de) — only the
-// displayed company name is "MZ Talent Solutions".
-export const AGENCY_NAME = "MZ Talent Solutions";
+// Company/brand name shown in every letter — single source of truth in
+// @/lib/brand, re-exported here for the existing import sites.
+export { AGENCY_NAME } from "@/lib/brand";
+import { AGENCY_NAME } from "@/lib/brand";
 
 /**
  * Send a REAL-looking application email (no "Test" wording) for a candidate to

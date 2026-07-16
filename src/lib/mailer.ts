@@ -8,6 +8,7 @@
  */
 
 import nodemailer from "nodemailer";
+import { AGENCY_NAME, brandedFrom } from "@/lib/brand";
 
 export interface MailAttachment {
   filename: string;
@@ -43,7 +44,7 @@ async function sendViaGmail(params: SendMailParams): Promise<SendMailResult> {
   const clientSecret = process.env.GMAIL_CLIENT_SECRET!;
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN!;
   const sender = process.env.GMAIL_SENDER || "germanycareercenter1@gmail.com";
-  const fromName = process.env.MAIL_FROM_NAME || "Germany Career Center";
+  const fromName = AGENCY_NAME;
 
   // 1) Refresh token → short-lived access token
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -94,7 +95,9 @@ async function sendViaGmail(params: SendMailParams): Promise<SendMailResult> {
 // Send via Resend HTTPS API
 async function sendViaResend(params: SendMailParams): Promise<SendMailResult> {
   const apiKey = process.env.RESEND_API_KEY!;
-  const from = process.env.MAIL_FROM || process.env.SMTP_FROM || "info@mz-personalvermittlung.de";
+  // Always brand the sender NAME as "MZ Talent Solutions", keeping whatever
+  // address MAIL_FROM/SMTP_FROM specifies (defaults to the IONOS address).
+  const from = brandedFrom(process.env.MAIL_FROM || process.env.SMTP_FROM, "info@mz-personalvermittlung.de");
   const to = Array.isArray(params.to) ? params.to : [params.to];
 
   const body: Record<string, unknown> = {
@@ -161,7 +164,7 @@ async function sendViaSmtp(params: SendMailParams): Promise<SendMailResult> {
   });
 
   const info = await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: brandedFrom(process.env.SMTP_FROM, process.env.SMTP_USER || "info@mz-personalvermittlung.de"),
     to: Array.isArray(params.to) ? params.to.join(", ") : params.to,
     replyTo: process.env.REPLY_TO || process.env.MAIL_REPLY_TO || undefined,
     bcc: process.env.MAIL_BCC || undefined,
