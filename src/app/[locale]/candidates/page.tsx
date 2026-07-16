@@ -1633,11 +1633,11 @@ export default function CandidatesPage() {
                           <span className="text-ink font-bold text-lg">{pendingMatches.length}</span> {t("found")}
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2">
                         <button
                           onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
-                          className="bg-card-2 hover:bg-line active:bg-card disabled:opacity-50 text-ink text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          className="bg-card-2 hover:bg-line active:bg-card disabled:opacity-50 text-ink text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap"
                         >
                           {enrichingMatches ? (
                             <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("findingEmails")}</>
@@ -1648,7 +1648,7 @@ export default function CandidatesPage() {
                         <button
                           onClick={sendAllOutreach}
                           disabled={sendingAll}
-                          className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                          className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap"
                         >
                           {sendingAll ? (
                             <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("sendingAll")}</>
@@ -1664,7 +1664,7 @@ export default function CandidatesPage() {
                               value={rejectReason}
                               onChange={(e) => setRejectReason(e.target.value)}
                               title={t("rejectReasonLabel")}
-                              className="bg-card-2 text-ink-2 border border-line-strong text-xs rounded-lg px-2 py-2.5 sm:py-2"
+                              className="bg-card-2 text-ink-2 border border-line-strong text-xs rounded-lg px-2 py-2.5 sm:py-2 max-w-[9rem] truncate"
                             >
                               <option value="">{t("rejectReasonLabel")}</option>
                               {REJECT_REASONS.map((r) => (
@@ -1674,7 +1674,7 @@ export default function CandidatesPage() {
                             <button
                               onClick={bulkRejectMatches}
                               disabled={rejecting || sendingAll}
-                              className="bg-card-2 hover:bg-line text-rose-500 border border-line-strong disabled:opacity-50 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2"
+                              className="bg-card-2 hover:bg-line text-rose-500 border border-line-strong disabled:opacity-50 text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap"
                             >
                               {rejecting ? "…" : <>✕ {t("rejectSelected", { count: selectedMatchIds.size })}</>}
                             </button>
