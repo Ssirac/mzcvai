@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, extractText } from "@/lib/anthropic";
 
 // Shared extraction instruction used for both PDF and pasted-text CVs.
 export const CV_INSTRUCTION = `Du bekommst einen Lebenslauf (CV). Extrahiere die Kandidatendaten und gib AUSSCHLIESSLICH ein gültiges JSON-Objekt zurück (kein Markdown, keine Erklärung), exakt mit diesen Feldern:
@@ -66,7 +66,8 @@ export async function parseCvContent(content: ContentBlocks): Promise<Record<str
     max_tokens: 4000, // longer CVs need room for full experience/education lists
     messages: [{ role: "user", content }],
   });
-  const text = message.content[0]?.type === "text" ? message.content[0].text : "";
+  // All text blocks — content[0] may be a thinking block on newer models.
+  const text = extractText(message);
   const parsed = extractCvJson(text);
   if (!parsed) throw new Error("Could not parse CV");
   return parsed;

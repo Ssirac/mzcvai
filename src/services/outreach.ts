@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, extractText } from "@/lib/anthropic";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 import { enrichSingleEmployer } from "@/services/enrichment";
 import { sendMail } from "@/lib/mailer";
@@ -223,9 +223,17 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
     max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });
-  let body = message.content[0]?.type === "text" ? message.content[0].text.trim() : "";
+  // extractText scans ALL content blocks — Sonnet 5 may emit a thinking block
+  // first, and the old content[0] check silently returned "" for those.
+  let body = extractText(message);
   body = body.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
   body = body.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
+  // NEVER send a boilerplate-only letter: an empty AI body means something is
+  // wrong (model change, refusal, truncation) — fail loudly instead of mailing
+  // an employer a letter with no actual application text in it.
+  if (body.length < 200) {
+    throw new Error(`Letter generation returned ${body.length} chars for ${candidate.name} → ${employer.name}; refusing to send boilerplate-only mail`);
+  }
   body = `${body}\n\n${standardClosing(candidate.needsSponsorship)}\n\n${agencySignature(candidate.name)}`;
   const subject = `Bewerbung als ${vacancy.title} – ${candidate.name}`;
   return { subject, body };
