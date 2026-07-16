@@ -21,6 +21,13 @@ import { withRefTag } from "@/lib/outreachRef";
 const MAX_PER_DAY = parseInt(process.env.MAX_OUTREACH_PER_DAY ?? "20");
 const COOLDOWN_DAYS = parseInt(process.env.OUTREACH_COOLDOWN_DAYS ?? "30");
 
+// Company/brand name shown in every letter. Deliberately hardcoded (not env-
+// driven) so it reliably reflects the brand regardless of any stale AGENCY_NAME
+// set in the deploy environment. The sending address + website stay as-is
+// (info@mz-personalvermittlung.de / mz-personalvermittlung.de) — only the
+// displayed company name is "MZ Talent Solutions".
+export const AGENCY_NAME = "MZ Talent Solutions";
+
 /**
  * Send a REAL-looking application email (no "Test" wording) for a candidate to
  * the given recipients, with the candidate's CV attached. The letter is written
@@ -124,7 +131,7 @@ function standardClosing(needsVisa: boolean): string {
   const parts: string[] = [];
   if (needsVisa) {
     parts.push(
-      "Sollte für den Kandidaten ein Visum erforderlich sein, begleitet MZ Personalvermittlung den gesamten Bewerbungsprozess und unterstützt sowohl den Kandidaten als auch Ihr Unternehmen bei den organisatorischen Abläufen bis zum Arbeitsbeginn."
+      `Sollte für den Kandidaten ein Visum erforderlich sein, begleitet ${AGENCY_NAME} den gesamten Bewerbungsprozess und unterstützt sowohl den Kandidaten als auch Ihr Unternehmen bei den organisatorischen Abläufen bis zum Arbeitsbeginn.`
     );
   }
   parts.push(
@@ -139,7 +146,7 @@ function standardClosing(needsVisa: boolean): string {
 // Agency signature appended to EVERY letter — so the employer knows MZ sent it
 // and how to reply. Name + phone are always shown (set AGENCY_PHONE in .env).
 export function agencySignature(candidateName: string): string {
-  const name = process.env.AGENCY_NAME || "MZ Personalvermittlung";
+  const name = AGENCY_NAME;
   const phone = process.env.AGENCY_PHONE || "";
   const email = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "info@mz-personalvermittlung.de";
   const web = process.env.AGENCY_WEBSITE || "https://mz-personalvermittlung.de";
@@ -168,7 +175,7 @@ export function complianceFooter(employerId?: string): string {
     "",
     "",
     "—",
-    "Diese Nachricht wurde von MZ Personalvermittlung als geschäftliche Anfrage gesendet.",
+    `Diese Nachricht wurde von ${AGENCY_NAME} als geschäftliche Anfrage gesendet.`,
     optOut,
   ].join("\n");
 }
@@ -180,7 +187,7 @@ interface LetterCandidate {
 interface LetterEmployer { name: string; city: string | null; region: string | null; sponsorshipSignal: string }
 
 // Compose a company-specific application letter (subject + body). The letter
-// names the employer + position, states it is sent via MZ Personalvermittlung
+// names the employer + position, states it is sent via the agency (AGENCY_NAME)
 // on the candidate's behalf, and ends with the agency signature. Never says "Test".
 export async function composeApplicationLetter(
   candidate: LetterCandidate,
@@ -192,13 +199,13 @@ export async function composeApplicationLetter(
   // Excerpt of the actual job posting so the letter can address its requirements
   const jobText = (vacancy.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1500);
 
-  const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "MZ Personalvermittlung" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
+  const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "${AGENCY_NAME}" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
 - Sprich den Arbeitgeber NAMENTLICH an: "${employer.name}".
 - Nenne die konkrete Stelle ausdrücklich: "${vacancy.title}".
 - Gehe auf die ANFORDERUNGEN der Stellenanzeige ein und verbinde sie mit der Erfahrung/den Fähigkeiten des Kandidaten (zeige die Passung konkret auf).
-- Mache deutlich, dass die Bewerbung über die Personalvermittlung "MZ Personalvermittlung" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an MZ Personalvermittlung gehen.
+- Mache deutlich, dass die Bewerbung über die Personalvermittlung "${AGENCY_NAME}" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an ${AGENCY_NAME} gehen.
 - Schreibe KEINE Grußformel und KEINE Unterschrift am Ende (wird separat ergänzt).
 - Erwähne NICHT die Themen Visum/Visabegleitung, Kostenfreiheit/Unverbindlichkeit der Vorstellung oder das Angebot eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
 - Verwende NIEMALS das Wort "Test".

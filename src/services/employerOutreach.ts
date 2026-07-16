@@ -23,7 +23,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { composeApplicationLetter } from "@/services/outreach";
+import { composeApplicationLetter, AGENCY_NAME } from "@/services/outreach";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 
 const TEMPLATE = "employer-auto-de";
@@ -283,7 +283,7 @@ function unsubscribeFooter(employerId: string): string {
     "",
     "",
     "—",
-    `Rückfragen: MZ Personalvermittlung, ${contact}`,
+    `Rückfragen: ${AGENCY_NAME}, ${contact}`,
     `Wenn Sie keine weiteren Kandidatenvorschläge wünschen, hier abmelden: ${base}/api/unsubscribe?id=${employerId}`,
   ].join("\n");
 }
