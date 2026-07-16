@@ -82,9 +82,13 @@ export async function ingestJooble(opts: IngestOptions): Promise<IngestResult> {
     for (let page = 1; page <= maxPages; page++) {
       let jobs: JoobleJob[];
       try {
+        // IMPORTANT: for all-Germany searches the location must be EMPTY — the
+        // API key is .de-scoped, and location "Deutschland" matches nothing
+        // (verified live: "Deutschland" → 0 results, "" → 1000+ for the same
+        // keyword). That single word silently zeroed this source for months.
         const res = await axios.post<{ jobs: JoobleJob[] }>(
           `https://jooble.org/api/${key}`,
-          { keywords: opts.beruf, location: allGermany ? "Deutschland" : opts.region, page: String(page) },
+          { keywords: opts.beruf, location: allGermany ? "" : opts.region, page: String(page) },
           { headers: { "Content-Type": "application/json" }, timeout: 15000 }
         );
         jobs = res.data.jobs ?? [];
