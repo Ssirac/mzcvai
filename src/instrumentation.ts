@@ -18,6 +18,8 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // Sentry is initialised lazily in @/lib/log (Node-only path) so @sentry/node
+  // never gets pulled into the edge instrumentation bundle.
   if (process.env.DISABLE_SCHEDULER === "true") return;
   if (!process.env.CRON_SECRET) {
     console.warn("[scheduler] CRON_SECRET not set — in-process scheduler disabled");

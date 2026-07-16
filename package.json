@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.106.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@sentry/node": "^8.55.2",
     "@types/pg": "^8.20.0",
     "axios": "^1.18.1",
     "cheerio": "^1.2.0",
