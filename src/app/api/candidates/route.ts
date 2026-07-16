@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
+import { freshVacancyWhere } from "@/lib/matchFilters";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoIngestForBeruf } from "@/services/autoIngest";
 import { sendAllForCandidate } from "@/services/outreach";
@@ -12,7 +13,10 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       omit: { cvData: true }, // never ship the raw file in the list
       include: {
-        _count: { select: { matches: true } },
+        // Count only FRESH matches (same filter as the matches view) — a raw
+        // count also included expired/stale listings, so the sidebar said e.g.
+        // "573 uyğun iş" while the detail view correctly showed 188.
+        _count: { select: { matches: { where: { vacancy: freshVacancyWhere() } } } },
       },
     });
     // Expose a lightweight flag instead of the bytes

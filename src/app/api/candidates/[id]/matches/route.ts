@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
+import { freshVacancyWhere } from "@/lib/matchFilters";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoSendForCandidate } from "@/services/autopilot";
 
@@ -9,35 +9,13 @@ export const maxDuration = 120;
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Only ever show jobs that are still open. Three expiry guards, applied at
-    // view time (not just by the background sweep) so an expired listing never
-    // reaches the candidate:
-    //   • foundAt  — first discovered within EXPIRY_DAYS
-    //   • lastSeenAt — the source STILL re-lists it (stale ⇒ pulled/filled)
-    //   • postedAt — the posting itself isn't past its shelf life
-    const day = 24 * 60 * 60 * 1000;
-    const expiryCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_FOUND_MAX_DAYS ?? "30") * day);
-    const staleCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_STALE_DAYS ?? "10") * day);
-    const postedCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "30") * day);
-
-    // Never SHOW part-time / mini-job listings, even if some slipped into the DB
-    // before the ingest filter — full-time only.
-    const partTimeOr = [
-      ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({ title: { contains: kw, mode: "insensitive" as const } })),
-      ...PART_TIME_HARD_KEYWORDS.map((kw) => ({ description: { contains: kw, mode: "insensitive" as const } })),
-    ];
-
+    // Freshness filter shared with the candidate-list counter (single source of
+    // truth in @/lib/matchFilters) — expired/stale/part-time never shown.
     const query = () =>
       prisma.match.findMany({
         where: {
           candidateId: params.id,
-          vacancy: {
-            status: "ACTIVE",
-            foundAt: { gte: expiryCutoff },
-            lastSeenAt: { gte: staleCutoff },
-            // Hide old postings; rows without a postedAt (null) are kept.
-            NOT: { OR: [...partTimeOr, { postedAt: { lt: postedCutoff } }] },
-          },
+          vacancy: freshVacancyWhere(),
         },
         orderBy: [
           { employer: { score: "desc" } },
