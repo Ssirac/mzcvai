@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MZ Autofill",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Füllt Bewerbungsformulare mit MZ-Kandidatendaten aus. Rührt CAPTCHAs niemals an — der Mensch bestätigt und sendet ab.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [

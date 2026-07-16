@@ -246,9 +246,24 @@
     document.documentElement.appendChild(btn);
   }
 
+  // The MZ app itself is never an application form — don't mount the floating
+  // button there (it covered parts of the dashboard UI) and don't run the
+  // autofill loops (a stale arm must not try to fill the app's own candidate
+  // forms). Checks both the fallback origin and the popup-configured base URL.
+  async function isMzAppOrigin() {
+    const origins = new Set();
+    try { origins.add(new URL(MZ_FALLBACK_BASE).origin); } catch { /* ignore */ }
+    try {
+      const { mzBaseUrl } = await chrome.storage.sync.get(["mzBaseUrl"]);
+      if (mzBaseUrl) origins.add(new URL(mzBaseUrl).origin);
+    } catch { /* ignore */ }
+    return origins.has(location.origin);
+  }
+
   function start() {
-    mountButton();
     (async () => {
+      if (await isMzAppOrigin()) return; // stay out of our own app entirely
+      mountButton();
       const filledHere = await maybeAutoFill(); // hash path (direct form)
       if (!filledHere) await maybeAutoFillFromArm(); // armed path (redirected ATS)
     })();
