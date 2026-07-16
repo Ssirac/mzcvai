@@ -83,8 +83,12 @@ const careerjet: JobSource = {
   id: "careerjet",
   label: "Careerjet (Aggregator — inkl. LinkedIn/Indeed-Crossposts)",
   category: "general",
-  available: () => !!process.env.CAREERJET_AFFID,
-  unavailableReason: "CAREERJET_AFFID erforderlich (kostenlos)",
+  // public.api.careerjet.net refuses ALL connections (ECONNREFUSED on 443) —
+  // verified 2026-07-16 from two networks incl. Railway production. The public
+  // search API appears discontinued; disabled so refresh cycles stop erroring.
+  // Re-enable with CAREERJET_FORCE=true if the endpoint ever comes back.
+  available: () => process.env.CAREERJET_FORCE === "true" && !!process.env.CAREERJET_AFFID,
+  unavailableReason: "API-Endpunkt nicht erreichbar (ECONNREFUSED, vermutlich eingestellt) — geprüft 2026-07-16",
   ingest: (o) => ingestCareerjet(o),
 };
 
