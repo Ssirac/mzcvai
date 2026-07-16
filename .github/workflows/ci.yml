@@ -18,7 +18,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # npm install (not `npm ci`): the lockfile is generated on Windows and
+        # its platform-specific optional deps (e.g. @unrs/resolver wasm bindings
+        # → @emnapi/*) differ from the Linux CI runner, which makes `npm ci`'s
+        # strict sync check fail. `npm install` resolves for the CI platform and
+        # tolerates that drift while still respecting the lockfile where it can.
+        run: npm install --no-audit --no-fund
 
       - name: Generate Prisma client
         run: npx prisma generate
