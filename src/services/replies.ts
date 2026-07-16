@@ -67,7 +67,8 @@ export interface ReconcileResult {
   applied: boolean;
   scanned: number;     // stored replies examined
   reassigned: number;  // replies moved to the correct candidate
-  conflicts: number;   // correct owner already held its own reply — left untouched
+  deduped: number;     // duplicate copies removed (true owner already held the same reply)
+  conflicts: number;   // correct owner already held a DIFFERENT reply — left untouched
   unmatched: number;   // couldn't identify a different owner — left as-is
   moves: ReconcileMove[];
 }
@@ -86,7 +87,7 @@ export interface ReconcileResult {
  * manual review), so nothing real is ever clobbered.
  */
 export async function reconcileReplies(apply = false): Promise<ReconcileResult> {
-  const result: ReconcileResult = { applied: apply, scanned: 0, reassigned: 0, conflicts: 0, unmatched: 0, moves: [] };
+  const result: ReconcileResult = { applied: apply, scanned: 0, reassigned: 0, deduped: 0, conflicts: 0, unmatched: 0, moves: [] };
 
   const replied = await prisma.outreach.findMany({
     where: { status: "REPLIED", replySubject: { not: null } },
@@ -128,7 +129,30 @@ export async function reconcileReplies(apply = false): Promise<ReconcileResult> 
 
     if (!owner) { result.unmatched++; continue; }   // can't tell — leave as is
     if (owner.id === o.id) continue;                 // already correct
-    if (owner.status === "REPLIED" && owner.replySubject) { result.conflicts++; continue; }
+    if (owner.status === "REPLIED" && owner.replySubject) {
+      // The true owner already holds a reply. If it's the SAME message (classic
+      // duplication: one mail attached to several candidates, one per poll),
+      // just clear the wrongly-tagged copy — the owner keeps the real one.
+      if (owner.replySubject === o.replySubject) {
+        result.deduped++;
+        result.moves.push({
+          employer: o.match?.employer?.name ?? null,
+          from: o.match?.candidate?.name ?? o.id,
+          to: owner.match?.candidate?.name ?? owner.id,
+          via: ref && group.find((s) => outreachRef(s.id) === ref) ? "code" : "name",
+          subject: (o.replySubject ?? "").slice(0, 120),
+        });
+        if (apply) {
+          await prisma.outreach.update({
+            where: { id: o.id },
+            data: { status: "SENT", repliedAt: null, replyFrom: null, replySubject: null, replyText: null },
+          });
+          await prisma.match.update({ where: { id: o.matchId }, data: { status: "SENT" } }).catch(() => {});
+        }
+        continue;
+      }
+      result.conflicts++; continue;
+    }
 
     result.reassigned++;
     result.moves.push({
@@ -172,24 +196,41 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
     return result;
   }
 
-  // Candidate outreach to match replies against: sent, not yet replied/bounced.
+  // Outreach to match replies against — INCLUDING already-replied threads.
+  // Matching must see the replied ones too: when the subject's [MZ-…] code or
+  // candidate name points at a thread that already holds a reply, the message is
+  // a continuation of THAT thread — it must never fall through to some other
+  // candidate's open thread on the same domain (that's exactly how one reply
+  // used to "infect" every candidate mailed to the employer, one per poll).
   const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-  const open = await prisma.outreach.findMany({
+  const threads = await prisma.outreach.findMany({
     where: {
-      status: { in: ["SENT", "OPENED"] },
+      status: { in: ["SENT", "OPENED", "REPLIED"] },
       sentAt: { gte: cutoff, not: null },
       toAddress: { not: null },
     },
-    select: { id: true, toAddress: true, sentAt: true, matchId: true, match: { select: { employerId: true, candidate: { select: { name: true } } } } },
+    select: {
+      id: true, toAddress: true, sentAt: true, matchId: true, status: true,
+      repliedAt: true, replySubject: true,
+      match: { select: { employerId: true, candidate: { select: { name: true } } } },
+    },
     orderBy: { sentAt: "desc" },
   });
+
+  // Skip messages we've already recorded (same subject + same envelope date):
+  // the IMAP window re-reads the same mails on every poll.
+  const storedKeys = new Set(
+    threads
+      .filter((t) => t.repliedAt && t.replySubject)
+      .map((t) => `${t.repliedAt!.getTime()}|${t.replySubject}`)
+  );
 
   // Index by recipient domain (employers often reply from a personal address on
   // the same domain, e.g. we mail info@hotel.de, a person replies from
   // max@hotel.de), with an exact-address fast path too.
-  const byDomain = new Map<string, typeof open>();
-  const byAddress = new Map<string, typeof open>();
-  for (const o of open) {
+  const byDomain = new Map<string, typeof threads>();
+  const byAddress = new Map<string, typeof threads>();
+  for (const o of threads) {
     const d = domainOf(o.toAddress);
     if (d) (byDomain.get(d) ?? byDomain.set(d, []).get(d)!).push(o);
     const a = o.toAddress!.toLowerCase();
@@ -240,27 +281,38 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
 
         const senderDomain = domainOf(fromAddr) ?? "";
 
-        // Find a still-open outreach this reply belongs to: exact address first,
-        // then same-domain; only ones sent before the reply arrived.
+        // Already recorded on a previous poll? The IMAP window re-reads the same
+        // messages every run — without this, the second run re-matches the mail
+        // and (its true thread now REPLIED) attaches it to ANOTHER candidate.
+        if (storedKeys.has(`${msgDate.getTime()}|${subject.slice(0, 300)}`)) continue;
+
+        // Threads this reply could belong to: exact address first, then
+        // same-domain; only ones sent before the reply arrived.
         const candidates =
           byAddress.get(fromAddr) ?? byDomain.get(senderDomain) ?? [];
         const eligible = candidates.filter((o) => o.sentAt && o.sentAt <= msgDate);
+        const openOnly = eligible.filter((o) => o.status !== "REPLIED");
 
-        // 1) Unambiguous: match the unique reference code carried in the subject
-        //    ("… [MZ-1A2B3C4]"). This is exact even when several candidates — or
-        //    two same-named candidates — were mailed to the same company.
+        // 1) EXCLUSIVE: the unique reference code carried in the subject
+        //    ("… [MZ-1A2B3C4]") identifies exactly one outreach — even for
+        //    same-named candidates, and even if that thread already replied
+        //    (second message in the thread → update it). A code that matches
+        //    nothing here means "not one of these threads": never fall through.
         const replyRef = parseRefTag(subject);
-        // 2) Fallback for older emails sent before the code existed: our subject
-        //    was "Bewerbung als <title> – <candidate name>", so the reply names
-        //    the candidate. 3) Last resort: the first open thread on the domain.
+        // 2) Candidate name in the subject (mails sent before the code existed:
+        //    "Bewerbung als <title> – <name>") — searched across ALL threads,
+        //    replied ones included, for the same reason.
         const subjLc = subject.toLowerCase();
-        const target =
-          (replyRef && eligible.find((o) => outreachRef(o.id) === replyRef)) ||
-          eligible.find((o) => {
-            const nm = o.match?.candidate?.name?.toLowerCase();
-            return nm && nm.length > 2 && subjLc.includes(nm);
-          }) ||
-          eligible[0];
+        const nameOwner = eligible.find((o) => {
+          const nm = o.match?.candidate?.name?.toLowerCase();
+          return nm && nm.length > 2 && subjLc.includes(nm);
+        });
+        // 3) Last resort (no code, no name): the newest still-open thread on the
+        //    domain. Never a replied one — and never when the subject names a
+        //    different candidate (nameOwner covers that above).
+        const target = replyRef
+          ? eligible.find((o) => outreachRef(o.id) === replyRef)
+          : nameOwner ?? openOnly[0];
 
         // Parse the full message body (needed both for the inbox text and for
         // opt-out phrase detection, including on already-replied threads).
@@ -301,9 +353,11 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         }).catch(() => {});
         // (opt-out already handled above, before the target check)
 
-        // Don't match the same outreach twice in this run
-        const idx = candidates.indexOf(target);
-        if (idx !== -1) candidates.splice(idx, 1);
+        // Remember this message as stored (in-run dedupe) and mark the thread
+        // replied in the in-memory index so a later message in this run can't
+        // grab it via the open-thread fallback.
+        storedKeys.add(`${msgDate.getTime()}|${subject.slice(0, 300)}`);
+        target.status = "REPLIED";
         result.matched++;
       }
     } finally {
