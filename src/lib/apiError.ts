@@ -13,6 +13,15 @@ import { log } from "@/lib/log";
  */
 export function apiError(err: unknown, status = 500, publicMessage?: string) {
   const detail = err instanceof Error ? err.message : String(err);
+
+  // Prisma "record not found" (update/delete on a nonexistent id) is a client
+  // error, not a server fault — answer 404 instead of a misleading 500.
+  const code = (err as { code?: string } | null)?.code;
+  if (status === 500 && code === "P2025") {
+    status = 404;
+    publicMessage = publicMessage ?? "Not found";
+  }
+
   log.error("api_error", { status, detail });
 
   // Reveal the raw message only in dev, or for explicit 4xx with a publicMessage.
