@@ -9,7 +9,8 @@ type Stage = (typeof STAGES)[number];
 // Moves one application through the placement pipeline. When an application is
 // marked PLACED, the candidate is set to PLACED too (they're hired); this is the
 // signal that nothing fell through.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const body = await req.json();
     const status = body.status as Stage;

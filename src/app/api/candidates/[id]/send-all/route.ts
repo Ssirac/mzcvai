@@ -9,7 +9,8 @@ export const maxDuration = 300;
 // POST /api/candidates/[id]/send-all
 // Bulk outreach to every matching employer for this candidate. Respects the
 // daily cap, per-employer cooldown and generic-email-only rules.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "outreach.bulk");
     if (!authz.ok) return authz.response;

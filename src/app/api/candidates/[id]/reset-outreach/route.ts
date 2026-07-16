@@ -7,7 +7,8 @@ import { authorize } from "@/lib/rbac";
 // Deletes ALL outreach (incl. SENT) for this candidate's matches, so every job
 // returns to "Uyğun işlər" and can be sent again. Also clears the per-employer
 // cooldown (which is derived from SENT outreach records) for these employers.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "admin.maintenance");
     if (!authz.ok) return authz.response;

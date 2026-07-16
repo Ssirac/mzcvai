@@ -7,7 +7,8 @@ export const maxDuration = 300;
 // POST /api/candidates/[id]/enrich-matches
 // Finds generic application emails for every employer matched to this candidate
 // that doesn't already have one (listing-text first, then website scraping).
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const result = await enrichMatchesForCandidate(params.id);
     return NextResponse.json({ ok: true, ...result });

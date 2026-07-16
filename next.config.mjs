@@ -38,21 +38,14 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
-  experimental: {
-    serverComponentsExternalPackages: ["puppeteer", "imapflow"],
-    // Enables src/instrumentation.ts (in-process scheduler for replies + follow-ups)
-    instrumentationHook: true,
-  },
+  // Node-only libraries stay out of the (Turbopack) bundle and are required at
+  // runtime in the Node server — never dragged into the edge bundle. This is the
+  // Next 15+ replacement for experimental.serverComponentsExternalPackages AND
+  // for the old custom webpack externals (Turbopack ignores webpack config).
+  serverExternalPackages: ["puppeteer", "imapflow", "mailparser"],
+  // src/instrumentation.ts (in-process scheduler) is enabled by default in Next 15+.
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
-  },
-  webpack: (config) => {
-    // imapflow is a Node-only library (uses `stream`, `net`, `tls`). Keep it out
-    // of the webpack graph so it's required at runtime in the Node server and
-    // never dragged into the edge/instrumentation bundle.
-    config.externals = config.externals || [];
-    config.externals.push({ imapflow: "commonjs imapflow", mailparser: "commonjs mailparser" });
-    return config;
   },
 };
 

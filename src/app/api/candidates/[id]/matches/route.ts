@@ -7,7 +7,8 @@ import { autoSendForCandidate } from "@/services/autopilot";
 export const maxDuration = 120;
 
 // GET /api/candidates/[id]/matches — get scored matches for a candidate
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     // Freshness filter shared with the candidate-list counter (single source of
     // truth in @/lib/matchFilters) — expired/stale/part-time never shown.

@@ -12,7 +12,8 @@ const STAGES: PipelineStage[] = [
 ];
 
 // GET /api/candidates/[id]/pipeline — current stage + transition history.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.read");
     if (!authz.ok) return authz.response;
@@ -35,7 +36,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 // PATCH /api/candidates/[id]/pipeline  { stage, note? } — move the candidate to a
 // new pipeline stage, recording a PipelineEvent + audit entry. No-op if unchanged.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write");
     if (!authz.ok) return authz.response;

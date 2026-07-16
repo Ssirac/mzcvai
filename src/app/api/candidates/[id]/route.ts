@@ -4,7 +4,8 @@ import { logAudit } from "@/services/audit";
 import { authorize } from "@/lib/rbac";
 
 // GET /api/candidates/[id] — full candidate record (for editing)
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const candidate = await prisma.candidate.findUnique({
       where: { id: params.id },
@@ -18,7 +19,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PATCH /api/candidates/[id] — quick status change (PENDING | PLACED | ARCHIVED)
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write");
     if (!authz.ok) return authz.response;
@@ -41,7 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // DELETE /api/candidates/[id] — GDPR-complete erasure: the candidate (incl. CV
 // bytes) and EVERY record that references them, including the ones with no FK
 // cascade (JobApplicationLog, CaptchaQueue, EmployerOutreachLog).
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.delete");
     if (!authz.ok) return authz.response;

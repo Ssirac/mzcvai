@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 // GET /api/candidates/[id]/outreach — full communication history for a candidate:
 // which employers/vacancies were contacted, what was sent, and the status.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     // Purge stale, never-sent drafts (older than 5 min) for this candidate so old
     // abandoned attempts don't pile up. A fresh in-progress send completes in

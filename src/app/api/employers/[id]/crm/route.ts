@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 const CRM_STATUSES: CrmStatus[] = ["LEAD", "CONTACTED", "ACTIVE", "PARTNER", "DORMANT", "BLOCKED"];
 
 // GET /api/employers/[id]/crm — CRM fields + follow-up trail.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.read"); // recruiter-level read
     if (!authz.ok) return authz.response;
@@ -32,7 +33,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PATCH /api/employers/[id]/crm  { crmStatus?, crmNotes? } — update CRM fields.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write"); // recruiter-level write
     if (!authz.ok) return authz.response;
@@ -58,7 +60,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // POST /api/employers/[id]/crm  { outcome?, nextStep?, nextStepDueAt? } — log a
 // follow-up touchpoint; also bumps lastContactAt.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write");
     if (!authz.ok) return authz.response;

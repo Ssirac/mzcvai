@@ -28,7 +28,7 @@ function isServerToServer(pathname: string): boolean {
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-export default async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = await verifyToken(req.cookies.get(SESSION_COOKIE)?.value);
   const isApi = pathname.startsWith("/api");

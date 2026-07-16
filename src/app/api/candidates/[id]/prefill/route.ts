@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
  * It fills form fields client-side after the human clears any captcha; this
  * endpoint never touches the external site.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const c = await prisma.candidate.findUnique({
       where: { id: params.id },

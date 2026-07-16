@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 // POST /api/employers/[id]/optout  { optedOut?: boolean }
 // Manually flag an employer as do-not-contact (or undo). No further application
 // or follow-up is sent to an opted-out employer.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const body = await req.json().catch(() => ({}));
     const optedOut = body.optedOut !== false; // default true

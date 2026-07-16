@@ -29,7 +29,8 @@ function replySubject(subject: string | null | undefined): string {
 // POST /api/inbox/[id]/reply — reply to an employer's message straight from the
 // app (no IONOS webmail). Multipart body: `text` + optional `files`. Sends from
 // the MZ address and records the reply so it shows in the thread.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const outreach = await prisma.outreach.findUnique({
       where: { id: params.id },

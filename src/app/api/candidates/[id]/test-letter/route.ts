@@ -7,7 +7,8 @@ export const maxDuration = 120;
 // POST /api/candidates/[id]/test-letter
 // Body: { recipients: string[] } — sends a CV-tailored motivation letter (TEST)
 // with the candidate's CV attached, to the given addresses.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const body = await req.json().catch(() => ({}));
     const recipients: string[] = Array.isArray(body.recipients)

@@ -17,7 +17,8 @@ const LOG_STATUS: Record<string, string> = {
 // PATCH /api/captcha-queue/[id] — update status after an admin handles the item.
 // Body: { status }. Also mirrors the status onto the JobApplicationLog row for
 // the same (candidate, job), so "Submitted" shows as APPLIED in the log.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write");
     if (!authz.ok) return authz.response;

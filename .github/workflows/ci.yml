@@ -32,7 +32,8 @@ jobs:
         run: npx tsc --noEmit -p tsconfig.json
 
       - name: Lint
-        run: npx next lint
+        # Next 16 removed `next lint` — ESLint runs directly (flat config).
+        run: npx eslint .
 
       - name: Test
         run: npm run test

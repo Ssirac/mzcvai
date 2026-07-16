@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/candidates/[id]/cv — download the candidate's stored CV file.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const c = await prisma.candidate.findUnique({
     where: { id: params.id },
     select: { cvData: true, cvFileName: true, cvMimeType: true },

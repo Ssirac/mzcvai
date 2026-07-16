@@ -10,7 +10,8 @@ const REASONS: FeedbackReason[] = ["SKILL_MISMATCH", "SALARY", "LOCATION", "VISA
 // it). Stored on the Match to inform future scoring; who/when is recorded.
 // Body: { verdict: "GOOD" | "BAD" | null, reason?, note? }
 // `reason` is a structured "why bad" category (only kept for BAD).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "candidate.write");
     if (!authz.ok) return authz.response;

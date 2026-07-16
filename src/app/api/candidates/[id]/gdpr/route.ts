@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * CV bytes (base64) and every related record (matches, outreach, applications).
  * The export itself is audited.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const authz = await authorize(req, "gdpr");
     if (!authz.ok) return authz.response;
