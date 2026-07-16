@@ -16,6 +16,7 @@
 import type { Page } from "puppeteer";
 import { prisma } from "@/lib/prisma";
 import { launchBrowser } from "@/lib/browser";
+import { isSafeExternalUrl } from "@/lib/urlGuard";
 
 const GENERIC_DEAD_MARKERS = [
   // German
@@ -38,6 +39,9 @@ const GENERIC_DEAD_MARKERS = [
 // inspects HTTP status, final URL (redirect to home/search = gone) and body text.
 export async function isListingDead(page: Page, url: string, extraMarkers: string[] = []): Promise<boolean> {
   try {
+    // SSRF guard: a corrupted/malicious listing URL must never make the headless
+    // browser hit internal hosts. Treat it as "dead" so the row gets cleaned up.
+    if (!isSafeExternalUrl(url)) return true;
     const res = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
     const status = res?.status() ?? 0;
     if (status >= 400) return true; // 404/410/5xx → gone

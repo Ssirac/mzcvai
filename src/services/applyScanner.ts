@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { launchBrowser } from "@/lib/browser";
 import { detectCaptcha, enqueueCaptcha, buildPrefillData } from "@/services/captcha";
 import { BLOCKED_HOSTS } from "@/lib/actionable";
+import { isSafeExternalUrl } from "@/lib/urlGuard";
 
 // Phrases that mean the listing is gone — don't queue a dead job for a human.
 const DEAD_PHRASES = [
@@ -75,6 +76,8 @@ export async function runApplyScan(opts?: { candidateId?: string; limit?: number
         || (vac.applyValue && /^https?:\/\//i.test(vac.applyValue) ? vac.applyValue : null)
         || vac.url;
       if (!applyUrl) continue;
+      // SSRF guard: never point the headless browser at internal/private hosts.
+      if (!isSafeExternalUrl(applyUrl)) { r.noForm++; continue; }
 
       // Dedup: skip pairings already resolved.
       const existing = await prisma.jobApplicationLog.findUnique({

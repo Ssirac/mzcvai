@@ -263,9 +263,20 @@
   function start() {
     (async () => {
       if (await isMzAppOrigin()) return; // stay out of our own app entirely
-      mountButton();
+      // Mount the floating button ONLY where it can actually do something:
+      // an MZ-initiated visit (hash/arm), or a page that looks like a real
+      // application form (checked with retries — ATS forms often render late).
+      // On every other site (news, dashboards, webmail…) it stays hidden.
+      const mzInitiated = /mzfill=/.test(location.hash) || !!(await readArmedCandidate());
+      if (mzInitiated) mountButton();
       const filledHere = await maybeAutoFill(); // hash path (direct form)
       if (!filledHere) await maybeAutoFillFromArm(); // armed path (redirected ATS)
+      if (!document.getElementById("mz-autofill-btn")) {
+        for (let i = 0; i < 6; i++) {
+          if (isApplicationForm()) { mountButton(); break; }
+          await sleep(1500);
+        }
+      }
     })();
   }
 

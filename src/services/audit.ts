@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 export type AuditAction =
-  | "LOGIN"
+  | "LOGIN" | "LOGIN_FAILED"
   | "CANDIDATE_CREATE" | "CANDIDATE_UPDATE" | "CANDIDATE_DELETE"
   | "CV_UPLOAD" | "CV_DOWNLOAD"
   | "OUTREACH_APPROVE" | "OUTREACH_SEND"

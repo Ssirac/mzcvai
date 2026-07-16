@@ -13,12 +13,16 @@ export const dynamic = "force-dynamic";
 // it to the webhook URL in the Resend dashboard, e.g.
 //   https://<app>/api/webhooks/resend?secret=<RESEND_WEBHOOK_SECRET>
 export async function POST(req: NextRequest) {
+  // FAIL CLOSED: without a configured secret this endpoint must reject — a
+  // spoofed "bounced" event could otherwise trip the deliverability kill switch
+  // and silently stop all sending (denial of service via fake webhooks).
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (secret) {
-    const provided = req.nextUrl.searchParams.get("secret");
-    if (provided !== secret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 503 });
+  }
+  const provided = req.nextUrl.searchParams.get("secret");
+  if (provided !== secret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let event: { type?: string; data?: { email_id?: string } };

@@ -29,14 +29,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing credentials" }, { status: 400 });
     }
 
+    // Second limiter keyed on the USERNAME (wider window) — an attacker rotating
+    // IPs (proxies/botnet) still can't hammer the same account.
+    const userKey = `login-user:${username.toLowerCase()}`;
+    const userRl = rateLimit(userKey, MAX_ATTEMPTS * 3, WINDOW_MS * 4);
+    if (!userRl.ok) {
+      return NextResponse.json(
+        { error: "too_many_attempts" },
+        { status: 429, headers: { "Retry-After": String(userRl.retryAfter) } }
+      );
+    }
+
     if (!checkCredentials(username, password)) {
-      // Small fixed delay slows automated guessing further
+      // Audit failed attempts (who/where) so a brute-force wave is visible in
+      // System → Audit, then a small fixed delay slows automated guessing.
+      await logAudit({ actor: username, action: "LOGIN_FAILED", meta: { ip } }).catch(() => {});
       await sleep(400);
       return NextResponse.json({ error: "invalid" }, { status: 401 });
     }
 
-    // Success — clear the attempt counter for this IP
+    // Success — clear the attempt counters
     rateLimitReset(key);
+    rateLimitReset(userKey);
 
     const token = await createToken(username);
     await logAudit({ actor: username, action: "LOGIN", meta: { ip } });
