@@ -215,19 +215,27 @@ ${jobText ? `\nStellenanzeige (Auszug):\n"""${jobText}"""` : ""}
 
 Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift).`;
 
-  const message = await anthropic.messages.create({
-    // Sonnet 5 instead of Opus 4.8: application letters don't need the top-tier
-    // model, and Sonnet is materially cheaper per letter (auto-send generates
-    // many). Override with OUTREACH_LETTER_MODEL if needed.
-    model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
-    max_tokens: 800,
-    messages: [{ role: "user", content: prompt }],
-  });
-  // extractText scans ALL content blocks — Sonnet 5 may emit a thinking block
-  // first, and the old content[0] check silently returned "" for those.
-  let body = extractText(message);
-  body = body.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
-  body = body.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
+  // max_tokens must leave room for the model's thinking blocks PLUS the letter:
+  // with only 800, Sonnet 5 sometimes spent the whole budget thinking and
+  // returned zero text blocks. One automatic retry covers transient cases.
+  const generateOnce = async () => {
+    const message = await anthropic.messages.create({
+      // Sonnet 5 instead of Opus 4.8: application letters don't need the top-tier
+      // model, and Sonnet is materially cheaper per letter (auto-send generates
+      // many). Override with OUTREACH_LETTER_MODEL if needed.
+      model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
+      max_tokens: 3000,
+      messages: [{ role: "user", content: prompt }],
+    });
+    // extractText scans ALL content blocks — Sonnet 5 may emit a thinking block
+    // first, and the old content[0] check silently returned "" for those.
+    let text = extractText(message);
+    text = text.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
+    text = text.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
+    return text;
+  };
+  let body = await generateOnce();
+  if (body.length < 200) body = await generateOnce(); // one retry on empty/short
   // NEVER send a boilerplate-only letter: an empty AI body means something is
   // wrong (model change, refusal, truncation) — fail loudly instead of mailing
   // an employer a letter with no actual application text in it.
