@@ -169,7 +169,7 @@ function stripAiTells(raw: string): string {
 // Optional humanising rewrite. A second model call that keeps every fact but
 // re-voices the letter so it reads as typed by a busy recruiter. Returns the
 // rewritten text (already tell-stripped); the caller keeps it only if non-empty.
-async function humanizePass(letter: string, employerName: string, vacancyTitle: string, temperature: number): Promise<string> {
+async function humanizePass(letter: string, employerName: string, vacancyTitle: string): Promise<string> {
   const prompt = `Der folgende deutsche Bewerbungstext soll klingen, als hätte ihn eine vielbeschäftigte Personalberaterin selbst getippt, nicht eine KI. Schreibe ihn so um, dass:
 - ALLE Fakten, Namen und Aussagen erhalten bleiben (Arbeitgeber "${employerName}", Stelle "${vacancyTitle}", der Hinweis auf die Vertretung durch die Personalvermittlung).
 - typische KI-Muster verschwinden: gleichförmiger Rhythmus, parallele Satzbauten, Dreier-Aufzählungen, glatte Werbefloskeln.
@@ -183,7 +183,7 @@ TEXT:
   const message = await anthropic.messages.create({
     model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
     max_tokens: 3000,
-    temperature,
+    // No `temperature`: Sonnet 5 rejects it as deprecated (400).
     messages: [{ role: "user", content: prompt }],
   });
   return stripAiTells(extractText(message));
@@ -273,9 +273,10 @@ ${jobText ? `\nStellenanzeige (Auszug):\n"""${jobText}"""` : ""}
 
 Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift).`;
 
-  // A higher temperature raises lexical variety, which flattens the tell-tale
-  // low-perplexity "voice" AI detectors key on. Tunable via env.
-  const temperature = Math.min(1, Math.max(0, parseFloat(process.env.OUTREACH_LETTER_TEMPERATURE ?? "0.9")));
+  // NOTE: no `temperature` — Sonnet 5 rejects it as deprecated (400
+  // "`temperature` is deprecated for this model"), which silently failed EVERY
+  // letter generation until removed. Lexical variety comes from the style
+  // rotation + stripAiTells instead.
 
   // max_tokens must leave room for the model's thinking blocks PLUS the letter:
   // with only 800, Sonnet 5 sometimes spent the whole budget thinking and
@@ -287,7 +288,6 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
       // many). Override with OUTREACH_LETTER_MODEL if needed.
       model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
       max_tokens: 3000,
-      temperature,
       messages: [{ role: "user", content: prompt }],
     });
     // extractText scans ALL content blocks — Sonnet 5 may emit a thinking block
@@ -307,7 +307,7 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
   // AI cadence. Off by default (doubles the per-letter cost on auto-send);
   // enable with OUTREACH_HUMANIZE_PASS=true for the strongest result.
   if (process.env.OUTREACH_HUMANIZE_PASS === "true") {
-    const humanized = await humanizePass(body, employer.name, vacancy.title, temperature).catch(() => "");
+    const humanized = await humanizePass(body, employer.name, vacancy.title).catch(() => "");
     if (humanized.length >= 200) body = humanized;
   }
   body = `${body}\n\n${standardClosing(candidate.needsSponsorship)}\n\n${agencySignature(candidate.name)}`;
