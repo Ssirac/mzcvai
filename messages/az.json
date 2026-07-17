@@ -457,6 +457,11 @@
     "noText": "(mətn yoxdur)",
     "jobListing": "İş elanı",
     "restore": "Əlaqəni bərpa et",
-    "stopSending": "Bu şirkətə bir daha göndərmə"
+    "stopSending": "Bu şirkətə bir daha göndərmə",
+    "translate": "Tərcümə et",
+    "translating": "Tərcümə olunur…",
+    "showOriginal": "Orijinalı göstər",
+    "showTranslation": "Tərcüməni göstər",
+    "translateError": "Tərcümə alınmadı"
   }
 }
