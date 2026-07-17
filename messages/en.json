@@ -437,6 +437,7 @@
     "sent": "sent",
     "activeStage": "active stage",
     "placement": "placement",
+    "bySource": "Reply rate by source",
     "byBeruf": "Reply rate by occupation",
     "byRegion": "Reply rate by region",
     "byCandidate": "Reply rate by candidate",

@@ -14,6 +14,7 @@ interface Analytics {
   last30: { sent: number; replied: number; replyRate: number };
   byBeruf: Row[];
   byRegion: Row[];
+  bySource: Row[];
   byCandidate: Row[];
 }
 
@@ -174,8 +175,11 @@ export default function AnalyticsPage() {
 
             {/* Breakdowns */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Table title={t("bySource")} rows={data?.bySource ?? []} labelKey="key" />
               <Table title={t("byBeruf")} rows={data?.byBeruf ?? []} labelKey="key" />
               <Table title={t("byRegion")} rows={data?.byRegion ?? []} labelKey="key" />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Table title={t("byCandidate")} rows={data?.byCandidate ?? []} labelKey="name" />
             </div>
 

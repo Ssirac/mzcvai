@@ -437,6 +437,7 @@
     "sent": "gesendet",
     "activeStage": "aktive Phase",
     "placement": "Vermittlung",
+    "bySource": "Antwortrate nach Quelle",
     "byBeruf": "Antwortrate nach Beruf",
     "byRegion": "Antwortrate nach Region",
     "byCandidate": "Antwortrate nach Kandidat",

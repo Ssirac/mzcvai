@@ -22,7 +22,7 @@ export async function GET() {
         sentAt: true,
         match: {
           select: {
-            vacancy: { select: { beruf: true, region: true } },
+            vacancy: { select: { beruf: true, region: true, source: true } },
             candidate: { select: { id: true, name: true } },
           },
         },
@@ -36,6 +36,7 @@ export async function GET() {
     type Bucket = { sent: number; replied: number; opened: number };
     const byBeruf = new Map<string, Bucket>();
     const byRegion = new Map<string, Bucket>();
+    const bySource = new Map<string, Bucket>();
     const byCandidate = new Map<string, Bucket & { name: string }>();
 
     const bump = <T extends Bucket>(map: Map<string, T>, key: string, make: () => T, isReplied: boolean, isOpened: boolean) => {
@@ -64,8 +65,10 @@ export async function GET() {
 
       const beruf = o.match?.vacancy?.beruf || "—";
       const region = o.match?.vacancy?.region || "—";
+      const source = o.match?.vacancy?.source || "—";
       bump(byBeruf, beruf, () => ({ sent: 0, replied: 0, opened: 0 }), isReplied, isOpened);
       bump(byRegion, region, () => ({ sent: 0, replied: 0, opened: 0 }), isReplied, isOpened);
+      bump(bySource, source, () => ({ sent: 0, replied: 0, opened: 0 }), isReplied, isOpened);
       if (o.match?.candidate) {
         const c = o.match.candidate;
         bump(byCandidate, c.id, () => ({ sent: 0, replied: 0, opened: 0, name: c.name }), isReplied, isOpened);
@@ -106,6 +109,7 @@ export async function GET() {
       last30: { sent: last30Sent, replied: last30Replied, replyRate: rate(last30Replied, last30Sent) },
       byBeruf: topList(byBeruf),
       byRegion: topList(byRegion),
+      bySource: topList(bySource),
       byCandidate: topList(byCandidate, true),
     });
   } catch (err) {
