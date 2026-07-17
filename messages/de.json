@@ -335,7 +335,7 @@
     "rejectSelected": "Ablehnen ({count})",
     "rejectReasonLabel": "Grund (optional)",
     "openForm": "Formular öffnen",
-    "fetchJobs": "Anzeigen laden", "fetchingJobs": "Lädt…", "fetchJobsDone": "{jobs} neue Anzeigen, {matches} Matches aktualisiert",
+    "fetchJobs": "Anzeigen laden", "fetchingJobs": "Lädt…", "fetchJobsDone": "{jobs} neue Anzeigen, {matches} Matches aktualisiert", "fetchJobsPick": "Zuerst Kandidaten wählen",
     "rejectedResult": "{count} Match(es) abgelehnt",
     "sendingAll": "Wird gesendet...",
     "sendAllConfirm": "An {count} Arbeitgeber bewerben? (Tageslimit und Cooldown werden eingehalten)",

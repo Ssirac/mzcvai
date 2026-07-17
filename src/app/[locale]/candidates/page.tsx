@@ -947,6 +947,21 @@ export default function CandidatesPage() {
       <div className="border-b border-line px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
         <span className="font-semibold text-ink text-sm">{t("title")}</span>
         <div className="flex items-center gap-2">
+          {/* Fetch fresh listings for the SELECTED candidate — lives next to the
+              dead-sweep button per the operator's request. Disabled until a
+              candidate is selected (the pull is occupation-specific). */}
+          <button
+            onClick={fetchJobsNow}
+            disabled={fetchingJobs || !selectedId}
+            title={selectedId ? t("fetchJobs") : t("fetchJobsPick")}
+            className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium inline-flex items-center gap-2 whitespace-nowrap"
+          >
+            {fetchingJobs ? (
+              <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> <span className="hidden sm:inline">{t("fetchingJobs")}</span></>
+            ) : (
+              <>🔄 <span className="hidden sm:inline">{t("fetchJobs")}</span></>
+            )}
+          </button>
           <button
             onClick={sweepDeadListings}
             disabled={sweeping}
@@ -1666,17 +1681,6 @@ export default function CandidatesPage() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2">
-                        <button
-                          onClick={fetchJobsNow}
-                          disabled={fetchingJobs || sendingAll}
-                          className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap"
-                        >
-                          {fetchingJobs ? (
-                            <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("fetchingJobs")}</>
-                          ) : (
-                            <>🔄 {t("fetchJobs")}</>
-                          )}
-                        </button>
                         <button
                           onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
