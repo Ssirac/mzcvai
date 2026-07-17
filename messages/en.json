@@ -457,11 +457,6 @@
     "noText": "(no text)",
     "jobListing": "Job listing",
     "restore": "Restore contact",
-    "stopSending": "Stop sending to this company",
-    "translate": "Translate",
-    "translating": "Translating…",
-    "showOriginal": "Show original",
-    "showTranslation": "Show translation",
-    "translateError": "Translation failed"
+    "stopSending": "Stop sending to this company"
   }
 }

@@ -457,11 +457,6 @@
     "noText": "(kein Text)",
     "jobListing": "Stellenanzeige",
     "restore": "Kontakt wiederherstellen",
-    "stopSending": "Diesem Unternehmen nicht mehr senden",
-    "translate": "Übersetzen",
-    "translating": "Wird übersetzt…",
-    "showOriginal": "Original anzeigen",
-    "showTranslation": "Übersetzung anzeigen",
-    "translateError": "Übersetzung fehlgeschlagen"
+    "stopSending": "Diesem Unternehmen nicht mehr senden"
   }
 }
