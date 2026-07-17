@@ -3,6 +3,7 @@ import { apiError } from "@/lib/apiError";
 import { logAudit } from "@/services/audit";
 import { authorize } from "@/lib/rbac";
 import { resendEmptyLetters } from "@/services/outreach";
+import { withCronLock } from "@/services/cron";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -26,7 +27,23 @@ export async function POST(req: NextRequest) {
       if (Number.isFinite(body?.limit)) limit = Math.max(1, Math.min(20, body.limit));
     } catch { /* no body → dry-run */ }
 
-    const result = await resendEmptyLetters(apply, limit);
+    // Apply runs under a cron lock: overlapping batches would select the same
+    // still-unfixed rows and DOUBLE-send letters to the same employers.
+    let result;
+    if (apply) {
+      const outcome = await withCronLock("resend-empty", 10 * 60 * 1000, () =>
+        resendEmptyLetters(true, limit)
+      );
+      if (!outcome.ran) {
+        return NextResponse.json(
+          { ok: false, running: true, error: "A resend batch is already running — try again in a few minutes." },
+          { status: 409 }
+        );
+      }
+      result = outcome.result!;
+    } else {
+      result = await resendEmptyLetters(false, limit);
+    }
 
     if (apply && result.resent > 0) {
       await logAudit({
