@@ -100,6 +100,17 @@ enum OutreachStatus {
   BOUNCED
 }
 
+// AI classification of an employer reply — what the answer actually says.
+enum ReplyCategory {
+  INTERESTED  // wants the candidate / asks to proceed
+  INTERVIEW   // proposes an interview / meeting
+  QUESTION    // asks for more info (documents, salary, availability…)
+  REJECTED    // declines the application
+  AUTO_REPLY  // out-of-office / automatic acknowledgement
+  OPT_OUT     // asks to stop contacting them
+  OTHER
+}
+
 enum OutreachChannel {
   EMAIL
   PHONE
@@ -344,6 +355,7 @@ model Outreach {
   replyFrom    String?   // sender of the reply ("Name <email>")
   replySubject String?   // reply subject line
   replyRead    Boolean   @default(false) // has the user seen this reply (inbox badge)
+  replyCategory ReplyCategory? // AI-classified intent of the reply (inbox filters)
   // Follow-up sequence
   followUpCount  Int       @default(0)
   lastFollowUpAt DateTime?

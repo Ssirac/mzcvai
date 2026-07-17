@@ -17,6 +17,7 @@ export async function GET() {
         replyFrom: true,
         replySubject: true,
         replyText: true,
+        replyCategory: true,
         toAddress: true,
         match: {
           select: {

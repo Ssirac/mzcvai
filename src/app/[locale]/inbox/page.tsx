@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import TopNav from "../_components/TopNav";
 
@@ -18,6 +19,7 @@ interface Reply {
   replyFrom: string | null;
   replySubject: string | null;
   replyText: string | null;
+  replyCategory: string | null;
   toAddress: string | null;
   outboundReplies: OutboundReply[];
   match: {
@@ -26,6 +28,24 @@ interface Reply {
     vacancy: { title: string; url: string | null };
   };
 }
+
+// AI reply categories — display order, emoji and badge colours. Labels are a
+// local trilingual map (same convention as the candidates page reason labels).
+const CATEGORIES = ["INTERESTED", "INTERVIEW", "QUESTION", "REJECTED", "AUTO_REPLY", "OPT_OUT", "OTHER"] as const;
+const CAT_STYLE: Record<string, { icon: string; cls: string }> = {
+  INTERESTED: { icon: "🟢", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
+  INTERVIEW:  { icon: "📅", cls: "bg-sky-500/15 text-sky-400 border-sky-500/25" },
+  QUESTION:   { icon: "❓", cls: "bg-amber-500/15 text-amber-400 border-amber-500/25" },
+  REJECTED:   { icon: "🔴", cls: "bg-rose-500/15 text-rose-400 border-rose-500/25" },
+  AUTO_REPLY: { icon: "🤖", cls: "bg-card-2 text-ink-3 border-line" },
+  OPT_OUT:    { icon: "🚫", cls: "bg-rose-500/10 text-rose-300 border-rose-500/20" },
+  OTHER:      { icon: "⚪", cls: "bg-card-2 text-ink-3 border-line" },
+};
+const CAT_LABELS: Record<string, Record<string, string>> = {
+  az: { INTERESTED: "Maraqlanır", INTERVIEW: "Müsahibə", QUESTION: "Sual verir", REJECTED: "Rədd", AUTO_REPLY: "Avtomatik", OPT_OUT: "Yazmayın", OTHER: "Digər" },
+  de: { INTERESTED: "Interessiert", INTERVIEW: "Interview", QUESTION: "Rückfrage", REJECTED: "Absage", AUTO_REPLY: "Automatisch", OPT_OUT: "Abgemeldet", OTHER: "Sonstiges" },
+  en: { INTERESTED: "Interested", INTERVIEW: "Interview", QUESTION: "Question", REJECTED: "Rejected", AUTO_REPLY: "Auto-reply", OPT_OUT: "Opt-out", OTHER: "Other" },
+};
 
 function fmt(d: string | null) {
   if (!d) return "—";
@@ -105,10 +125,13 @@ function ReplyComposer({ outreachId, candidateName, onSent }: { outreachId: stri
 
 export default function InboxPage() {
   const t = useTranslations("inbox");
+  const { locale } = useParams<{ locale: string }>();
+  const catLabel = (c: string) => (CAT_LABELS[locale] ?? CAT_LABELS.az)[c] ?? c;
   const [replies, setReplies] = useState<Reply[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState<string>("ALL");
 
   async function setOptOut(employerId: string, optedOut: boolean) {
     setReplies((prev) => prev.map((r) =>
@@ -139,12 +162,15 @@ export default function InboxPage() {
   const term = q.trim().toLowerCase();
   const list = replies.filter(
     (r) =>
-      !term ||
-      r.match.employer.name.toLowerCase().includes(term) ||
-      r.match.candidate.name.toLowerCase().includes(term) ||
-      (r.replySubject ?? "").toLowerCase().includes(term) ||
-      (r.replyText ?? "").toLowerCase().includes(term)
+      (cat === "ALL" || (r.replyCategory ?? "OTHER") === cat) &&
+      (!term ||
+        r.match.employer.name.toLowerCase().includes(term) ||
+        r.match.candidate.name.toLowerCase().includes(term) ||
+        (r.replySubject ?? "").toLowerCase().includes(term) ||
+        (r.replyText ?? "").toLowerCase().includes(term))
   );
+  // Category counts for the filter chips (independent of the active filter).
+  const catCount = (c: string) => replies.filter((r) => (r.replyCategory ?? "OTHER") === c).length;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -176,6 +202,27 @@ export default function InboxPage() {
           </div>
         </div>
 
+        {/* AI category filter — what do the answers actually say? */}
+        {!loading && replies.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setCat("ALL")}
+              className={`text-xs font-medium rounded-full px-3 py-1.5 border ${cat === "ALL" ? "bg-accent/15 text-accent border-accent/40" : "bg-card-2 text-ink-2 border-line hover:text-ink"}`}
+            >
+              {locale === "de" ? "Alle" : locale === "en" ? "All" : "Hamısı"} {replies.length}
+            </button>
+            {CATEGORIES.filter((c) => catCount(c) > 0).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCat(cat === c ? "ALL" : c)}
+                className={`text-xs font-medium rounded-full px-3 py-1.5 border ${cat === c ? "bg-accent/15 text-accent border-accent/40" : "bg-card-2 text-ink-2 border-line hover:text-ink"}`}
+              >
+                {CAT_STYLE[c].icon} {catLabel(c)} {catCount(c)}
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-2.5">
             {[0, 1, 2, 3].map((i) => (
@@ -206,6 +253,11 @@ export default function InboxPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-ink truncate">{r.match.employer.name}</span>
+                          {r.replyCategory && CAT_STYLE[r.replyCategory] && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] border ${CAT_STYLE[r.replyCategory].cls}`}>
+                              {CAT_STYLE[r.replyCategory].icon} {catLabel(r.replyCategory)}
+                            </span>
+                          )}
                           <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-300 border border-green-500/25">💬 {t("replyPill")}</span>
                           {r.match.employer.optedOut && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-300 border border-red-500/25">🚫 {t("optedOut")}</span>

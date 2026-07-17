@@ -18,6 +18,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
 import { outreachRef, parseRefTag } from "@/lib/outreachRef";
+import { classifyReply } from "@/services/replyClassifier";
 
 function domainOf(email: string | null | undefined): string | null {
   if (!email) return null;
@@ -337,6 +338,10 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
 
         const replyStored = `${subject}\n\n${body}`.trim().slice(0, 4000);
 
+        // What does the answer SAY? (interested / interview / rejected / …)
+        // Fail-soft — classification must never block reply capture.
+        const replyCategory = await classifyReply(subject, body).catch(() => null);
+
         await prisma.outreach.update({
           where: { id: target.id },
           data: {
@@ -345,6 +350,7 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
             replyFrom: fromName ? `${fromName} <${fromAddr}>` : fromAddr,
             replySubject: subject.slice(0, 300),
             replyText: replyStored,
+            ...(replyCategory ? { replyCategory } : {}),
           },
         });
         await prisma.match.update({
