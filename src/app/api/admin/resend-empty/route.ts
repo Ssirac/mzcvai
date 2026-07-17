@@ -27,34 +27,39 @@ export async function POST(req: NextRequest) {
       if (Number.isFinite(body?.limit)) limit = Math.max(1, Math.min(20, body.limit));
     } catch { /* no body → dry-run */ }
 
-    // Apply runs under a cron lock: overlapping batches would select the same
-    // still-unfixed rows and DOUBLE-send letters to the same employers.
-    let result;
+    // Apply runs DETACHED under a cron lock: a batch takes ~8 min, and Next
+    // aborts route handlers when the HTTP client disconnects — earlier awaited
+    // batches silently died with the proxy timeout. Kick the work off, answer
+    // 202 immediately, and record the outcome (incl. failure reasons) in the
+    // audit log when it finishes. The lock still serialises batches.
+    const actor = authz.actor;
     if (apply) {
-      const outcome = await withCronLock("resend-empty", 10 * 60 * 1000, () =>
-        resendEmptyLetters(true, limit)
-      );
-      if (!outcome.ran) {
-        return NextResponse.json(
-          { ok: false, running: true, error: "A resend batch is already running — try again in a few minutes." },
-          { status: 409 }
-        );
-      }
-      result = outcome.result!;
-    } else {
-      result = await resendEmptyLetters(false, limit);
+      void withCronLock("resend-empty", 10 * 60 * 1000, () => resendEmptyLetters(true, limit))
+        .then(async (outcome) => {
+          if (!outcome.ran || !outcome.result) return; // lock held — another batch runs
+          const r = outcome.result;
+          await logAudit({
+            actor,
+            action: "OUTREACH_SEND",
+            targetType: "resend-empty",
+            targetId: `resent:${r.resent}`,
+            meta: {
+              resent: r.resent,
+              failed: r.failed,
+              found: r.found,
+              // First few failure reasons — enough to diagnose repeat offenders.
+              failures: r.items
+                .filter((i) => i.action.startsWith("failed"))
+                .slice(0, 3)
+                .map((i) => `${i.candidate}→${i.employer}: ${i.action.slice(0, 140)}`),
+            },
+          });
+        })
+        .catch(() => { /* logged inside the service */ });
+      return NextResponse.json({ ok: true, started: true, limit }, { status: 202 });
     }
 
-    if (apply && result.resent > 0) {
-      await logAudit({
-        actor: authz.actor,
-        action: "OUTREACH_SEND",
-        targetType: "resend-empty",
-        targetId: `resent:${result.resent}`,
-        meta: { resent: result.resent, failed: result.failed, found: result.found },
-      });
-    }
-
+    const result = await resendEmptyLetters(false, limit);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return apiError(err);
