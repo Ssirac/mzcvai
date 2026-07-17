@@ -148,6 +148,47 @@ interface LetterCandidate {
 }
 interface LetterEmployer { name: string; city: string | null; region: string | null; sponsorshipSignal: string }
 
+// Deterministic cleanup of the classic AI "tells" a model still leaks even when
+// told not to: em/en dashes, markdown, bullet glyphs, a stray subject line. Runs
+// on every generated letter so these never reach an employer regardless of the
+// model's mood. Purely textual — never changes the factual content.
+function stripAiTells(raw: string): string {
+  let t = raw;
+  t = t.replace(/^\s*Betreff:.*\n?/i, "");          // stray subject line
+  t = t.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1"); // markdown bold/italics
+  t = t.replace(/^#{1,6}\s*/gm, "");                 // markdown headings
+  t = t.replace(/^\s*[-*•‣●·]\s+/gm, "");            // bullet list markers
+  // Em/en dash → comma+space when used as a parenthetical break, else a space.
+  t = t.replace(/\s+[—–]\s+/g, ", ");
+  t = t.replace(/[—–]/g, "-");
+  t = t.replace(/[ \t]{2,}/g, " ");                  // collapse runs of spaces
+  t = t.replace(/\n{3,}/g, "\n\n");                  // no huge gaps
+  return t.trim();
+}
+
+// Optional humanising rewrite. A second model call that keeps every fact but
+// re-voices the letter so it reads as typed by a busy recruiter. Returns the
+// rewritten text (already tell-stripped); the caller keeps it only if non-empty.
+async function humanizePass(letter: string, employerName: string, vacancyTitle: string, temperature: number): Promise<string> {
+  const prompt = `Der folgende deutsche Bewerbungstext soll klingen, als hätte ihn eine vielbeschäftigte Personalberaterin selbst getippt, nicht eine KI. Schreibe ihn so um, dass:
+- ALLE Fakten, Namen und Aussagen erhalten bleiben (Arbeitgeber "${employerName}", Stelle "${vacancyTitle}", der Hinweis auf die Vertretung durch die Personalvermittlung).
+- typische KI-Muster verschwinden: gleichförmiger Rhythmus, parallele Satzbauten, Dreier-Aufzählungen, glatte Werbefloskeln.
+- die Satzlängen unregelmäßig werden, auch mal ein sehr kurzer Satz.
+- KEINE Gedankenstriche (– oder —), kein Fettdruck, keine Bullet-Points, keine Überschrift.
+- die Länge ungefähr gleich bleibt.
+Gib NUR den umgeschriebenen Brieftext zurück, ohne Betreff, Grußformel oder Unterschrift.
+
+TEXT:
+"""${letter}"""`;
+  const message = await anthropic.messages.create({
+    model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
+    max_tokens: 3000,
+    temperature,
+    messages: [{ role: "user", content: prompt }],
+  });
+  return stripAiTells(extractText(message));
+}
+
 // Compose a company-specific application letter (subject + body). The letter
 // names the employer + position, states it is sent via the agency (AGENCY_NAME)
 // on the candidate's behalf, and ends with the agency signature. Never says "Test".
@@ -175,6 +216,19 @@ export async function composeApplicationLetter(
   for (const ch of `${candidate.name}|${employer.name}|${vacancy.title}`) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
   const styleHint = STYLE_VARIANTS[seed % STYLE_VARIANTS.length];
 
+  // A second, independent axis: the register/handschrift of the writer. Combined
+  // with the opening variant this makes two letters diverge in tone as well as
+  // structure — a uniform "voice" across letters is itself an AI tell.
+  const TONE_VARIANTS = [
+    "Ton: nüchtern und sachlich, kurze Sätze, wenig Ausschmückung — wie jemand, der zwischen zwei Telefonaten schreibt.",
+    "Ton: freundlich-persönlich, ruhig, mit einem Hauch Wärme, aber ohne Werbesprache.",
+    "Ton: direkt und selbstbewusst, auf den Punkt, ohne Umschweife.",
+    "Ton: zugewandt und pragmatisch, so als kenne man die Branche des Betriebs gut.",
+  ];
+  // Rotate the tone on a DIFFERENT part of the seed than the opening, so opening
+  // and tone don't move together.
+  const toneHint = TONE_VARIANTS[(seed >>> 3) % TONE_VARIANTS.length];
+
   const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "${AGENCY_NAME}" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
@@ -195,11 +249,15 @@ SO ERHÖHST DU DIE ANTWORTQUOTE (Qualität, die Rückmeldungen bringt):
 - Kurze, klar lesbare Absätze. Selbstbewusster, aber nie aufdringlicher Ton.
 
 SCHREIBE WIE EIN MENSCH, NICHT WIE EIN SPRACHMODELL (streng einhalten):
-- Unterschiedliche Satzlängen — auch mal ein kurzer Satz. Keine drei parallel gebauten Absätze, keine Aufzählungen in Dreierpacks, keine identisch beginnenden Sätze.
-- VERBOTENE Formulierungen (klingen nach KI): "in der heutigen Zeit", "ich bin überzeugt, dass", "hochmotiviert", "leidenschaftlich", "Darüber hinaus", "Des Weiteren", "nicht nur … sondern auch", "perfekte Ergänzung", "wertvolle Bereicherung", "zeichnet sich durch … aus", "bringt … mit" als Dauerformel.
-- Keine Gedankenstrich-Ketten, keine Superlative, kein Schlusssatz der Marke "Ich freue mich darauf, … beizutragen".
-- Ein Detail darf beiläufig erwähnt werden, wie es ein Mensch beim schnellen Schreiben tut — nicht jeder Punkt gleich stark betont.
-- Der Text muss klingen wie von einer vielbeschäftigten deutschen Personalberaterin getippt: klar, konkret, etwas nüchtern.
+- ${toneHint}
+- Unterschiedliche Satzlängen, auch mal ein sehr kurzer Satz (3–5 Wörter). Keine drei parallel gebauten Absätze, keine Aufzählungen in Dreierpacks, keine identisch beginnenden Sätze, keine gleich langen Absätze.
+- Variiere die Absatzzahl (2 bis 4). Ein Absatz darf nur aus einem Satz bestehen.
+- VERBOTENE Formulierungen (klingen nach KI): "in der heutigen Zeit", "ich bin überzeugt, dass", "hochmotiviert", "leidenschaftlich", "Darüber hinaus", "Des Weiteren", "nicht nur … sondern auch", "perfekte Ergänzung", "wertvolle Bereicherung", "zeichnet sich durch … aus", "bringt … mit" als Dauerformel, "in diesem Zusammenhang", "im Hinblick auf", "verfügt über umfangreiche".
+- KEINE Gedankenstriche (– oder —) im Text. Nutze stattdessen Kommas, Punkte oder Klammern, so wie man normal tippt.
+- Keine Doppelpunkt-Aufzählungen, keine Bullet-Points, keine Überschriften, kein Fettdruck. Fließtext.
+- Keine Superlative, kein Schlusssatz der Marke "Ich freue mich darauf, … beizutragen".
+- Ein Detail darf beiläufig, fast nebenbei erwähnt werden, wie es ein Mensch beim schnellen Schreiben tut. Nicht jeder Punkt gleich stark betont; ruhig etwas asymmetrisch.
+- Deutsche Alltagssprache einer erfahrenen Personalberaterin: klar, konkret, natürlich. Lieber ein schlichtes, ehrliches Wort als ein glattes Werbewort.
 
 Kandidat: ${candidate.name}${candidate.nationality ? ` (${candidate.nationality})` : ""}
 Beruf/Qualifikation: ${candidate.beruf}
@@ -215,6 +273,10 @@ ${jobText ? `\nStellenanzeige (Auszug):\n"""${jobText}"""` : ""}
 
 Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift).`;
 
+  // A higher temperature raises lexical variety, which flattens the tell-tale
+  // low-perplexity "voice" AI detectors key on. Tunable via env.
+  const temperature = Math.min(1, Math.max(0, parseFloat(process.env.OUTREACH_LETTER_TEMPERATURE ?? "0.9")));
+
   // max_tokens must leave room for the model's thinking blocks PLUS the letter:
   // with only 800, Sonnet 5 sometimes spent the whole budget thinking and
   // returned zero text blocks. One automatic retry covers transient cases.
@@ -225,14 +287,12 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
       // many). Override with OUTREACH_LETTER_MODEL if needed.
       model: process.env.OUTREACH_LETTER_MODEL || "claude-sonnet-5",
       max_tokens: 3000,
+      temperature,
       messages: [{ role: "user", content: prompt }],
     });
     // extractText scans ALL content blocks — Sonnet 5 may emit a thinking block
     // first, and the old content[0] check silently returned "" for those.
-    let text = extractText(message);
-    text = text.replace(/^Betreff:.*\n?/i, "").trim(); // drop any stray subject line
-    text = text.replace(/\*\*/g, "").replace(/^#+\s*/gm, ""); // strip markdown bold/headings (plain-text email)
-    return text;
+    return stripAiTells(extractText(message));
   };
   let body = await generateOnce();
   if (body.length < 200) body = await generateOnce(); // one retry on empty/short
@@ -241,6 +301,14 @@ Gib NUR den Brieftext zurück (ohne Betreffzeile, ohne Grußformel/Unterschrift)
   // an employer a letter with no actual application text in it.
   if (body.length < 200) {
     throw new Error(`Letter generation returned ${body.length} chars for ${candidate.name} → ${employer.name}; refusing to send boilerplate-only mail`);
+  }
+
+  // Optional second pass: an explicit rewrite to iron out any remaining
+  // AI cadence. Off by default (doubles the per-letter cost on auto-send);
+  // enable with OUTREACH_HUMANIZE_PASS=true for the strongest result.
+  if (process.env.OUTREACH_HUMANIZE_PASS === "true") {
+    const humanized = await humanizePass(body, employer.name, vacancy.title, temperature).catch(() => "");
+    if (humanized.length >= 200) body = humanized;
   }
   body = `${body}\n\n${standardClosing(candidate.needsSponsorship)}\n\n${agencySignature(candidate.name)}`;
   const subject = `Bewerbung als ${vacancy.title} – ${candidate.name}`;
