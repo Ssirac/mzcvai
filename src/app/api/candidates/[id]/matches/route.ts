@@ -36,9 +36,11 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
             },
           },
           outreach: {
-            select: { id: true, status: true, createdAt: true },
+            // ALL rows, with sentAt: the UI hides a match once ANY outreach was
+            // dispatched. Status alone is not enough — a reply flips SENT →
+            // REPLIED, which used to resurface the job in "Uyğun işlər".
+            select: { id: true, status: true, createdAt: true, sentAt: true },
             orderBy: { createdAt: "desc" },
-            take: 1,
           },
         },
       });

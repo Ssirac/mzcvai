@@ -75,7 +75,7 @@ interface Match {
     applyFormUrl: string | null; website: string | null; phone: string | null;
     optedOut: boolean;
   };
-  outreach: { id: string; status: string }[];
+  outreach: { id: string; status: string; sentAt?: string | null }[];
   employerLastSentAt: string | null;
 }
 
@@ -312,12 +312,19 @@ export default function CandidatesPage() {
     } catch { /* non-fatal */ }
   }
 
+  // A match counts as DISPATCHED once any outreach actually went out (sentAt
+  // set). Status alone lies after progression: SENT flips to OPENED/REPLIED/
+  // BOUNCED, which used to resurface already-mailed jobs in "Uyğun işlər".
+  // Stuck DRAFTs (failed sends, sentAt null) stay visible so they can be retried.
+  const everDispatched = (m: Match) =>
+    m.outreach.some((o) => !!o.sentAt || o.status === "SENT" || o.status === "OPENED" || o.status === "REPLIED" || o.status === "BOUNCED");
+
   // Pending = not yet contacted. Surface employers that already have a found
   // email first (those can be mailed immediately), keeping score order within each group.
   const pendingMatches = matches
     // Hide a job only once it's actually SENT — a stuck DRAFT (failed send) must
     // stay in the list so it can be retried, not silently disappear.
-    .filter((m) => !m.outreach.some((o) => o.status === "SENT"))
+    .filter((m) => !everDispatched(m))
     .filter((m) => !matchFilters.sponsor || m.employer.sponsorshipSignal === "YES")
     // Apply type: "email" = employer has a generic address (we mail it);
     // "form" = no address, apply via the job's own form/link (human + extension).
@@ -332,10 +339,10 @@ export default function CandidatesPage() {
     );
   // How many pending matches exist ignoring the active filters (to tell "all
   // sent" apart from "filters hid everything").
-  const pendingUnfiltered = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT")).length;
+  const pendingUnfiltered = matches.filter((m) => !everDispatched(m)).length;
   const matchFilterActive = matchFilters.sponsor || matchFilters.applyType !== "all";
-  const emailCount = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT") && !!m.employer.genericEmail).length;
-  const formCount = matches.filter((m) => !m.outreach.some((o) => o.status === "SENT") && !m.employer.genericEmail).length;
+  const emailCount = matches.filter((m) => !everDispatched(m) && !!m.employer.genericEmail).length;
+  const formCount = matches.filter((m) => !everDispatched(m) && !m.employer.genericEmail).length;
 
   function toggleMatchSelect(id: string) {
     setSelectedMatchIds((prev) => {
