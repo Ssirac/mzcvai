@@ -90,7 +90,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     // per-candidate + global daily caps, per-employer cooldown, opt-out,
     // generic-email-only, already-sent — is enforced inside the send path, so
     // this never double-sends and never blocks the response.
-    const hasPending = annotated.some((m) => !m.outreach.some((o) => o.status === "SENT"));
+    const hasPending = annotated.some((m) => !m.outreach.some((o) => o.createdAt && o.status !== "DRAFT" && o.status !== "APPROVED"));
     if (hasPending) {
       void autoSendForCandidate(params.id).catch((e) =>
         console.error("[auto-pilot] send on matches view failed:", (e as Error).message)

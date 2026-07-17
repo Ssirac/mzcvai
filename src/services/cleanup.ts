@@ -6,7 +6,7 @@
  *
  * A vacancy is matched by a part-time title keyword OR an unambiguous mini-job
  * signal in the description (Minijob, 520-Euro, geringfügig, "nur Teilzeit").
- * Vacancies tied to a SENT outreach are kept so application history survives.
+ * Vacancies tied to a DISPATCHED outreach (sentAt set — covers SENT/OPENED/REPLIED/BOUNCED) are kept so application + reply history survives.
  * FK-safe: Outreach → Match → Vacancy.
  */
 
@@ -21,7 +21,7 @@ import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation 
 //               VACANCY_MAX_AGE_DAYS), even if a stale aggregator still echoes it.
 //   • FALLBACK— first discovered over `expiryDays` ago (foundAt), for rows with
 //               no posted/last-seen signal.
-// Vacancies tied to a SENT outreach are always kept (application history).
+// Vacancies tied to a dispatched outreach (sentAt set) are always kept — deleting them would cascade away the application AND the employer reply history (this once silently ate replied threads).
 export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expiredDeleted: number }> {
   const day = 24 * 60 * 60 * 1000;
   const now = Date.now();
@@ -34,7 +34,7 @@ export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expired
 
   const stale = await prisma.vacancy.findMany({
     where: {
-      matches: { none: { outreach: { some: { status: "SENT" } } } },
+      matches: { none: { outreach: { some: { sentAt: { not: null } } } } },
       OR: [
         { lastSeenAt: { lt: staleCut } },
         { postedAt: { lt: ageCut } },
@@ -61,10 +61,10 @@ export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expired
 // Germany-only guard: purge any vacancy whose employer/vacancy location names a
 // place OUTSIDE Germany (Austria, Switzerland, etc.). The precise word-boundary
 // check runs in JS — a raw DB `contains` would wrongly hit German names like
-// "Bernau" (contains "bern"). Vacancies tied to a SENT outreach are kept.
+// "Bernau" (contains "bern"). Vacancies tied to a dispatched outreach (sentAt set) are kept.
 export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: number }> {
   const vacancies = await prisma.vacancy.findMany({
-    where: { matches: { none: { outreach: { some: { status: "SENT" } } } } },
+    where: { matches: { none: { outreach: { some: { sentAt: { not: null } } } } } },
     select: {
       id: true,
       region: true,
@@ -112,7 +112,7 @@ export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: numb
   const ptVacancies = await prisma.vacancy.findMany({
     where: {
       OR: [...titleOr, ...descOr],
-      matches: { none: { outreach: { some: { status: "SENT" } } } },
+      matches: { none: { outreach: { some: { sentAt: { not: null } } } } },
     },
     select: { id: true, matches: { select: { id: true } } },
   });

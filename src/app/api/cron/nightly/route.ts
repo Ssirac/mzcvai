@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       const stale = await prisma.vacancy.findMany({
         where: {
           foundAt: { lt: expiryCutoff },
-          matches: { none: { outreach: { some: { status: "SENT" } } } },
+          matches: { none: { outreach: { some: { sentAt: { not: null } } } } }, // dispatched (incl. REPLIED) — protects reply history
         },
         select: { id: true, matches: { select: { id: true } } },
       });

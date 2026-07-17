@@ -583,7 +583,7 @@ export async function sendAllForCandidate(
   for (const match of matches) {
     let createdOutreachId: string | null = null;
     try {
-      if (match.outreach.some((o) => o.status === "SENT")) { result.alreadySent++; continue; }
+      if (match.outreach.some((o) => o.sentAt !== null)) { result.alreadySent++; continue; } // dispatched incl. REPLIED — never re-apply to an answered thread
       // Opted-out employer (asked to stop / wrong company) — skip silently.
       if (match.employer.optedOut) { result.skippedOptedOut++; continue; }
       // Without test mode we can only email employers that expose a generic address

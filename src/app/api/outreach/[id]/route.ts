@@ -49,9 +49,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    const o = await prisma.outreach.findUnique({ where: { id: params.id }, select: { status: true } });
+    const o = await prisma.outreach.findUnique({ where: { id: params.id }, select: { status: true, sentAt: true } });
     if (!o) return NextResponse.json({ ok: true });
-    if (o.status === "SENT") {
+    if (o.status === "SENT" || o.sentAt) { // dispatched (incl. REPLIED) = real history
       return NextResponse.json({ error: "Cannot delete a sent outreach" }, { status: 400 });
     }
     await prisma.outreach.delete({ where: { id: params.id } });

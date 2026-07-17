@@ -82,14 +82,17 @@ async function retireDeadVacancies(ids: string[]): Promise<{ deleted: number; ex
   if (ids.length === 0) return { deleted: 0, expired: 0 };
   const rows = await prisma.vacancy.findMany({
     where: { id: { in: ids } },
-    select: { id: true, matches: { select: { id: true, outreach: { select: { status: true } } } } },
+    select: { id: true, matches: { select: { id: true, outreach: { select: { sentAt: true } } } } },
   });
 
   const deletableVacIds: string[] = [];
   const deletableMatchIds: string[] = [];
   const expireVacIds: string[] = [];
   for (const v of rows) {
-    const hasSent = v.matches.some((m) => m.outreach.some((o) => o.status === "SENT"));
+    // Dispatched = sentAt set (covers SENT/OPENED/REPLIED/BOUNCED). Checking only
+    // status "SENT" once deleted vacancies whose thread had progressed to
+    // REPLIED — cascading away the employer's reply from the inbox.
+    const hasSent = v.matches.some((m) => m.outreach.some((o) => o.sentAt !== null));
     if (hasSent) {
       expireVacIds.push(v.id);
     } else {
