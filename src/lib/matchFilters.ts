@@ -13,9 +13,14 @@ import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMa
  */
 export function freshVacancyWhere() {
   const day = 24 * 60 * 60 * 1000;
-  const expiryCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_FOUND_MAX_DAYS ?? "30") * day);
   const staleCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_STALE_DAYS ?? "10") * day);
-  const postedCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "30") * day);
+  // Liveness comes from the SOURCE: a listing re-seen within the stale window is
+  // still published, regardless of when WE first found it (a foundAt guard here
+  // wrongly hid live listings that aggregators re-list for weeks — candidates
+  // saw "no new jobs" while hundreds of live matches were suppressed). Death is
+  // handled by lastSeenAt going stale + the URL-visiting dead sweep. The
+  // postedAt cap only prunes ancient ghost postings (60d default).
+  const postedCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "60") * day);
 
   const partTimeOr = [
     ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({ title: { contains: kw, mode: "insensitive" as const } })),
@@ -24,9 +29,8 @@ export function freshVacancyWhere() {
 
   return {
     status: "ACTIVE" as const,
-    foundAt: { gte: expiryCutoff },
     lastSeenAt: { gte: staleCutoff },
-    // Hide old postings; rows without a postedAt (null) are kept.
+    // Hide ancient postings; rows without a postedAt (null) are kept.
     NOT: { OR: [...partTimeOr, { postedAt: { lt: postedCutoff } }] },
   };
 }
