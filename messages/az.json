@@ -335,6 +335,7 @@
     "rejectSelected": "Rədd et ({count})",
     "rejectReasonLabel": "Səbəb (istəyə bağlı)",
     "openForm": "Formanı aç",
+    "fetchJobs": "Elanları çək", "fetchingJobs": "Çəkilir…", "fetchJobsDone": "{jobs} yeni elan tapıldı, {matches} uyğunluq yeniləndi",
     "rejectedResult": "{count} uyğunluq rədd edildi",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",

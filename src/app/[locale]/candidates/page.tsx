@@ -296,6 +296,7 @@ export default function CandidatesPage() {
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
   const [enrichingMatches, setEnrichingMatches] = useState(false);
+  const [fetchingJobs, setFetchingJobs] = useState(false);
   // Per-candidate unread-reply counts → green dot in the candidate list.
   const [unreadByCandidate, setUnreadByCandidate] = useState<Record<string, number>>({});
   const [listSort, setListSort] = useState<"status" | "matches" | "unread" | "recent">("status");
@@ -793,6 +794,30 @@ export default function CandidatesPage() {
       }
     } catch {
       toast("error", "error");
+    }
+  }
+
+  // "Elanları çək": pull fresh listings for this candidate's occupation from
+  // every source NOW (instead of waiting for the 4-hourly refresh) + re-match.
+  async function fetchJobsNow() {
+    if (!selectedId || fetchingJobs) return;
+    setFetchingJobs(true);
+    try {
+      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/fetch-jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (ok && data.ok) {
+        toast(t("fetchJobsDone", { jobs: Number(data.vacanciesNew ?? 0), matches: Number(data.matched ?? 0) }), "success");
+        await loadMatches(selectedId);
+      } else {
+        toast(String(data.error ?? "error"), "error");
+      }
+    } catch {
+      toast("error", "error");
+    } finally {
+      setFetchingJobs(false);
     }
   }
 
@@ -1641,6 +1666,17 @@ export default function CandidatesPage() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2">
+                        <button
+                          onClick={fetchJobsNow}
+                          disabled={fetchingJobs || sendingAll}
+                          className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 sm:py-2 rounded-lg font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                        >
+                          {fetchingJobs ? (
+                            <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t("fetchingJobs")}</>
+                          ) : (
+                            <>🔄 {t("fetchJobs")}</>
+                          )}
+                        </button>
                         <button
                           onClick={() => findEmailsForMatches()}
                           disabled={enrichingMatches || sendingAll}
