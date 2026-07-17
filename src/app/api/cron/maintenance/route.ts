@@ -11,9 +11,36 @@ import { runAutoSend } from "@/services/autopilot";
 import { runScrapeCycle } from "@/services/scraper/cycle";
 import { sendDailyDigest } from "@/services/digest";
 import { prisma } from "@/lib/prisma";
+import { log as logger } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+// Jobs that legitimately take minutes (many live source fetches, a headless
+// browser, re-matching every candidate). Railway runs one persistent Node
+// process, so we can start these detached and let them finish after we respond
+// — the caller (GitHub Actions cron / curl) gets an instant 202 instead of
+// waiting 5 minutes and timing out. withCronLock still guarantees single-flight.
+const HEAVY_JOBS = new Set(["refresh", "scrape", "applyscan"]);
+
+async function runHeavyJob(job: string): Promise<void> {
+  try {
+    if (job === "refresh") {
+      await withCronLock("refresh", 30 * 60 * 1000, async () => ({
+        refresh: await refreshJobs(),
+        autoSend: await runAutoSend(),
+      }));
+    } else if (job === "scrape") {
+      await withCronLock("scrape", 55 * 60 * 1000, () => runScrapeCycle());
+    } else if (job === "applyscan") {
+      await withCronLock("applyscan", 30 * 60 * 1000, () => runApplyScan());
+    }
+  } catch (err) {
+    // withCronLock records failures itself; this only guards against an
+    // unexpected throw so it never becomes an unhandled rejection.
+    logger.error("cron.background_failed", { job, error: (err as Error).message });
+  }
+}
 
 // Intraday refresh: pull fresh listings for each ACTIVE candidate's occupation
 // from every available source (1 page each — new postings surface at the top),
@@ -68,6 +95,13 @@ export async function POST(req: NextRequest) {
   }
 
   const job = req.nextUrl.searchParams.get("job") ?? "all";
+
+  // Heavy jobs run detached so the caller never waits (and never times out).
+  if (HEAVY_JOBS.has(job)) {
+    void runHeavyJob(job);
+    return NextResponse.json({ ok: true, job, status: "started" }, { status: 202 });
+  }
+
   const log: Record<string, unknown> = {};
 
   try {
@@ -91,32 +125,13 @@ export async function POST(req: NextRequest) {
       if (job === "followups") log.replies = await pollReplies();
       log.followups = await runFollowUps();
     }
-    // Intraday job refresh — new vacancies land within hours, not next day.
-    // Auto-pilot then sends applications for the fresh matches immediately.
-    if (job === "refresh") {
-      const o = await withCronLock("refresh", 30 * 60 * 1000, async () => ({
-        refresh: await refreshJobs(),
-        autoSend: await runAutoSend(),
-      }));
-      Object.assign(log, o.ran ? o.result : { refresh: { skipped: o.skipped ?? o.error } });
-    }
     if (job === "autosend") {
       log.autoSend = await runAutoSend();
     }
     if (job === "digest") {
       log.digest = await sendDailyDigest();
     }
-    // Script-based scraping cycle (Group A→C sites), rate-limited & queued.
-    if (job === "scrape") {
-      const o = await withCronLock("scrape", 55 * 60 * 1000, () => runScrapeCycle());
-      log.scrape = o.ran ? o.result : { skipped: o.skipped ?? o.error };
-    }
-    // Apply scanner: classify form-apply jobs, queue captcha/OTP/form for the
-    // human (raises the badge) and log every attempt.
-    if (job === "applyscan") {
-      const o = await withCronLock("applyscan", 30 * 60 * 1000, () => runApplyScan());
-      log.applyScan = o.ran ? o.result : { skipped: o.skipped ?? o.error };
-    }
+    // Note: refresh / scrape / applyscan are handled above as detached HEAVY_JOBS.
     return NextResponse.json({ ok: true, job, ...log });
   } catch (err) {
     return NextResponse.json({ ok: false, error: (err as Error).message, ...log }, { status: 500 });
