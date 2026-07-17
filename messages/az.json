@@ -83,6 +83,7 @@
     "candidates": "Namizədlər",
     "inbox": "Gələn maillər",
     "analytics": "Analitika",
+    "report": "Hesabat",
     "outreach": "Müraciətlər",
     "review": "Təsdiq",
     "captcha": "Robot növbəsi",
@@ -441,6 +442,24 @@
     "byCandidate": "Namizəd üzrə cavab faizi",
     "tableNoData": "Hələ məlumat yoxdur.",
     "footnote": "Cavab faizi = cavab verən işəgötürənlər / göndərilən müraciətlər. Açılma izləmə Resend tracking subdomain aktivləşəndən sonra dəqiqləşir."
+  },
+  "report": {
+    "title": "Aylıq hesabat",
+    "subtitle": "Ay üzrə fəaliyyət — müştəriyə göstərmək üçün",
+    "inProgress": "cari ay (davam edir)",
+    "print": "Çap et / PDF",
+    "applicationsSent": "Göndərilən müraciətlər",
+    "repliesReceived": "Alınan cavablar",
+    "replyRate": "Cavab faizi",
+    "promisingReplies": "Perspektivli cavablar",
+    "promisingHint": "maraqlanır + müsahibə",
+    "newCandidates": "Yeni namizədlər",
+    "interviews": "Müsahibələr",
+    "placements": "Yerləşdirmələr",
+    "activeCandidates": "Aktiv namizədlər",
+    "vsPrev": "keçən aya nisbətən",
+    "prevMonth": "Əvvəlki ay",
+    "nextMonth": "Növbəti ay"
   },
   "inbox": {
     "title": "Gələn maillər",

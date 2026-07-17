@@ -53,6 +53,14 @@ function IconList() {
     </svg>
   );
 }
+function IconReport() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+      <line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  );
+}
 function IconCog() {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -61,7 +69,7 @@ function IconCog() {
   );
 }
 
-export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "inbox" | "review" | "captcha" | "outreachReview" | "applications" | "system" }) {
+export default function TopNav({ active }: { active: "dashboard" | "candidates" | "analytics" | "report" | "inbox" | "review" | "captcha" | "outreachReview" | "applications" | "system" }) {
   const { locale } = useParams() as { locale: string };
   const pathname = usePathname();
   const router = useRouter();
@@ -122,6 +130,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     { key: "applications" as const, href: `/${locale}/applications`, label: t("applications"), icon: <IconList /> },
     { key: "inbox" as const, href: `/${locale}/inbox`, label: t("inbox"), icon: <IconInbox /> },
     { key: "analytics" as const, href: `/${locale}/analytics`, label: t("analytics"), icon: <IconChart /> },
+    { key: "report" as const, href: `/${locale}/report`, label: t("report"), icon: <IconReport /> },
     { key: "system" as const, href: `/${locale}/system`, label: t("system"), icon: <IconCog /> },
   ];
 

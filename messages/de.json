@@ -83,6 +83,7 @@
     "candidates": "Kandidaten",
     "inbox": "Posteingang",
     "analytics": "Analytik",
+    "report": "Bericht",
     "outreach": "Outreach",
     "review": "Prüfung",
     "captcha": "Robot-Queue",
@@ -441,6 +442,24 @@
     "byCandidate": "Antwortrate nach Kandidat",
     "tableNoData": "Noch keine Daten.",
     "footnote": "Antwortrate = antwortende Arbeitgeber / gesendete Bewerbungen. Die Öffnungsverfolgung wird nach Aktivierung der Resend-Tracking-Subdomain genauer."
+  },
+  "report": {
+    "title": "Monatsbericht",
+    "subtitle": "Aktivität pro Monat — zum Vorzeigen beim Kunden",
+    "inProgress": "laufender Monat",
+    "print": "Drucken / PDF",
+    "applicationsSent": "Gesendete Bewerbungen",
+    "repliesReceived": "Erhaltene Antworten",
+    "replyRate": "Antwortquote",
+    "promisingReplies": "Vielversprechende Antworten",
+    "promisingHint": "Interesse + Gespräch",
+    "newCandidates": "Neue Kandidaten",
+    "interviews": "Vorstellungsgespräche",
+    "placements": "Vermittlungen",
+    "activeCandidates": "Aktive Kandidaten",
+    "vsPrev": "ggü. Vormonat",
+    "prevMonth": "Vormonat",
+    "nextMonth": "Nächster Monat"
   },
   "inbox": {
     "title": "Posteingang",

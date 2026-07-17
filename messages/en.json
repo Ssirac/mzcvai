@@ -83,6 +83,7 @@
     "candidates": "Candidates",
     "inbox": "Inbox",
     "analytics": "Analytics",
+    "report": "Report",
     "outreach": "Outreach",
     "review": "Review",
     "captcha": "Robot queue",
@@ -441,6 +442,24 @@
     "byCandidate": "Reply rate by candidate",
     "tableNoData": "No data yet.",
     "footnote": "Reply rate = employers who replied / applications sent. Open tracking becomes accurate after the Resend tracking subdomain is enabled."
+  },
+  "report": {
+    "title": "Monthly report",
+    "subtitle": "Activity per month — presentable to your client",
+    "inProgress": "current month (in progress)",
+    "print": "Print / PDF",
+    "applicationsSent": "Applications sent",
+    "repliesReceived": "Replies received",
+    "replyRate": "Reply rate",
+    "promisingReplies": "Promising replies",
+    "promisingHint": "interested + interview",
+    "newCandidates": "New candidates",
+    "interviews": "Interviews",
+    "placements": "Placements",
+    "activeCandidates": "Active candidates",
+    "vsPrev": "vs. previous month",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month"
   },
   "inbox": {
     "title": "Inbox",
