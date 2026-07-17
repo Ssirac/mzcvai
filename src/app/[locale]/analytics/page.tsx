@@ -179,9 +179,7 @@ export default function AnalyticsPage() {
               <Table title={t("byBeruf")} rows={data?.byBeruf ?? []} labelKey="key" />
               <Table title={t("byRegion")} rows={data?.byRegion ?? []} labelKey="key" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Table title={t("byCandidate")} rows={data?.byCandidate ?? []} labelKey="name" />
-            </div>
+            <Table title={t("byCandidate")} rows={data?.byCandidate ?? []} labelKey="name" />
 
             <p className="text-xs text-ink-3">{t("footnote")}</p>
           </>
