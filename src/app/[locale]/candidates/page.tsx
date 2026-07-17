@@ -55,6 +55,13 @@ function profileCompleteness(c: Candidate, t: (k: string) => string): { pct: num
   return { pct: Math.round((done / checks.length) * 100), missing: checks.filter((x) => !x.ok).map((x) => x.label) };
 }
 
+
+// Append the #mzfill hash so the MZ Autofill extension fills the form for
+// exactly this candidate (same mechanism as the robot queue "open & confirm").
+const withFillHash = (url: string, candidateId: string): string => {
+  try { const u = new URL(url); u.hash = `mzfill=${candidateId}`; return u.toString(); } catch { return url; }
+};
+
 interface Match {
   id: string;
   fitScore: number;
@@ -1794,6 +1801,17 @@ export default function CandidatesPage() {
                                     <a href={jobLink} target="_blank" rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 bg-blue-600/15 text-blue-300 border border-blue-600/30 hover:bg-blue-600/25 px-2.5 py-1 rounded-md font-medium">
                                       🔗 {t("jobListing")}
+                                    </a>
+                                  )}
+                                  {/* FORM listings: open the application form with the
+                                      #mzfill hash so the extension autofills THIS candidate. */}
+                                  {m.vacancy.applyChannel === "FORM" && selectedId
+                                    && (m.employer.applyFormUrl || jobLink) && (
+                                    <a
+                                      href={withFillHash(m.employer.applyFormUrl || jobLink!, selectedId)}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 bg-purple-600/15 text-purple-300 border border-purple-600/30 hover:bg-purple-600/25 px-2.5 py-1 rounded-md font-medium">
+                                      📝 {t("openForm")}
                                     </a>
                                   )}
                                   {m.employer.genericEmail ? (

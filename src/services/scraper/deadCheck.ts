@@ -158,9 +158,10 @@ export async function pruneDeadVacancies(
 export async function sweepDeadVacancies(
   opts?: { limit?: number; notSeenMins?: number; delayMs?: number; maxMs?: number }
 ): Promise<{ checked: number; deleted: number; expired: number }> {
-  // 60/tick × every-15-min cleanup ≈ 240 listings/hour checked continuously —
-  // the manual "delete dead listings" button stays as a booster, not a necessity.
-  const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "60");
+  // 100/tick × every-15-min cleanup ≈ 400 listings/hour checked continuously —
+  // a ~6.7k-listing corpus gets a full dead-check pass in well under a day, so
+  // "Dieser Job ist leider nicht mehr aktuell" pages disappear within hours.
+  const limit = opts?.limit ?? parseInt(process.env.DEAD_SWEEP_LIMIT ?? "100");
   const notSeenMins = opts?.notSeenMins ?? parseInt(process.env.DEAD_SWEEP_NOT_SEEN_MINS ?? "360"); // 6h
   const delayMs = opts?.delayMs ?? 1200;
   // Default budget keeps a cron tick well inside the route's 300s maxDuration.

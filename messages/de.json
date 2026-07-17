@@ -334,6 +334,7 @@
     "sendSelected": "An Ausgewählte senden ({count})",
     "rejectSelected": "Ablehnen ({count})",
     "rejectReasonLabel": "Grund (optional)",
+    "openForm": "Formular öffnen",
     "rejectedResult": "{count} Match(es) abgelehnt",
     "sendingAll": "Wird gesendet...",
     "sendAllConfirm": "An {count} Arbeitgeber bewerben? (Tageslimit und Cooldown werden eingehalten)",

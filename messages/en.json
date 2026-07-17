@@ -334,6 +334,7 @@
     "sendSelected": "Send to selected ({count})",
     "rejectSelected": "Reject ({count})",
     "rejectReasonLabel": "Reason (optional)",
+    "openForm": "Open form",
     "rejectedResult": "{count} match(es) rejected",
     "sendingAll": "Sending...",
     "sendAllConfirm": "Apply to {count} employers? (Daily limit and cooldown are respected)",

@@ -18,8 +18,13 @@ export async function POST(req: NextRequest) {
     const authz = await authorize(req, "admin.maintenance");
     if (!authz.ok) return authz.response;
     const actor = await getSessionUser(req);
+    // Optional single-candidate mode: body { candidateId } re-matches just one —
+    // fast enough for a synchronous call (the all-candidates loop can outlive
+    // proxy timeouts, and Next kills handlers when the client disconnects).
+    let onlyId: string | null = null;
+    try { onlyId = (await req.json())?.candidateId ?? null; } catch { /* full run */ }
     const candidates = await prisma.candidate.findMany({
-      where: { status: "ACTIVE" },
+      where: onlyId ? { id: onlyId } : { status: "ACTIVE" },
       select: { id: true, name: true },
     });
 
