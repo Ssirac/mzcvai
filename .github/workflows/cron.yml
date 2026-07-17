@@ -40,8 +40,18 @@ jobs:
               -H "x-cron-secret: $SECRET" --max-time 300 \
               && echo " ✓ $1 ok" || { echo "::error::job $1 failed"; return 1; }
           }
+          # Long jobs (refresh crawls ~12 sources × 20 occupations, often >5 min):
+          # our only duty is to TRIGGER them — the server keeps running after the
+          # HTTP client gives up, so a curl timeout (exit 28) is a success here.
+          fire_async() {
+            echo "→ job=$1 (trigger-only)"
+            curl -fsS -X POST "$BASE/api/cron/maintenance?job=$1" \
+              -H "x-cron-secret: $SECRET" --max-time 60 \
+              && echo " ✓ $1 ok" \
+              || { rc=$?; if [ "$rc" = "28" ]; then echo " ✓ $1 triggered — continues server-side"; else echo "::error::job $1 failed (rc=$rc)"; return 1; fi; }
+          }
           case "${{ github.event.schedule }}" in
             "0 8 * * *")   fire followups; fire digest ;;
-            "0 */4 * * *") fire refresh ;;
+            "0 */4 * * *") fire_async refresh ;;
             *)             fire replies ;;   # hourly + manual dispatch
           esac
