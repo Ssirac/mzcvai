@@ -433,6 +433,104 @@ export async function sendOutreach(outreachId: string): Promise<void> {
   });
 }
 
+// ── One-off repair: re-send letters that went out with an EMPTY AI body ──────
+// (13–14 July, Sonnet-5 thinking-block bug): those mails contained only the
+// standard closing + signature. This finds them, regenerates the full letter
+// (the new <200-char guard makes an empty regeneration impossible) and re-sends
+// on the SAME outreach row — so the [MZ-…] reply code stays valid and follow-up
+// counters continue. Skips replied/bounced/opted-out/personal-address rows and
+// respects the per-candidate and global daily caps.
+const EMPTY_BODY_MARKERS = [
+  "Sollte für den Kandidaten ein Visum",     // closing with visa paragraph
+  "Die Vorstellung des Kandidaten sowie",    // closing without visa paragraph
+];
+
+export interface ResendEmptyResult {
+  applied: boolean;
+  found: number;
+  resent: number;
+  skippedOptOut: number;
+  skippedBounced: number;
+  skippedNoEmail: number;
+  skippedCap: number;
+  failed: number;
+  items: { candidate: string; employer: string; vacancy: string; action: string }[];
+}
+
+export async function resendEmptyLetters(apply = false, limit = 60): Promise<ResendEmptyResult> {
+  const r: ResendEmptyResult = {
+    applied: apply, found: 0, resent: 0,
+    skippedOptOut: 0, skippedBounced: 0, skippedNoEmail: 0, skippedCap: 0, failed: 0, items: [],
+  };
+
+  const sent = await prisma.outreach.findMany({
+    where: { status: "SENT" },
+    include: { match: { include: { employer: true, candidate: true, vacancy: true } } },
+    orderBy: { sentAt: "asc" },
+  });
+  const empty = sent.filter((o) => {
+    const b = (o.draftBody ?? "").trimStart();
+    return EMPTY_BODY_MARKERS.some((m) => b.startsWith(m));
+  }).slice(0, limit);
+  r.found = empty.length;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const GLOBAL_CAP = parseInt(process.env.GLOBAL_DAILY_CAP ?? "500");
+  let sentTodayGlobal = await prisma.outreach.count({ where: { status: "SENT", sentAt: { gte: todayStart } } });
+  const sentTodayByCandidate = new Map<string, number>();
+
+  for (const o of empty) {
+    const cand = o.match.candidate;
+    const emp = o.match.employer;
+    const vac = o.match.vacancy;
+    const label = { candidate: cand.name, employer: emp.name, vacancy: vac.title, action: "" };
+    r.items.push(label);
+
+    if (emp.optedOut) { r.skippedOptOut++; label.action = "skip: opt-out"; continue; }
+    if (o.bouncedAt) { r.skippedBounced++; label.action = "skip: bounced"; continue; }
+    if (!o.toAddress || looksPersonal(o.toAddress)) { r.skippedNoEmail++; label.action = "skip: no/personal address"; continue; }
+
+    const mine = sentTodayByCandidate.get(cand.id) ?? await prisma.outreach.count({
+      where: { status: "SENT", sentAt: { gte: todayStart }, match: { candidateId: cand.id } },
+    });
+    if (sentTodayGlobal >= GLOBAL_CAP || mine >= MAX_PER_DAY) { r.skippedCap++; label.action = "skip: daily cap"; continue; }
+    sentTodayByCandidate.set(cand.id, mine);
+
+    if (!apply) { label.action = "would re-send"; continue; }
+
+    try {
+      // Regenerate — the composer now THROWS on a short/empty body, so a broken
+      // generation can never be mailed again.
+      const { subject, body } = await composeApplicationLetter(cand, emp, vac);
+
+      let cvAttachment: { filename: string; content: Buffer }[] = [];
+      if (cand.cvData) {
+        cvAttachment = [{ filename: cand.cvFileName || cvFileName(cand.name), content: Buffer.from(cand.cvData) }];
+      }
+
+      const finalSubject = withRefTag(subject, o.id);
+      const finalBody = body + complianceFooter(o.match.employerId);
+      const testRecipient = process.env.OUTREACH_TEST_RECIPIENT?.trim() || null;
+      const sendResult = await sendMail({ to: testRecipient || o.toAddress, subject: finalSubject, text: finalBody, attachments: cvAttachment });
+
+      await prisma.outreach.update({
+        where: { id: o.id },
+        data: { draftBody: body, subject, sentAt: new Date(), providerId: sendResult.id },
+      });
+      r.resent++;
+      label.action = "re-sent";
+      sentTodayGlobal++;
+      sentTodayByCandidate.set(cand.id, (sentTodayByCandidate.get(cand.id) ?? 0) + 1);
+      await new Promise((res) => setTimeout(res, 1500)); // gentle pace for the mail provider
+    } catch (err) {
+      r.failed++;
+      label.action = `failed: ${(err as Error).message.slice(0, 120)}`;
+    }
+  }
+  return r;
+}
+
 export interface BulkSendResult {
   sent: number;
   alreadySent: number;
