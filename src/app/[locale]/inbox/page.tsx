@@ -131,30 +131,6 @@ export default function InboxPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("ALL");
-  const [tr, setTr] = useState<Record<string, { status: "loading" | "done" | "error"; text?: string; show: boolean }>>({});
-
-  // One click translates the employer's mail into the UI language; after that
-  // the same button toggles between translation and original.
-  async function translate(id: string) {
-    const cur = tr[id];
-    if (cur?.status === "loading") return;
-    if (cur?.status === "done") {
-      setTr((p) => ({ ...p, [id]: { ...cur, show: !cur.show } }));
-      return;
-    }
-    setTr((p) => ({ ...p, [id]: { status: "loading", show: true } }));
-    try {
-      const res = await fetch(`/api/inbox/${id}/translate`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lang: locale }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.text) throw new Error(String(data.error ?? "translate failed"));
-      setTr((p) => ({ ...p, [id]: { status: "done", text: String(data.text), show: true } }));
-    } catch {
-      setTr((p) => ({ ...p, [id]: { status: "error", show: false } }));
-    }
-  }
 
   async function setOptOut(employerId: string, optedOut: boolean) {
     setReplies((prev) => prev.map((r) =>
@@ -298,37 +274,11 @@ export default function InboxPage() {
                   </button>
                   {isOpen && (
                     <div className="px-4 pb-4 border-t border-line/70 pt-3">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="text-xs text-ink-3 min-w-0 truncate">
-                          <span className="text-ink-3">{t("from")}:</span> {r.replyFrom || r.toAddress || "—"}
-                        </div>
-                        {r.replyText && (
-                          <div className="shrink-0 flex items-center gap-2">
-                            {tr[r.id]?.status === "error" && (
-                              <span className="text-[11px] text-red-400">{t("translateError")}</span>
-                            )}
-                            <button
-                              onClick={() => translate(r.id)}
-                              disabled={tr[r.id]?.status === "loading"}
-                              className="text-xs text-ink-2 hover:text-ink bg-card-2/60 border border-line rounded-lg px-2.5 py-1 disabled:opacity-60"
-                            >
-                              {tr[r.id]?.status === "loading"
-                                ? t("translating")
-                                : tr[r.id]?.status === "done"
-                                  ? (tr[r.id].show ? t("showOriginal") : `🌐 ${t("showTranslation")}`)
-                                  : `🌐 ${t("translate")}`}
-                            </button>
-                          </div>
-                        )}
+                      <div className="text-xs text-ink-3 mb-2">
+                        <span className="text-ink-3">{t("from")}:</span> {r.replyFrom || r.toAddress || "—"}
                       </div>
-                      <div className={`text-sm text-ink whitespace-pre-wrap leading-relaxed rounded-lg p-3 max-h-96 overflow-y-auto ${
-                        tr[r.id]?.status === "done" && tr[r.id].show
-                          ? "bg-blue-500/5 border border-blue-500/20"
-                          : "bg-surface/60"
-                      }`}>
-                        {tr[r.id]?.status === "done" && tr[r.id].show
-                          ? tr[r.id].text
-                          : (r.replyText || t("noText"))}
+                      <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">
+                        {r.replyText || t("noText")}
                       </div>
 
                       {/* Our sent answers (thread) */}
