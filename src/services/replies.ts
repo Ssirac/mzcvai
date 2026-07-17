@@ -19,6 +19,7 @@ import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
 import { outreachRef, parseRefTag } from "@/lib/outreachRef";
 import { classifyReply } from "@/services/replyClassifier";
+import { notifyImportantReply } from "@/services/replyNotify";
 
 function domainOf(email: string | null | undefined): string | null {
   if (!email) return null;
@@ -358,6 +359,19 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
           data: { status: "REPLIED" },
         }).catch(() => {});
         // (opt-out already handled above, before the target check)
+
+        // Ping the operator immediately for promising replies (interested /
+        // interview) so they don't have to watch the inbox. Fail-soft.
+        if (replyCategory) {
+          await notifyImportantReply({
+            outreachId: target.id,
+            category: replyCategory,
+            candidateName: target.match?.candidate?.name ?? null,
+            employerId: target.match?.employerId ?? null,
+            subject,
+            replyText: body || subject,
+          });
+        }
 
         // Remember this message as stored (in-run dedupe) and mark the thread
         // replied in the in-memory index so a later message in this run can't
