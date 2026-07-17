@@ -191,12 +191,16 @@ export async function matchCandidateToVacancies(candidateId: string) {
   }
 
   // Remove stale matches that no longer qualify (e.g. after criteria changes).
-  // Keep any match that already has outreach activity (FK + business safety).
+  // Keep any match that already has outreach activity (FK + business safety),
+  // and any the recruiter has judged by hand (feedback set): deleting a BAD
+  // match here let the next ingest recreate it clean — and auto-send could then
+  // email an employer the recruiter had explicitly rejected.
   const removed = await prisma.match.deleteMany({
     where: {
       candidateId,
       vacancyId: { notIn: created.length ? created : ["__none__"] },
       outreach: { none: {} },
+      feedback: null,
     },
   });
 

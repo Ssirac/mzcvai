@@ -3,9 +3,8 @@ import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMa
 /**
  * The single definition of a "fresh, showable" vacancy — used by the matches
  * view AND the candidate-list match counter, so both always report the same
- * number. Three expiry guards, applied at view time (not just by the background
+ * number. Two expiry guards, applied at view time (not just by the background
  * sweep) so an expired listing never reaches the candidate:
- *   • foundAt    — first discovered within VACANCY_FOUND_MAX_DAYS (default 30)
  *   • lastSeenAt — the source STILL re-lists it (stale ⇒ pulled/filled)
  *   • postedAt   — the posting itself isn't past its shelf life
  * Plus: never show part-time / mini-job listings, even if some slipped past the

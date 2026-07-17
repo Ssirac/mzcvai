@@ -11,7 +11,7 @@ import { availableSources } from "@/services/sources/registry";
 import { pollReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { runAutoSend } from "@/services/autopilot";
-import { deletePartTimeVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
+import { deletePartTimeVacancies, deleteNonGermanVacancies, deleteExpiredVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { acquireCronLock, releaseCronLock } from "@/services/cron";
 import { prisma } from "@/lib/prisma";
@@ -113,28 +113,13 @@ export async function POST(req: NextRequest) {
       log.push(`Auto-send FAILED: ${(err as Error).message}`);
     }
 
-    // Step 5: Delete stale vacancies (30+ days old). Keep any tied to a SENT
-    // outreach so already-contacted employers stay in the history.
+    // Step 5: Delete dead/expired vacancies via the shared cleanup service —
+    // staleness comes from lastSeenAt/postedAt (NOT foundAt: a listing we found
+    // 30+ days ago that the source still re-lists is live and must be kept).
+    // Dispatched outreach (incl. REPLIED) is protected inside the service.
     try {
-      const EXPIRY_DAYS = 30;
-      const expiryCutoff = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-      const stale = await prisma.vacancy.findMany({
-        where: {
-          foundAt: { lt: expiryCutoff },
-          matches: { none: { outreach: { some: { sentAt: { not: null } } } } }, // dispatched (incl. REPLIED) — protects reply history
-        },
-        select: { id: true, matches: { select: { id: true } } },
-      });
-      const staleVacancyIds = stale.map((v) => v.id);
-      const staleMatchIds = stale.flatMap((v) => v.matches.map((m) => m.id));
-      if (staleVacancyIds.length > 0) {
-        await prisma.outreach.deleteMany({ where: { matchId: { in: staleMatchIds } } });
-        await prisma.match.deleteMany({ where: { id: { in: staleMatchIds } } });
-        const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: staleVacancyIds } } });
-        log.push(`Cleanup: deleted ${count} expired vacancies`);
-      } else {
-        log.push("Cleanup: no expired vacancies");
-      }
+      const ex = await deleteExpiredVacancies();
+      log.push(`Cleanup: deleted ${ex.expiredDeleted} expired vacancies`);
     } catch (err) {
       log.push(`Cleanup FAILED: ${(err as Error).message}`);
     }

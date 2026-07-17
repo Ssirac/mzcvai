@@ -14,23 +14,27 @@ import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
 
 // Remove dead and expired listings so candidates only ever see currently-open
-// jobs. Three independent freshness tests (any one triggers removal):
+// jobs. Two independent freshness tests (either one triggers removal):
 //   • DEAD    — a source stopped re-listing it (lastSeenAt older than
 //               VACANCY_STALE_DAYS): the position was filled or pulled.
 //   • TOO OLD — the posting itself is past its shelf life (postedAt older than
 //               VACANCY_MAX_AGE_DAYS), even if a stale aggregator still echoes it.
-//   • FALLBACK— first discovered over `expiryDays` ago (foundAt), for rows with
-//               no posted/last-seen signal.
+// NO foundAt guard: lastSeenAt always exists and is refreshed on every re-list,
+// so a foundAt cutoff could ONLY ever delete listings the source still publishes
+// (anything abandoned goes stale within VACANCY_STALE_DAYS anyway) — it silently
+// purged live vacancies 30 days after discovery, the same class of bug the
+// match-view foundAt guard had. Liveness = source re-listing + the dead sweep.
 // Vacancies tied to a dispatched outreach (sentAt set) are always kept — deleting them would cascade away the application AND the employer reply history (this once silently ate replied threads).
-export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expiredDeleted: number }> {
+export async function deleteExpiredVacancies(): Promise<{ expiredDeleted: number }> {
   const day = 24 * 60 * 60 * 1000;
   const now = Date.now();
   const staleDays = parseInt(process.env.VACANCY_STALE_DAYS ?? "10");
-  const maxAgeDays = parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "30");
+  // Same default as freshVacancyWhere() (matchFilters) — a lower default here
+  // would hard-delete rows the view filter still wants to show.
+  const maxAgeDays = parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "60");
 
   const staleCut = new Date(now - staleDays * day);   // not re-listed → dead
   const ageCut = new Date(now - maxAgeDays * day);    // posting too old
-  const foundCut = new Date(now - expiryDays * day);  // fallback on first-seen
 
   const stale = await prisma.vacancy.findMany({
     where: {
@@ -38,7 +42,6 @@ export async function deleteExpiredVacancies(expiryDays = 30): Promise<{ expired
       OR: [
         { lastSeenAt: { lt: staleCut } },
         { postedAt: { lt: ageCut } },
-        { foundAt: { lt: foundCut } },
       ],
     },
     select: { id: true, matches: { select: { id: true } } },
