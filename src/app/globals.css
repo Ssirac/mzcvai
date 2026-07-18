@@ -26,6 +26,7 @@
   --accent-strong: 16 185 129;
   --shadow-rgb: 0 0 0;
   --shadow-a: 0.45;
+  --card-hi: 255 255 255 / 0.045;  /* faint top inner highlight — "lit from above" */
   color-scheme: dark;
 }
 
@@ -43,19 +44,40 @@
   --accent-strong: 4 120 87;
   --shadow-rgb: 20 40 65;
   --shadow-a: 0.10;
+  --card-hi: 255 255 255 / 0.7;   /* crisp white top edge on off-white cards */
   color-scheme: light;
 }
 
 html {
   background: rgb(var(--surface));
+  scroll-behavior: smooth;
 }
 
 body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   color: rgb(var(--ink));
   background: rgb(var(--surface));
 }
+
+/* A whisper of depth: a faint accent glow up top so flat dark screens don't read
+   as a dead void. A fixed pseudo-element (not background-attachment:fixed, which
+   janks on mobile) keeps it pinned without repaint cost. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(1200px 600px at 50% -280px, rgb(var(--accent) / 0.06), transparent 70%);
+}
+
+/* Selection picks up the brand emerald instead of the OS default blue */
+::selection { background: rgb(var(--accent) / 0.28); color: rgb(var(--ink)); }
+
+/* Native form controls (checkbox / radio / range) inherit the brand emerald */
+:root { accent-color: rgb(var(--accent)); }
 
 /* Smoothly cross-fade colors when the theme flips */
 :root:not(.no-theme-anim) * {
@@ -127,7 +149,12 @@ body {
     background: rgb(var(--card));
     border: 1px solid rgb(var(--line));
     border-radius: 1rem;
-    box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / calc(var(--shadow-a) * 0.5));
+    /* Layered soft shadow + a faint top inner highlight reads more premium than
+       a single hairline drop */
+    box-shadow:
+      inset 0 1px 0 0 rgb(var(--card-hi)),
+      0 1px 2px rgb(var(--shadow-rgb) / calc(var(--shadow-a) * 0.5)),
+      0 6px 20px -10px rgb(var(--shadow-rgb) / calc(var(--shadow-a) * 0.6));
   }
   /* Cards that respond to hover — a subtle lift + accent-tinted border */
   .card-lift {
@@ -136,7 +163,9 @@ body {
   .card-lift:hover {
     transform: translateY(-2px);
     border-color: rgb(var(--accent) / 0.35);
-    box-shadow: 0 10px 30px -12px rgb(var(--shadow-rgb) / var(--shadow-a));
+    box-shadow:
+      0 2px 4px rgb(var(--shadow-rgb) / calc(var(--shadow-a) * 0.4)),
+      0 16px 40px -14px rgb(var(--shadow-rgb) / var(--shadow-a));
   }
 
   /* Text roles */
@@ -157,26 +186,42 @@ body {
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
     border-radius: 0.625rem; font-weight: 600; font-size: 0.875rem;
-    padding: 0.625rem 0.9rem; transition: background-color 150ms ease, transform 80ms ease, opacity 150ms ease;
+    padding: 0.625rem 0.9rem;
+    transition: background-color 150ms ease, transform 120ms ease, box-shadow 150ms ease, opacity 150ms ease;
     cursor: pointer; white-space: nowrap;
   }
   .btn:active { transform: translateY(1px); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-primary { background: rgb(var(--accent-strong)); color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: rgb(var(--accent)); }
+  /* Primary carries a soft emerald glow so the main action reads as elevated */
+  .btn-primary {
+    background: rgb(var(--accent-strong)); color: #fff;
+    box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / 0.3), 0 6px 16px -8px rgb(var(--accent-strong) / 0.55);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: rgb(var(--accent));
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgb(var(--shadow-rgb) / 0.3), 0 10px 22px -8px rgb(var(--accent) / 0.6);
+  }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
   .btn-ghost {
     background: rgb(var(--card-2)); color: rgb(var(--ink));
     border: 1px solid rgb(var(--line-strong));
   }
-  .btn-ghost:hover:not(:disabled) { background: rgb(var(--line)); }
+  .btn-ghost:hover:not(:disabled) { background: rgb(var(--line)); border-color: rgb(var(--ink-3) / 0.5); }
 
   /* Form controls */
   .field {
     width: 100%; background: rgb(var(--card-2)); color: rgb(var(--ink));
     border: 1px solid rgb(var(--line)); border-radius: 0.625rem;
     padding: 0.5rem 0.7rem; font-size: 0.875rem;
+    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
   }
-  .field:focus { outline: none; border-color: rgb(var(--accent) / 0.6); }
+  /* Soft accent ring on focus — the modern "lit input" affordance */
+  .field:focus, .field:focus-visible {
+    outline: none;
+    border-color: rgb(var(--accent) / 0.7);
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.14);
+  }
   .field::placeholder { color: rgb(var(--ink-3)); }
 
   /* Status pills — theme-aware via color-mix against the current surface.

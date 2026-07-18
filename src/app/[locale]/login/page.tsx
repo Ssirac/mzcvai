@@ -51,7 +51,7 @@ export default function LoginPage() {
         ))}
       </div>
 
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-w-sm" style={{ animation: "slideIn 420ms ease both" }}>
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           {/* Full brand logo on a white card so it reads on the dark page. */}
           <div className="bg-white rounded-2xl px-5 py-4 shadow-lg ring-1 ring-white/10">
