@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyScore";
 import { berufSearchKeywords, seniorityLevel, berufMatches } from "@/lib/berufMap";
-import { familyCompatibility } from "@/lib/occupationFamily";
+import { familyCompatibility, occupationClusters } from "@/lib/occupationFamily";
 import { isActionable } from "@/lib/actionable";
 import { candidateProfiles } from "@/lib/candidateProfiles";
 import { getCandidateSuppression, suppressedByFeedback } from "@/services/matchFeedback";
@@ -90,6 +90,29 @@ export async function matchCandidateToVacancies(candidateId: string) {
   // strict occupation gate below still rejects titles outside all of them.
   const profiles = candidateProfiles(candidate);
 
+  // SPECIALIZATION ANCHOR (the operator's core requirement: don't cross fields —
+  // "logistikaya gedib IT kimi meyl göndərməyək"). The candidate's CORE
+  // occupation is what the recruiter STATED: desired position + general beruf.
+  // The CV's experience titles may widen matching, but only WITHIN the core
+  // field's cluster(s) — an incidental line on a CV ("did some IT once") must
+  // never pull a logistics candidate into IT roles. Cross-field noise is the #1
+  // reply-rate killer.
+  const coreClusters = new Set<string>();
+  for (const core of [candidate.desiredPosition, candidate.beruf]) {
+    if (core && core.trim()) for (const cl of occupationClusters(core)) coreClusters.add(cl);
+  }
+  // Profiles usable for the occupation gate: drop any secondary (experience)
+  // profile that classifies into a DIFFERENT cluster than the core. Profiles the
+  // family map can't classify stay (they can only match by keyword, low risk).
+  // If the core itself is unclassifiable, keep everything — never zero out a
+  // candidate whose stated occupation we simply don't recognise.
+  const gateProfiles = coreClusters.size === 0
+    ? profiles
+    : profiles.filter((p) => {
+        const pc = occupationClusters(p);
+        return pc.size === 0 || Array.from(pc).some((cl) => coreClusters.has(cl));
+      });
+
   // Build a flexible filter: match any profile or its synonyms against the
   // vacancy beruf OR title (case-insensitive), free-text, all sectors.
   const keywords = Array.from(
@@ -159,12 +182,24 @@ export async function matchCandidateToVacancies(candidateId: string) {
       continue;
     }
 
+    // HARD cross-field gate anchored on the CORE occupation: when BOTH the core
+    // and the vacancy title classify into clusters, they MUST overlap. Decisive
+    // block for logistics↔IT (and any other cross-field pair) — it fires even
+    // when a keyword fallback or a stray CV title would otherwise sneak it in.
+    if (coreClusters.size > 0) {
+      const vacClusters = occupationClusters(vacancy.title);
+      if (vacClusters.size > 0 && !Array.from(vacClusters).some((cl) => coreClusters.has(cl))) {
+        skipped.push(vacancy.id);
+        continue;
+      }
+    }
+
     // Occupation gate: the vacancy TITLE must be in the candidate's line of
-    // work — desired position, beruf, or one of the CV's experience titles.
-    // Strict — an unclassifiable title with no keyword overlap is dropped (not
-    // given a free pass), so office/IT/finance roles never reach a gastronomy
-    // candidate on the strength of the polluted `beruf` field.
-    const matchedProfile = profiles.find((p) => occupationRelevant(p, vacancy.title));
+    // work — desired position, beruf, or a SAME-CLUSTER CV experience title
+    // (gateProfiles already dropped off-field CV titles). Strict — an
+    // unclassifiable title with no keyword overlap is dropped (not given a free
+    // pass), so office/IT/finance roles never reach a gastronomy candidate.
+    const matchedProfile = gateProfiles.find((p) => occupationRelevant(p, vacancy.title));
     if (!matchedProfile) {
       skipped.push(vacancy.id);
       continue;

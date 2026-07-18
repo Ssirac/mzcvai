@@ -91,8 +91,14 @@ const FAMILIES: Record<string, string[]> = {
   ],
   it: [
     "software", "softwareentwickler", "entwickler", "developer", "programmierer", "programmer",
-    "fachinformatiker", "informatiker", "it-", "it administrator", "systemadministrator", "devops",
-    "data scientist", "web developer",
+    "fachinformatiker", "informatiker", "informatik", "it-", "it administrator", "systemadministrator",
+    "netzwerkadministrator", "devops", "data scientist", "web developer", "webentwickler",
+    "anwendungsentwickler",
+    // Hyphenated German IT titles (substring match; the whole-word "it-" rule
+    // misses these because a letter follows the hyphen, e.g. "IT-Administrator").
+    "it-administrator", "it-support", "it-techniker", "it-systemadministrator", "it-system",
+    "it-consultant", "it-berater", "it-security", "it-projektleiter", "it-spezialist",
+    "it-fachkraft", "it-kaufmann", "it-servicetechniker", "it-infrastruktur", "it-netzwerk",
   ],
   marketing: [
     "marketing", "online marketing", "social media", "social-media", "smm", "digitale medien",
@@ -154,6 +160,16 @@ export function occupationFamilies(text: string): Set<string> {
     if (terms.some((term) => hit(t, term))) fams.add(family);
   }
   return fams;
+}
+
+/**
+ * The broad CLUSTERS a free-text occupation/title belongs to (may be empty).
+ * Clusters group adjacent families (gastro/hotel/cleaning → "hospitality"), so
+ * a cluster overlap is the right granularity for a cross-field gate: strict
+ * enough to block logistics↔IT, loose enough to keep Koch↔Housekeeping.
+ */
+export function occupationClusters(text: string): Set<string> {
+  return clustersOf(occupationFamilies(text));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { familyCompatibility, occupationFamilies } from "./occupationFamily";
+import { familyCompatibility, occupationFamilies, occupationClusters } from "./occupationFamily";
 import { berufMatches } from "./berufMap";
 
 // The candidate profiles that surfaced the cross-profession bug.
@@ -95,5 +95,50 @@ describe("occupation family gate", () => {
     expect(occupationFamilies("Technischer Objektverwalter").has("gastro")).toBe(false);
     expect(occupationFamilies("Küchenhilfe").has("gastro")).toBe(true);
     expect(occupationFamilies("Bauleiter").has("construction")).toBe(true);
+  });
+});
+
+// The specialization anchor: logistics and IT are different clusters, so a
+// logistics candidate must never be matched to an IT role and vice versa. This
+// mirrors the hard core-cluster gate now enforced in matchCandidateToVacancies.
+describe("occupation cluster gate (core specialization anchor)", () => {
+  const shareCluster = (core: string, title: string): boolean => {
+    const cc = occupationClusters(core);
+    const vc = occupationClusters(title);
+    if (cc.size === 0 || vc.size === 0) return true; // unclassifiable → not blocked here
+    return Array.from(vc).some((c) => cc.has(c));
+  };
+
+  it("puts logistics and IT in different clusters", () => {
+    expect(Array.from(occupationClusters("Lagerist")).includes("logistics")).toBe(true);
+    expect(Array.from(occupationClusters("Softwareentwickler")).includes("it")).toBe(true);
+    expect(occupationClusters("Kraftfahrer").has("it")).toBe(false);
+  });
+
+  it("blocks a logistics candidate from IT roles", () => {
+    for (const core of ["Lagerist", "Berufskraftfahrer", "Lagerarbeiter / Kommissionierer"]) {
+      expect(shareCluster(core, "Softwareentwickler (m/w/d)")).toBe(false);
+      expect(shareCluster(core, "Fachinformatiker Systemintegration")).toBe(false);
+      expect(shareCluster(core, "IT-Administrator (m/w/d)")).toBe(false);
+    }
+  });
+
+  it("blocks an IT candidate from logistics/warehouse roles", () => {
+    for (const core of ["Softwareentwickler", "Fachinformatiker"]) {
+      expect(shareCluster(core, "Lagerhelfer (m/w/d)")).toBe(false);
+      expect(shareCluster(core, "Berufskraftfahrer CE (m/w/d)")).toBe(false);
+    }
+  });
+
+  it("keeps a logistics candidate matched to real logistics roles", () => {
+    for (const title of ["Lagerhelfer (m/w/d)", "Kommissionierer", "Staplerfahrer", "LKW-Fahrer (m/w/d)", "Produktionshelfer"]) {
+      expect(shareCluster("Lagerist", title)).toBe(true);
+    }
+  });
+
+  it("keeps same-cluster hospitality matches (Koch ↔ Housekeeping ↔ Reinigung)", () => {
+    expect(shareCluster("Koch", "Mitarbeiter Housekeeping (m/w/d)")).toBe(true);
+    expect(shareCluster("Koch", "Reinigungskraft (m/w/d)")).toBe(true);
+    expect(shareCluster("Koch", "Restaurantfachmann")).toBe(true);
   });
 });
