@@ -403,6 +403,7 @@
     "openedPill": "açıldı",
     "repliedPill": "cavab verdi",
     "bouncedPill": "çatmadı",
+    "notRelevantPill": "peşəyə uyğun deyil",
     "followupPill": "təqib",
     "replyShort": "cavab",
     "fromLabel": "Kimdən",

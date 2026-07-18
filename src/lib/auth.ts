@@ -24,19 +24,27 @@ function b64urlDecode(s: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-function secret(): string {
-  return process.env.NEXTAUTH_SECRET || "dev-secret-change-in-production";
+// FAIL CLOSED in production: the dev fallback is public knowledge (it's in the
+// repo), so signing with it would let anyone mint a valid admin session if
+// NEXTAUTH_SECRET ever went missing from the environment. Without a real secret
+// no token verifies and no token is issued — login is simply disabled, matching
+// how checkCredentials treats a missing ADMIN_PASSWORD.
+function secret(): string | null {
+  const s = process.env.NEXTAUTH_SECRET;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") return null;
+  return "dev-secret-change-in-production";
 }
 
-async function hmac(data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
+async function hmac(data: string, key: string): Promise<string> {
+  const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    enc.encode(secret()),
+    enc.encode(key),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(data));
   return b64urlEncode(new Uint8Array(sig));
 }
 
@@ -52,18 +60,22 @@ export const SESSION_COOKIE = COOKIE_NAME;
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export async function createToken(username: string, ttlMs = SESSION_TTL_MS): Promise<string> {
+  const key = secret();
+  if (!key) throw new Error("NEXTAUTH_SECRET is not configured");
   const payload = b64urlEncode(enc.encode(JSON.stringify({ u: username, exp: Date.now() + ttlMs })));
-  const sig = await hmac(payload);
+  const sig = await hmac(payload, key);
   return `${payload}.${sig}`;
 }
 
 export async function verifyToken(token: string | undefined | null): Promise<{ u: string } | null> {
   if (!token) return null;
+  const key = secret();
+  if (!key) return null; // no secret configured → no session is ever valid
   const dot = token.indexOf(".");
   if (dot <= 0) return null;
   const payload = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  const expected = await hmac(payload);
+  const expected = await hmac(payload, key);
   if (!safeEqual(sig, expected)) return null;
   try {
     const data = JSON.parse(b64urlDecode(payload));

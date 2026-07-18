@@ -403,6 +403,7 @@
     "openedPill": "opened",
     "repliedPill": "replied",
     "bouncedPill": "bounced",
+    "notRelevantPill": "off-profile",
     "followupPill": "follow-up",
     "replyShort": "reply",
     "fromLabel": "From",

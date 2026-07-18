@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { occupationRelevant } from "@/services/scoring";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 
 // GET /api/candidates/[id]/outreach — full communication history for a candidate:
 // which employers/vacancies were contacted, what was sent, and the status.
@@ -58,6 +60,21 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
 
+    // Relevance audit against the candidate's FULL CV profiles: flag any sent
+    // application whose vacancy title is outside every occupation the CV shows,
+    // so the recruiter can see at a glance which past sends were off-profile.
+    const candidate = await prisma.candidate.findUnique({
+      where: { id: params.id },
+      select: { beruf: true, desiredPosition: true, experience: true },
+    });
+    const profiles = candidate ? candidateProfiles(candidate) : [];
+    const audited = outreach.map((o) => ({
+      ...o,
+      relevant:
+        profiles.length === 0 ||
+        profiles.some((p) => occupationRelevant(p, o.match.vacancy.title)),
+    }));
+
     const counts = outreach.reduce(
       (acc, o) => {
         acc.total++;
@@ -71,7 +88,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       { total: 0, sent: 0, draft: 0, opened: 0, replied: 0, bounced: 0 }
     );
 
-    return NextResponse.json({ outreach, counts });
+    return NextResponse.json({ outreach: audited, counts });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

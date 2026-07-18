@@ -7,6 +7,7 @@ import { runApplyScan } from "@/services/applyScanner";
 import { withCronLock } from "@/services/cron";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 import { runAutoSend } from "@/services/autopilot";
 import { runScrapeCycle } from "@/services/scraper/cycle";
 import { sendDailyDigest } from "@/services/digest";
@@ -49,20 +50,20 @@ async function runHeavyJob(job: string): Promise<void> {
 async function refreshJobs(): Promise<{ searches: number; vacanciesNew: number; matched: number }> {
   const candidates = await prisma.candidate.findMany({
     where: { status: { in: ["ACTIVE", "PENDING"] } },
-    select: { id: true, beruf: true, desiredPosition: true },
+    select: { id: true, beruf: true, desiredPosition: true, experience: true },
   });
 
+  // Search every occupation from the FULL CV (desired position, beruf, and the
+  // CV's experience titles) — not just the primary field — so sources are
+  // queried for everything the candidate can actually do.
   const berufe = new Set<string>();
   for (const c of candidates) {
-    for (const raw of [c.desiredPosition, c.beruf]) {
-      const b = raw?.trim();
-      if (b && b.length >= 3) berufe.add(b);
-    }
+    for (const p of candidateProfiles(c)) berufe.add(p);
   }
 
   const sources = availableSources();
   let vacanciesNew = 0;
-  for (const beruf of Array.from(berufe).slice(0, 20)) {
+  for (const beruf of Array.from(berufe).slice(0, 30)) {
     for (const src of sources) {
       try {
         const r = await src.ingest({ beruf, region: "Deutschland", maxPages: 1 });
@@ -71,14 +72,17 @@ async function refreshJobs(): Promise<{ searches: number; vacanciesNew: number; 
     }
   }
 
+  // ALWAYS re-match — even with zero brand-new vacancies. Ingest refreshes
+  // lastSeenAt on re-listed jobs (they become "fresh" again), the scrape cycle
+  // may have added inventory since the last pass, and criteria changes need a
+  // re-run. Gating this on vacanciesNew > 0 silently starved candidates of
+  // new matches whenever page-1 of every source was already known.
   let matched = 0;
-  if (vacanciesNew > 0) {
-    for (const c of candidates) {
-      try {
-        const m = await matchCandidateToVacancies(c.id);
-        matched += m.matched;
-      } catch { /* keep going */ }
-    }
+  for (const c of candidates) {
+    try {
+      const m = await matchCandidateToVacancies(c.id);
+      matched += m.matched;
+    } catch { /* keep going */ }
   }
 
   return { searches: berufe.size, vacanciesNew, matched };

@@ -4,6 +4,7 @@ import { calculateCompanyScore, calculateFitScore } from "@/lib/scoring/companyS
 import { berufSearchKeywords, seniorityLevel, berufMatches } from "@/lib/berufMap";
 import { familyCompatibility } from "@/lib/occupationFamily";
 import { isActionable } from "@/lib/actionable";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 
 // Is a vacancy TITLE actually in the candidate's line of work? Uses the vacancy
 // title ONLY (its stored `beruf` is the polluted ingest search term). Occupation
@@ -82,24 +83,21 @@ export async function matchCandidateToVacancies(candidateId: string) {
   const regions = candidate.regionPrefs.length > 0 ? candidate.regionPrefs : ["Deutschland"];
   const allGermany = regions.includes("Deutschland");
 
-  // Search profile drives which jobs are matched. If the recruiter filled in a
-  // desired position (Arzu olunan vəzifə), match STRICTLY against that — the
-  // candidate is looking for exactly that role. Only fall back to the general
-  // occupation (beruf) when no desired position is given.
-  const desired = candidate.desiredPosition?.trim();
-  const searchProfile = desired || candidate.beruf || "";
+  // The FULL CV drives which jobs are matched: desired position (primary),
+  // general beruf, plus every distinct job title from the CV's experience
+  // history — a vacancy fitting ANY of those occupations qualifies. The
+  // strict occupation gate below still rejects titles outside all of them.
+  const profiles = candidateProfiles(candidate);
 
-  // Seniority window, derived from the effective search profile so the level
-  // tracks what we're actually searching for.
-  const profileLevel = seniorityLevel(searchProfile || candidate.beruf || "");
-  const maxLevel = profileLevel;
-  const preferredLevel = profileLevel;
-  const minLevel = profileLevel - 1;
-
-  // Build a flexible filter: match the profile or any of its synonyms against
-  // the vacancy beruf OR title (case-insensitive), free-text, all sectors.
+  // Build a flexible filter: match any profile or its synonyms against the
+  // vacancy beruf OR title (case-insensitive), free-text, all sectors.
   const keywords = Array.from(
-    new Set([searchProfile, ...berufSearchKeywords(searchProfile)].map((k) => k.trim()).filter(Boolean))
+    new Set(
+      profiles
+        .flatMap((p) => [p, ...berufSearchKeywords(p)])
+        .map((k) => k.trim())
+        .filter(Boolean)
+    )
   );
   // Short/ambiguous keywords (e.g. "IT") only match the vacancy beruf exactly to
   // avoid substring noise; longer keywords also search beruf + title substrings.
@@ -144,20 +142,26 @@ export async function matchCandidateToVacancies(candidateId: string) {
       continue;
     }
 
-    // Occupation gate: the vacancy TITLE must be in the candidate's line of work.
+    // Occupation gate: the vacancy TITLE must be in the candidate's line of
+    // work — desired position, beruf, or one of the CV's experience titles.
     // Strict — an unclassifiable title with no keyword overlap is dropped (not
     // given a free pass), so office/IT/finance roles never reach a gastronomy
     // candidate on the strength of the polluted `beruf` field.
-    if (!occupationRelevant(searchProfile, vacancy.title)) {
+    const matchedProfile = profiles.find((p) => occupationRelevant(p, vacancy.title));
+    if (!matchedProfile) {
       skipped.push(vacancy.id);
       continue;
     }
 
+    // Seniority window from the profile that actually matched, so a vacancy
+    // matched via a CV experience title is levelled against THAT occupation.
+    const profileLevel = seniorityLevel(matchedProfile);
+
     const fit = calculateFitScore({
-      candidateBeruf: searchProfile,
-      candidateMaxLevel: maxLevel,
-      candidateMinLevel: minLevel,
-      candidatePreferredLevel: preferredLevel,
+      candidateBeruf: matchedProfile,
+      candidateMaxLevel: profileLevel,
+      candidateMinLevel: profileLevel - 1,
+      candidatePreferredLevel: profileLevel,
       candidateRegions: candidate.regionPrefs,
       candidateLanguages: candidate.languages,
       candidateNeedsSponsorship: candidate.needsSponsorship,

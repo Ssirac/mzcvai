@@ -77,6 +77,9 @@ interface Match {
   };
   outreach: { id: string; status: string; sentAt?: string | null }[];
   employerLastSentAt: string | null;
+  // Server-side occupation audit: false = vacancy title fits none of the
+  // candidate's CV profiles (desired position, beruf, experience titles).
+  relevant?: boolean;
 }
 
 interface OutreachItem {
@@ -104,6 +107,8 @@ interface OutreachItem {
     employer: { name: string; city: string | null; region: string | null; sponsorshipSignal: string };
     vacancy: { title: string; url: string | null; source: string };
   };
+  // Server-side occupation audit (see Match.relevant).
+  relevant?: boolean;
 }
 
 // Normalize a (German) phone number to international digits for wa.me / tel.
@@ -1795,6 +1800,11 @@ export default function CandidatesPage() {
                                         m.employer.sponsorshipSignal === "NO" ? t("sponsorshipNo") : t("sponsorshipUnknown")}
                                   </span>
                                   {m.vacancy.source && <span className="text-[10px] text-ink-3 uppercase tracking-wide">{m.vacancy.source}</span>}
+                                  {m.relevant === false && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-300 border border-red-500/30">
+                                      ⚠ {t("notRelevantPill")}
+                                    </span>
+                                  )}
                                   {typeof m.fitScore === "number" && (
                                     <button
                                       type="button"
@@ -1982,6 +1992,11 @@ export default function CandidatesPage() {
                               <span className="font-semibold text-ink">{o.match.employer.name}</span>
                               <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${OUTREACH_COLOR[o.status] ?? "bg-line text-ink-2"}`}>{o.status}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] ${SIGNAL_COLOR[o.match.employer.sponsorshipSignal]}`}>{o.match.employer.sponsorshipSignal}</span>
+                              {o.relevant === false && (
+                                <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/15 text-red-300 border border-red-500/30">
+                                  ⚠ {t("notRelevantPill")}
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-ink-2 mt-0.5">{o.match.vacancy.title}</div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-ink-3">

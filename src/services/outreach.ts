@@ -539,9 +539,23 @@ export async function resendEmptyLetters(apply = false, limit = 60): Promise<Res
     skippedOptOut: 0, skippedBounced: 0, skippedNoEmail: 0, skippedCap: 0, failed: 0, items: [],
   };
 
+  // Light select on purpose: an `include` here hauled EVERY sent row's full
+  // candidate (incl. the CV file bytes) and job description into memory at once
+  // — hundreds of sends × attachments is an easy way to OOM the container. The
+  // full records are fetched per item below, only for rows actually re-sent.
   const sent = await prisma.outreach.findMany({
     where: { status: "SENT" },
-    include: { match: { include: { employer: true, candidate: true, vacancy: true } } },
+    select: {
+      id: true, matchId: true, draftBody: true, toAddress: true, bouncedAt: true,
+      match: {
+        select: {
+          employerId: true,
+          candidate: { select: { id: true, name: true } },
+          employer: { select: { name: true, optedOut: true } },
+          vacancy: { select: { title: true } },
+        },
+      },
+    },
     orderBy: { sentAt: "asc" },
   });
   const empty = sent.filter((o) => {
@@ -576,13 +590,18 @@ export async function resendEmptyLetters(apply = false, limit = 60): Promise<Res
     if (!apply) { label.action = "would re-send"; continue; }
 
     try {
+      // Full row (CV bytes, letter inputs) only now — for this one item.
+      const full = await prisma.match.findUniqueOrThrow({
+        where: { id: o.matchId },
+        include: { candidate: true, employer: true, vacancy: true },
+      });
       // Regenerate — the composer now THROWS on a short/empty body, so a broken
       // generation can never be mailed again.
-      const { subject, body } = await composeApplicationLetter(cand, emp, vac);
+      const { subject, body } = await composeApplicationLetter(full.candidate, full.employer, full.vacancy);
 
       let cvAttachment: { filename: string; content: Buffer }[] = [];
-      if (cand.cvData) {
-        cvAttachment = [{ filename: cand.cvFileName || cvFileName(cand.name), content: Buffer.from(cand.cvData) }];
+      if (full.candidate.cvData) {
+        cvAttachment = [{ filename: full.candidate.cvFileName || cvFileName(full.candidate.name), content: Buffer.from(full.candidate.cvData) }];
       }
 
       const finalSubject = withRefTag(subject, o.id);

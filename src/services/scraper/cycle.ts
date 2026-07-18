@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { runScraper } from "./runner";
 import { SCRAPER_ADAPTERS } from "./sites";
 import { matchCandidateToVacancies } from "@/services/scoring";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 
 export interface ScrapeCycleResult {
   adapters: number;
@@ -26,20 +27,18 @@ export interface ScrapeCycleResult {
   perSite: Record<string, { new: number; dead: number; dup: number; errors: number }>;
 }
 
-// Occupations to scrape = what ACTIVE/PENDING candidates actually need.
+// Occupations to scrape = what ACTIVE/PENDING candidates actually need —
+// desired position, beruf, AND the CV's experience titles (full-CV matching).
 async function scrapeBerufe(): Promise<string[]> {
   const candidates = await prisma.candidate.findMany({
     where: { status: { in: ["ACTIVE", "PENDING"] } },
-    select: { beruf: true, desiredPosition: true },
+    select: { beruf: true, desiredPosition: true, experience: true },
   });
   const set = new Set<string>();
   for (const c of candidates) {
-    for (const raw of [c.desiredPosition, c.beruf]) {
-      const b = raw?.trim();
-      if (b && b.length >= 3) set.add(b);
-    }
+    for (const p of candidateProfiles(c)) set.add(p);
   }
-  return Array.from(set).slice(0, 15); // cap so a cycle stays within maxDuration
+  return Array.from(set).slice(0, 20); // cap so a cycle stays within maxDuration
 }
 
 // In-flight guard: with an hourly (or faster) schedule a long cycle could still
@@ -89,18 +88,18 @@ async function runScrapeCycleInner(maxPagesPerSearch: number): Promise<ScrapeCyc
     result.perSite[adapter.id] = site;
   }
 
-  // Re-match so the newly scraped jobs appear for candidates right away.
-  if (result.vacanciesNew > 0) {
-    const candidates = await prisma.candidate.findMany({
-      where: { status: { in: ["ACTIVE", "PENDING"] } },
-      select: { id: true },
-    });
-    for (const c of candidates) {
-      try {
-        const m = await matchCandidateToVacancies(c.id);
-        result.matched += m.matched;
-      } catch { /* keep going */ }
-    }
+  // ALWAYS re-match — a cycle with zero brand-new listings still refreshes
+  // lastSeenAt on re-listed jobs (making them "fresh" again for the match
+  // filter), and other ingest paths may have added inventory in the meantime.
+  const candidates = await prisma.candidate.findMany({
+    where: { status: { in: ["ACTIVE", "PENDING"] } },
+    select: { id: true },
+  });
+  for (const c of candidates) {
+    try {
+      const m = await matchCandidateToVacancies(c.id);
+      result.matched += m.matched;
+    } catch { /* keep going */ }
   }
 
   return result;

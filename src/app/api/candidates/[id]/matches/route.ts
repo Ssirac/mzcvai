@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { freshVacancyWhere } from "@/lib/matchFilters";
-import { matchCandidateToVacancies } from "@/services/scoring";
+import { matchCandidateToVacancies, occupationRelevant } from "@/services/scoring";
 import { autoSendForCandidate } from "@/services/autopilot";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 
 export const maxDuration = 120;
 
@@ -82,9 +83,22 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       }
     }
 
+    // Relevance audit: recompute the occupation gate against the candidate's
+    // FULL CV profiles for every match — including already-sent ones, which
+    // rematch never deletes. The UI flags relevant=false so the recruiter sees
+    // exactly which (past or pending) applications are off-profile.
+    const candidate = await prisma.candidate.findUnique({
+      where: { id: params.id },
+      select: { beruf: true, desiredPosition: true, experience: true },
+    });
+    const profiles = candidate ? candidateProfiles(candidate) : [];
+
     const annotated = matches.map((m) => ({
       ...m,
       employerLastSentAt: cooldownByEmployer.get(m.employerId) ?? null,
+      relevant:
+        profiles.length === 0 ||
+        profiles.some((p) => occupationRelevant(p, m.vacancy.title)),
     }));
 
     // Auto-pilot: if any matching job hasn't been applied to yet, dispatch the

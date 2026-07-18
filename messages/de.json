@@ -403,6 +403,7 @@
     "openedPill": "geöffnet",
     "repliedPill": "geantwortet",
     "bouncedPill": "unzustellbar",
+    "notRelevantPill": "passt nicht zum Beruf",
     "followupPill": "Follow-up",
     "replyShort": "Antwort",
     "fromLabel": "Von",

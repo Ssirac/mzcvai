@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authorize } from "@/lib/rbac";
 import { autoIngestForBeruf } from "@/services/autoIngest";
 import { matchCandidateToVacancies } from "@/services/scoring";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -20,22 +21,31 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const candidate = await prisma.candidate.findUnique({
       where: { id: params.id },
-      select: { beruf: true, desiredPosition: true, status: true },
+      select: { beruf: true, desiredPosition: true, experience: true, status: true },
     });
     if (!candidate) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const beruf = (candidate.desiredPosition || candidate.beruf || "").trim();
-    if (!beruf) {
+    // Full-CV fetch: pull listings for the desired position AND the CV's other
+    // occupations (beruf, experience titles) — capped at 3 profiles so the
+    // request stays well inside maxDuration.
+    const profiles = candidateProfiles(candidate).slice(0, 3);
+    if (profiles.length === 0) {
       return NextResponse.json({ error: "Candidate has no occupation set" }, { status: 400 });
     }
 
-    const ingest = await autoIngestForBeruf(beruf, "Deutschland");
+    let vacanciesNew = 0;
+    const sources = new Set<string>();
+    for (const profile of profiles) {
+      const r = await autoIngestForBeruf(profile, "Deutschland");
+      vacanciesNew += r.vacanciesNew;
+      for (const s of r.sources) sources.add(s);
+    }
     const match = await matchCandidateToVacancies(params.id);
 
     return NextResponse.json({
       ok: true,
-      vacanciesNew: ingest.vacanciesNew,
-      sources: ingest.sources,
+      vacanciesNew,
+      sources: Array.from(sources),
       matched: match.matched,
       removed: match.removed,
     });
