@@ -302,6 +302,7 @@ export default function CandidatesPage() {
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
   const [enrichingMatches, setEnrichingMatches] = useState(false);
   const [fetchingJobs, setFetchingJobs] = useState(false);
+  const [scanningForms, setScanningForms] = useState(false);
   // Per-candidate unread-reply counts → green dot in the candidate list.
   const [unreadByCandidate, setUnreadByCandidate] = useState<Record<string, number>>({});
   const [listSort, setListSort] = useState<"status" | "matches" | "unread" | "recent">("status");
@@ -847,6 +848,31 @@ export default function CandidatesPage() {
     }
   }
 
+  // "Formaları hazırla": scan this candidate's FORM matches now, classify them
+  // (plain form / captcha / OTP / login) and enqueue the actionable ones to the
+  // robot queue. Never solves a captcha or submits — only gathers so the queue
+  // has a "one click from you" list ready.
+  async function scanFormsNow() {
+    if (!selectedId || scanningForms) return;
+    setScanningForms(true);
+    try {
+      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/scan-forms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (ok && data.ok) {
+        toast(t("scanFormsDone", { ready: Number(data.ready ?? 0), verify: Number(data.needsVerify ?? 0) }), "success");
+      } else {
+        toast(String(data.error ?? "error"), "error");
+      }
+    } catch {
+      toast("error", "error");
+    } finally {
+      setScanningForms(false);
+    }
+  }
+
   async function findEmailsForMatches(candidateId?: string, opts?: { silent?: boolean }) {
     const id = candidateId ?? selectedId;
     if (!id) return;
@@ -986,6 +1012,21 @@ export default function CandidatesPage() {
               <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> <span className="hidden sm:inline">{t("fetchingJobs")}</span></>
             ) : (
               <>🔄 <span className="hidden sm:inline">{t("fetchJobs")}</span></>
+            )}
+          </button>
+          {/* Gather form-based applications into the robot queue for one-click
+              clearing. Opens each form page to classify it (never solves a
+              captcha / submits). Candidate-specific, so disabled until selected. */}
+          <button
+            onClick={scanFormsNow}
+            disabled={scanningForms || !selectedId}
+            title={selectedId ? t("scanForms") : t("fetchJobsPick")}
+            className="bg-purple-600 hover:bg-purple-500 active:bg-purple-700 disabled:opacity-50 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium inline-flex items-center gap-2 whitespace-nowrap"
+          >
+            {scanningForms ? (
+              <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> <span className="hidden sm:inline">{t("scanningForms")}</span></>
+            ) : (
+              <>📝 <span className="hidden sm:inline">{t("scanForms")}</span></>
             )}
           </button>
           <button
