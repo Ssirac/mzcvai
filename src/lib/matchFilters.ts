@@ -69,3 +69,17 @@ export function undispatchedWhere() {
     },
   };
 }
+
+/**
+ * Exclude ONLY recruiter-rejected (feedback = "BAD") matches — keeping every
+ * un-reviewed (null) and GOOD one.
+ *
+ * CRITICAL: Prisma's `{ feedback: { not: "BAD" } }` compiles to SQL `<> 'BAD'`,
+ * which drops NULL rows — and virtually every match has null feedback, so that
+ * form hid EVERY job from EVERY candidate (12/12 showed zero). We must spell out
+ * "null OR not BAD" so un-reviewed matches are kept. Returns a top-level `OR`,
+ * so don't combine it with another top-level OR in the same where object.
+ */
+export function notRejectedWhere() {
+  return { OR: [{ feedback: null }, { feedback: { not: "BAD" } }] };
+}

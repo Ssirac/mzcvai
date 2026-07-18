@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { composeApplicationLetter, AGENCY_NAME } from "@/services/outreach";
 import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
+import { notRejectedWhere } from "@/lib/matchFilters";
 
 const TEMPLATE = "employer-auto-de";
 
@@ -214,7 +215,7 @@ async function processMatches(candidateIds: string[] | null): Promise<OutreachCy
   const matches = await prisma.match.findMany({
     where: {
       fitScore: { gte: Math.ceil(cfg.matchThreshold) },
-      feedback: { not: "BAD" }, // recruiter-rejected matches are never auto-sent
+      ...notRejectedWhere(), // recruiter-rejected excluded; "null OR not BAD" so null-feedback matches stay
       ...(candidateIds ? { candidateId: { in: candidateIds } } : { candidate: { status: { in: ["ACTIVE", "PENDING"] } } }),
     },
     orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],

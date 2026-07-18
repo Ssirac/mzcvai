@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { freshVacancyWhere } from "@/lib/matchFilters";
+import { freshVacancyWhere, notRejectedWhere } from "@/lib/matchFilters";
 import { matchCandidateToVacancies, occupationRelevant } from "@/services/scoring";
 import { autoSendForCandidate } from "@/services/autopilot";
 import { candidateProfiles } from "@/lib/candidateProfiles";
@@ -20,8 +20,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
           vacancy: freshVacancyWhere(),
           // Hide matches the recruiter explicitly rejected — feedback learning
           // keeps them on record (protected from the rematch delete) but they
-          // must not clutter "Uyğun işlər". (Prisma `not` still returns nulls.)
-          feedback: { not: "BAD" },
+          // must not clutter "Uyğun işlər". notRejectedWhere spells out
+          // "null OR not BAD" because Prisma's bare `{ not }` drops null rows.
+          ...notRejectedWhere(),
         },
         orderBy: [
           { employer: { score: "desc" } },

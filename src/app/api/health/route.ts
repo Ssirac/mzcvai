@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendingPause } from "@/services/deliverability";
 import { SOURCES } from "@/services/sources/registry";
-import { freshVacancyWhere } from "@/lib/matchFilters";
+import { freshVacancyWhere, notRejectedWhere } from "@/lib/matchFilters";
 import type { OutreachStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -74,8 +74,8 @@ export async function GET() {
     const [freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad] = await Promise.all([
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), feedback: "BAD" } }),
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), outreach: { some: dispatchedFilter } } }),
-      prisma.match.count({ where: { vacancy: freshVacancyWhere(), feedback: { not: "BAD" }, outreach: { none: dispatchedFilter } } }),
-      prisma.match.count({ where: { feedback: { not: "BAD" }, outreach: { none: dispatchedFilter } } }),
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), outreach: { none: dispatchedFilter } } }),
+      prisma.match.count({ where: { ...notRejectedWhere(), outreach: { none: dispatchedFilter } } }),
       prisma.outreach.count({ where: { sentAt: { not: null } } }),
       prisma.match.count({ where: { feedback: "BAD" } }),
     ]);

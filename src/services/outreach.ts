@@ -17,6 +17,7 @@ import { generateCandidateCvPdf, cvFileName } from "@/services/cvPdf";
 import { enrichSingleEmployer } from "@/services/enrichment";
 import { sendMail } from "@/lib/mailer";
 import { withRefTag } from "@/lib/outreachRef";
+import { notRejectedWhere } from "@/lib/matchFilters";
 // GDPR personal-email guard — dependency-free, so it stays unit-testable.
 import { looksPersonal } from "@/lib/emailGuard";
 
@@ -688,8 +689,10 @@ export async function sendAllForCandidate(
   const matches = await prisma.match.findMany({
     where: {
       candidateId,
-      // Never (re)send a match a recruiter has explicitly rejected.
-      feedback: { not: "BAD" },
+      // Never (re)send a match a recruiter has explicitly rejected. Spell out
+      // "null OR not BAD" — Prisma's bare `{ not: "BAD" }` drops null-feedback
+      // rows (i.e. every un-reviewed match), which would send to nothing.
+      ...notRejectedWhere(),
       ...(matchIds && matchIds.length > 0 ? { id: { in: matchIds } } : {}),
     },
     orderBy: [{ employer: { score: "desc" } }, { fitScore: "desc" }],

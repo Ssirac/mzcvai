@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
-import { freshVacancyWhere, undispatchedWhere } from "@/lib/matchFilters";
+import { freshVacancyWhere, undispatchedWhere, notRejectedWhere } from "@/lib/matchFilters";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoIngestForBeruf } from "@/services/autoIngest";
 import { sendAllForCandidate } from "@/services/outreach";
@@ -23,7 +23,7 @@ export async function GET() {
         // the detail list which hides them too.
         _count: {
           select: {
-            matches: { where: { vacancy: freshVacancyWhere(), ...undispatchedWhere(), feedback: { not: "BAD" } } },
+            matches: { where: { vacancy: freshVacancyWhere(), ...undispatchedWhere(), ...notRejectedWhere() } },
           },
         },
       },
