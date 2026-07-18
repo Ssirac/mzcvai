@@ -19,9 +19,11 @@ export async function GET() {
         // AND only matches with no dispatched mail (auto or manual): once an
         // application went out, the job leaves "Uyğun işlər", so the badge
         // must drop with it instead of keeping the old inflated number.
+        // Also exclude recruiter-rejected (BAD) matches, so the badge matches
+        // the detail list which hides them too.
         _count: {
           select: {
-            matches: { where: { vacancy: freshVacancyWhere(), ...undispatchedWhere() } },
+            matches: { where: { vacancy: freshVacancyWhere(), ...undispatchedWhere(), feedback: { not: "BAD" } } },
           },
         },
       },

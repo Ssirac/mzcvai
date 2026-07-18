@@ -5,6 +5,7 @@ import { berufSearchKeywords, seniorityLevel, berufMatches } from "@/lib/berufMa
 import { familyCompatibility } from "@/lib/occupationFamily";
 import { isActionable } from "@/lib/actionable";
 import { candidateProfiles } from "@/lib/candidateProfiles";
+import { getCandidateSuppression, suppressedByFeedback } from "@/services/matchFeedback";
 
 // Is a vacancy TITLE actually in the candidate's line of work? Uses the vacancy
 // title ONLY (its stored `beruf` is the polluted ingest search term). Occupation
@@ -124,6 +125,11 @@ export async function matchCandidateToVacancies(candidateId: string) {
     take: 1000,
   });
 
+  // Feedback learning: prior BAD verdicts become suppression rules so matching
+  // stops re-suggesting the same rejected pattern (employer won't sponsor / role
+  // isn't right for this candidate). See services/matchFeedback.
+  const suppression = await getCandidateSuppression(candidateId);
+
   const created: string[] = [];
   const skipped: string[] = [];
 
@@ -138,6 +144,17 @@ export async function matchCandidateToVacancies(candidateId: string) {
       employerEmail: vacancy.employer.genericEmail,
     });
     if (!act.actionable) {
+      skipped.push(vacancy.id);
+      continue;
+    }
+
+    // Feedback suppression: skip employers/roles the recruiter already rejected
+    // for this candidate (VISA → won't sponsor; SKILL_MISMATCH → wrong role).
+    if (suppressedByFeedback(suppression, {
+      employerId: vacancy.employerId,
+      vacancyTitle: vacancy.title,
+      candidateNeedsSponsorship: candidate.needsSponsorship,
+    })) {
       skipped.push(vacancy.id);
       continue;
     }

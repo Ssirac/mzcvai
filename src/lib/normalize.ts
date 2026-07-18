@@ -46,3 +46,16 @@ export function domainOfEmail(email: string | null | undefined): string | null {
   const at = email.toLowerCase().split("@")[1];
   return at && at.includes(".") && !FREE_MAIL_HOSTS.has(at) ? at : null;
 }
+
+// Normalize a job title into a comparison token: drop gender markers (m/w/d),
+// punctuation and case so "Koch (m/w/d)" and "Koch / Köchin" collapse to the
+// same key. Shared by cross-source de-dup and feedback suppression.
+export function normalizeJobTitle(title: string): string {
+  return (title || "")
+    .toLowerCase()
+    .replace(/\(\s*[mwdfx](\s*\/\s*[mwdfx])*\s*\)/g, " ") // (m/w/d), (w/m/d), (m/w/d/x)
+    .replace(/\bm\s*\/\s*w\s*\/\s*d\b/g, " ")
+    .replace(/[^a-z0-9äöüß]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}

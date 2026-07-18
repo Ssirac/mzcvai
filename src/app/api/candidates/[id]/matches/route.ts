@@ -18,6 +18,10 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         where: {
           candidateId: params.id,
           vacancy: freshVacancyWhere(),
+          // Hide matches the recruiter explicitly rejected — feedback learning
+          // keeps them on record (protected from the rematch delete) but they
+          // must not clutter "Uyğun işlər". (Prisma `not` still returns nulls.)
+          feedback: { not: "BAD" },
         },
         orderBy: [
           { employer: { score: "desc" } },

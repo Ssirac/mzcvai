@@ -12,7 +12,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
-import { normalizeEmployerName } from "@/lib/normalize";
+import { normalizeEmployerName, normalizeJobTitle } from "@/lib/normalize";
 import { sourceQualityRank } from "@/lib/sourceQuality";
 
 // Remove dead and expired listings so candidates only ever see currently-open
@@ -107,18 +107,6 @@ export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; no
   return { ...pt, ...ng, ...ex, ...dup };
 }
 
-// Normalize a job title into a dedup token: drop gender markers (m/w/d),
-// punctuation and case so "Koch (m/w/d)" and "Koch / Köchin" collapse.
-function normalizeTitle(title: string): string {
-  return (title || "")
-    .toLowerCase()
-    .replace(/\(\s*[mwdfx](\s*\/\s*[mwdfx])*\s*\)/g, " ") // (m/w/d), (w/m/d), (m/w/d/x)
-    .replace(/\bm\s*\/\s*w\s*\/\s*d\b/g, " ")
-    .replace(/[^a-z0-9äöüß]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
 /**
  * Cross-source de-duplication. The same job routinely arrives from several
  * sources (Bundesagentur + Adzuna + Jooble + JSearch…), each as its own Vacancy
@@ -153,7 +141,7 @@ export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDelet
   // never collapse unrelated rows on a thin match.
   const groups = new Map<string, typeof vacancies>();
   for (const v of vacancies) {
-    const t = normalizeTitle(v.title);
+    const t = normalizeJobTitle(v.title);
     const e = normalizeEmployerName(v.employer?.name ?? "");
     if (t.length < 4 || e.length < 3) continue;
     const city = (v.employer?.city ?? "").toLowerCase().trim();
