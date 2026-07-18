@@ -90,10 +90,16 @@ const FAMILIES: Record<string, string[]> = {
     "retail", "shop",
   ],
   it: [
-    "software", "softwareentwickler", "entwickler", "developer", "programmierer", "programmer",
+    // NOTE: bare "entwickler"/"developer" are deliberately NOT here — they're too
+    // broad ("Verpackungsentwickler" = packaging dev, "Produktentwickler",
+    // "Personalentwickler", "Business Developer" are NOT IT). Only SOFTWARE dev
+    // compounds count.
+    "software", "softwareentwickler", "softwaredeveloper", "software developer",
+    "web developer", "webentwickler", "anwendungsentwickler", "app-entwickler",
+    "frontend", "backend", "full stack", "fullstack",
+    "programmierer", "programmer",
     "fachinformatiker", "informatiker", "informatik", "it-", "it administrator", "systemadministrator",
-    "netzwerkadministrator", "devops", "data scientist", "web developer", "webentwickler",
-    "anwendungsentwickler",
+    "netzwerkadministrator", "devops", "data scientist",
     // Hyphenated German IT titles (substring match; the whole-word "it-" rule
     // misses these because a letter follows the hyphen, e.g. "IT-Administrator").
     "it-administrator", "it-support", "it-techniker", "it-systemadministrator", "it-system",

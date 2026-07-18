@@ -115,6 +115,16 @@ describe("occupation cluster gate (core specialization anchor)", () => {
     expect(occupationClusters("Kraftfahrer").has("it")).toBe(false);
   });
 
+  it("does not tag non-software '…entwickler' roles as IT (bare 'entwickler' is too broad)", () => {
+    for (const title of ["Verpackungsentwickler (m/w/d)", "Produktentwickler", "Personalentwickler", "Business Developer"]) {
+      expect(occupationFamilies(title).has("it")).toBe(false);
+    }
+    // Real software dev titles still classify as IT.
+    for (const title of ["Softwareentwickler", "Webentwickler (m/w/d)", "Anwendungsentwickler", "Fullstack Developer"]) {
+      expect(occupationFamilies(title).has("it")).toBe(true);
+    }
+  });
+
   it("blocks a logistics candidate from IT roles", () => {
     for (const core of ["Lagerist", "Berufskraftfahrer", "Lagerarbeiter / Kommissionierer"]) {
       expect(shareCluster(core, "Softwareentwickler (m/w/d)")).toBe(false);
