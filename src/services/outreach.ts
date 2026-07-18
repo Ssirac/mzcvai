@@ -391,6 +391,20 @@ export async function sendOutreach(outreachId: string): Promise<void> {
     throw new Error(`Outreach ${outreachId} must be APPROVED by a human before sending.`);
   }
 
+  // Guard 1b: ATOMIC single-flight claim. Two concurrent send requests for the
+  // same outreach (double-click, overlapping batch) both pass the read-then-act
+  // guards above — the conditional APPROVED → SENDING transition lets exactly
+  // ONE of them proceed; the loser sees count 0 and stops. Any failure below
+  // reverts to APPROVED so the row stays retryable.
+  const claimed = await prisma.outreach.updateMany({
+    where: { id: outreachId, status: "APPROVED" },
+    data: { status: "SENDING" },
+  });
+  if (claimed.count === 0) {
+    throw new Error(`Outreach ${outreachId} is already being sent by another request.`);
+  }
+
+  try {
   // Guard 2: Must have a destination address
   if (!recipient) {
     throw new Error(`No email address for outreach ${outreachId}`);
@@ -507,6 +521,15 @@ export async function sendOutreach(outreachId: string): Promise<void> {
       source: "outreach-service",
     },
   });
+  } catch (err) {
+    // Release the SENDING claim so a failed attempt stays retryable. The
+    // conditional where means a row that already reached SENT is never touched.
+    await prisma.outreach.updateMany({
+      where: { id: outreachId, status: "SENDING" },
+      data: { status: "APPROVED" },
+    }).catch(() => {});
+    throw err;
+  }
 }
 
 // ── One-off repair: re-send letters that went out with an EMPTY AI body ──────
@@ -651,6 +674,17 @@ export async function sendAllForCandidate(
   approvedBy: string,
   matchIds?: string[]
 ): Promise<BulkSendResult> {
+  // Recover rows stuck in SENDING (a crash mid-send left the claim held): after
+  // 15 min they can't still be in flight — release them so they retry cleanly.
+  await prisma.outreach.updateMany({
+    where: {
+      status: "SENDING",
+      updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) },
+      match: { candidateId },
+    },
+    data: { status: "APPROVED" },
+  }).catch(() => {});
+
   const matches = await prisma.match.findMany({
     where: {
       candidateId,
@@ -676,8 +710,11 @@ export async function sendAllForCandidate(
       // Without test mode we can only email employers that expose a generic address
       if (!match.employer.genericEmail && !testMode) { result.skippedNoEmail++; continue; }
 
-      // Reuse an existing draft/approved record or create a fresh draft
-      const existing = match.outreach.find((o) => o.status === "DRAFT" || o.status === "APPROVED");
+      // Reuse an existing draft/approved record or create a fresh draft.
+      // SENDING counts as existing too: a row another request is sending right
+      // now must not spawn a parallel duplicate draft (its send attempt here
+      // just fails the claim and is counted as an error, mailing nothing).
+      const existing = match.outreach.find((o) => o.status === "DRAFT" || o.status === "APPROVED" || o.status === "SENDING");
       const outreachId = existing ? existing.id : await createOutreachDraft(match.id);
       if (!existing) createdOutreachId = outreachId;
 

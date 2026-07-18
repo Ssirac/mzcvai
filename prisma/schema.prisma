@@ -94,6 +94,7 @@ enum MatchStatus {
 enum OutreachStatus {
   DRAFT
   APPROVED
+  SENDING // transient: claimed by one send attempt (APPROVED → SENDING → SENT); blocks concurrent double-sends
   SENT
   OPENED
   REPLIED

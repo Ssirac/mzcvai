@@ -436,6 +436,27 @@ const NON_GERMAN_LOCATIONS = [
   "kopenhagen", "copenhagen", "stockholm", "oslo", "helsinki",
   "istanbul", "ankara", "izmir",
   "dubai", "abu dhabi", "doha", "riad", "riyadh",
+  // Second-tier foreign cities (German-language job feeds leak AT/CH/NL/BE
+  // towns the first list missed — user report 2026-07-18)
+  "wiener", "st. pölten", "st pölten", "eisenstadt", "dornbirn", "feldkirch",
+  "bregenz", "steyr", "leoben", "krems",
+  "aarau", "chur", "thun", "biel/bienne", "schaffhausen", "frauenfeld",
+  "solothurn", "olten", "fribourg", "bellinzona", "kreuzlingen", "rapperswil",
+  "wädenswil", "dübendorf", "dietikon",
+  "nijmegen", "tilburg", "venlo", "enschede", "arnhem", "maastricht", "breda",
+  "leiden", "haarlem", "zwolle", "apeldoorn", "amersfoort", "delft",
+  "leeuwarden", "heerlen", "roermond", "almere", "hilversum", "den bosch",
+  "brügge", "bruges", "brugge", "leuven", "löwen", "mechelen", "hasselt",
+  "genk", "kortrijk", "namur", "mons", "charleroi",
+  "lille", "metz", "nancy", "mulhouse", "mülhausen", "colmar",
+  "posen", "poznan", "poznań", "stettin", "szczecin", "lodz", "łódź",
+  "kattowitz", "katowice", "lublin", "bydgoszcz",
+  "pilsen", "plzen", "ostrava", "olmütz", "olomouc", "liberec",
+  "aarhus", "odense", "aalborg",
+  "bratislava", "pressburg", "ljubljana", "laibach", "zagreb",
+  "bukarest", "bucharest", "sofia", "belgrad", "belgrade",
+  "athen", "athens", "thessaloniki",
+  "vilnius", "riga", "tallinn", "kiew", "kyiv", "kiev", "minsk", "moskau", "moscow",
   // Explicit foreign / EU-wide remote
   "remote - eu", "remote (eu)", "remote europe", "eu remote", "europaweit",
 ];
@@ -448,7 +469,18 @@ const NON_GERMAN_RE = new RegExp(
 );
 
 export function isNonGermanLocation(location: string): boolean {
-  return NON_GERMAN_RE.test((location ?? "").toLowerCase());
+  const loc = (location ?? "").toLowerCase();
+  if (NON_GERMAN_RE.test(loc)) return true;
+
+  // Postal-code heuristic: German codes are 5-digit. AT/CH/BE/DK/NO use 4-digit
+  // and NL uses "1234 AB". A location whose only postal code is 4-digit (small
+  // foreign towns the denylist can't enumerate) is not in Germany. Only applies
+  // when NO 5-digit German code is present, so mixed strings stay safe.
+  if (!/\b\d{5}\b/.test(loc)) {
+    if (/\b[1-9]\d{3}\s*[a-z]{2}\b/.test(loc)) return true; // Dutch "1082 xa amsterdam"
+    if (/\b[1-9]\d{3}\s+\p{L}/u.test(loc)) return true; // "4600 wels", "8001 zürich"
+  }
+  return false;
 }
 
 export function isPartTimeJob(title: string, types?: string[], description?: string): boolean {

@@ -16,7 +16,7 @@
 import type { Page } from "puppeteer";
 import { prisma } from "@/lib/prisma";
 import { launchBrowser } from "@/lib/browser";
-import { isSafeExternalUrl } from "@/lib/urlGuard";
+import { isSafeExternalUrl, classifyExternalTarget } from "@/lib/urlGuard";
 
 const GENERIC_DEAD_MARKERS = [
   // German
@@ -40,8 +40,14 @@ const GENERIC_DEAD_MARKERS = [
 export async function isListingDead(page: Page, url: string, extraMarkers: string[] = []): Promise<boolean> {
   try {
     // SSRF guard: a corrupted/malicious listing URL must never make the headless
-    // browser hit internal hosts. Treat it as "dead" so the row gets cleaned up.
+    // browser hit internal hosts. Syntactically bad/private → "dead" so the row
+    // gets cleaned up. DNS-resolving to a private address → also dead. A DNS
+    // FAILURE though is inconclusive (our resolver may be hiccuping) — do NOT
+    // delete on that; the stale-based cleanup handles truly gone hosts.
     if (!isSafeExternalUrl(url)) return true;
+    const safety = await classifyExternalTarget(url);
+    if (safety === "unsafe") return true;
+    if (safety === "unresolvable") return false;
     const res = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
     const status = res?.status() ?? 0;
     if (status >= 400) return true; // 404/410/5xx → gone

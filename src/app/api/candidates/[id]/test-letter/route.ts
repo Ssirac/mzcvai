@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
+import { authorize } from "@/lib/rbac";
 import { sendCandidateTestLetter } from "@/services/outreach";
 
 export const maxDuration = 120;
@@ -10,6 +11,9 @@ export const maxDuration = 120;
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
+    // Sends the candidate's CV to arbitrary addresses — role-gated explicitly.
+    const authz = await authorize(req, "outreach.send");
+    if (!authz.ok) return authz.response;
     const body = await req.json().catch(() => ({}));
     const recipients: string[] = Array.isArray(body.recipients)
       ? body.recipients.filter((r: unknown) => typeof r === "string" && /\S+@\S+\.\S+/.test(r))

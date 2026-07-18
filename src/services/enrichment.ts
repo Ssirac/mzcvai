@@ -14,6 +14,7 @@
 import { resolveMx } from "dns/promises";
 import { launchBrowser } from "@/lib/browser";
 import { prisma } from "@/lib/prisma";
+import { classifyExternalTarget, isSafeExternalUrl } from "@/lib/urlGuard";
 import type { SponsorshipSignal } from "@prisma/client";
 
 // Free deliverability precheck: a domain with no MX records cannot receive email,
@@ -207,6 +208,25 @@ function cityToken(city: string | null | undefined): string | null {
 async function enrichEmployer(employerId: string, website: string, verifyCity?: string | null): Promise<void> {
   const baseUrl = website.startsWith("http") ? website : `https://${website}`;
 
+  // SSRF guard: the website value comes from external job feeds (or a name
+  // guess) — it must never point our server-side fetch/browser at localhost,
+  // cloud metadata or Railway-internal hosts. classifyExternalTarget also
+  // RESOLVES the host, so a public-looking domain whose DNS answers with a
+  // private address is rejected too.
+  const safety = await classifyExternalTarget(baseUrl);
+  if (safety !== "safe") {
+    await prisma.employer.update({
+      where: { id: employerId },
+      data: {
+        enrichmentError: safety === "unsafe"
+          ? `Unsafe website URL (${baseUrl}) — refused to visit`
+          : `Website did not resolve (${baseUrl})`,
+        lastEnrichedAt: new Date(),
+      },
+    });
+    return;
+  }
+
   const allowed = await isAllowedByRobots(baseUrl);
   if (!allowed) {
     await prisma.employer.update({
@@ -246,7 +266,11 @@ async function enrichEmployer(employerId: string, website: string, verifyCity?: 
     });
 
     // Visit the most useful inner pages (Impressum first), accumulate HTML/text.
-    const visitOrder = [innerLinks.impressum[0], innerLinks.kontakt[0], innerLinks.jobs[0]].filter(Boolean) as string[];
+    // SSRF: inner anchors are page-controlled content — same syntactic guard
+    // before navigating (the site itself already passed the DNS check).
+    const visitOrder = [innerLinks.impressum[0], innerLinks.kontakt[0], innerLinks.jobs[0]]
+      .filter(Boolean)
+      .filter((l) => isSafeExternalUrl(l as string)) as string[];
     let innerHtml = "";
     let innerText = "";
     for (const link of visitOrder.slice(0, 3)) {

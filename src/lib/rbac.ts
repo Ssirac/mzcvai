@@ -48,6 +48,12 @@ export async function authorize(
   action: Action,
 ): Promise<AuthzOk | AuthzDeny> {
   const actor = await getSessionUser(req);
+  // Defence in depth: the middleware already blocks sessionless requests, but
+  // this must not silently grant the DEFAULT_ROLE (ADMIN) to a null actor if a
+  // route is ever exposed outside the middleware matcher.
+  if (!actor) {
+    return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
   const role = roleFor(actor);
   if (!can(role, action)) {
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };

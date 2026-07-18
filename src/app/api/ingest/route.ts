@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
+import { authorize } from "@/lib/rbac";
 import { scoreEmployersForSearch } from "@/services/scoring";
 import { SOURCES, availableSources, getSource } from "@/services/sources/registry";
 import { runVacancyCleanup } from "@/services/cleanup";
@@ -10,6 +11,8 @@ import { runVacancyCleanup } from "@/services/cleanup";
 // then scores employers. Each platform is its own module (see sources/registry).
 export async function POST(req: NextRequest) {
   try {
+    const authz = await authorize(req, "admin.maintenance");
+    if (!authz.ok) return authz.response;
     const body = await req.json();
     const beruf: string = (body.beruf ?? "").trim();
     const region: string = (body.region ?? "Deutschland").trim();

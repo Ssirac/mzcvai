@@ -21,6 +21,12 @@ export async function register() {
   // Sentry is initialised lazily in @/lib/log (Node-only path) so @sentry/node
   // never gets pulled into the edge instrumentation bundle.
   if (process.env.DISABLE_SCHEDULER === "true") return;
+  // Auto-send defaults to ON when the flag is absent (the operator runs the
+  // business on it) — but that should be an EXPLICIT choice in the deploy env,
+  // not an accident of a missing variable. Warn loudly so it's visible in logs.
+  if (process.env.AUTO_SEND_ENABLED === undefined) {
+    console.warn("[config] AUTO_SEND_ENABLED is not set — automatic sending is ACTIVE by default; set AUTO_SEND_ENABLED=true (or false) in Railway to make the choice explicit");
+  }
   if (!process.env.CRON_SECRET) {
     console.warn("[scheduler] CRON_SECRET not set — in-process scheduler disabled");
     return;

@@ -1,7 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Constant-time string comparison — a plain !== leaks length/prefix timing.
+function safeEq(a: string, b: string): boolean {
+  const ab = Buffer.from(a), bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+// Verify Resend's signed webhook (svix format): signature = HMAC-SHA256 over
+// "<svix-id>.<svix-timestamp>.<raw body>" keyed with the base64 part of the
+// "whsec_…" signing secret. Rejects stale timestamps (>5 min) to stop replays.
+function verifySvixSignature(req: NextRequest, rawBody: string, signingSecret: string): boolean {
+  const id = req.headers.get("svix-id");
+  const ts = req.headers.get("svix-timestamp");
+  const sigHeader = req.headers.get("svix-signature");
+  if (!id || !ts || !sigHeader) return false;
+  const tsNum = Number(ts);
+  if (!Number.isFinite(tsNum) || Math.abs(Date.now() / 1000 - tsNum) > 300) return false;
+  let key: Buffer;
+  try { key = Buffer.from(signingSecret.replace(/^whsec_/, ""), "base64"); } catch { return false; }
+  const expected = createHmac("sha256", key).update(`${id}.${ts}.${rawBody}`).digest("base64");
+  // Header may carry several space-separated "v1,<sig>" entries.
+  return sigHeader.split(" ").some((part) => {
+    const sig = part.split(",")[1];
+    return !!sig && safeEq(sig, expected);
+  });
+}
 
 // POST /api/webhooks/resend
 // Receives Resend delivery events (delivered / opened / clicked / bounced /
@@ -9,25 +36,38 @@ export const dynamic = "force-dynamic";
 // Resend message id stored at send time). This powers open-tracking and bounce
 // detection in the pipeline without any polling.
 //
-// Guarded by a shared secret: configure RESEND_WEBHOOK_SECRET in Railway and add
-// it to the webhook URL in the Resend dashboard, e.g.
-//   https://<app>/api/webhooks/resend?secret=<RESEND_WEBHOOK_SECRET>
+// Auth, strongest first:
+//   1. RESEND_WEBHOOK_SIGNING_SECRET ("whsec_…" from the Resend dashboard) —
+//      full signature verification of the raw body; the query secret is then
+//      not needed at all.
+//   2. Fallback: RESEND_WEBHOOK_SECRET as ?secret=<…> in the webhook URL
+//      (legacy setup; keeps existing deployments working).
 export async function POST(req: NextRequest) {
   // FAIL CLOSED: without a configured secret this endpoint must reject — a
   // spoofed "bounced" event could otherwise trip the deliverability kill switch
   // and silently stop all sending (denial of service via fake webhooks).
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) {
+  const signingSecret = process.env.RESEND_WEBHOOK_SIGNING_SECRET;
+  const querySecret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!signingSecret && !querySecret) {
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 503 });
   }
-  const provided = req.nextUrl.searchParams.get("secret");
-  if (provided !== secret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rawBody = await req.text();
+
+  if (signingSecret) {
+    if (!verifySvixSignature(req, rawBody, signingSecret)) {
+      return NextResponse.json({ error: "Bad signature" }, { status: 401 });
+    }
+  } else {
+    const provided = req.nextUrl.searchParams.get("secret");
+    if (!provided || !safeEq(provided, querySecret!)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   let event: { type?: string; data?: { email_id?: string } };
   try {
-    event = await req.json();
+    event = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Bad payload" }, { status: 400 });
   }

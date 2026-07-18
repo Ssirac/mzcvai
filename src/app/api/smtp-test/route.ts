@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorize } from "@/lib/rbac";
 import { sendMail } from "@/lib/mailer";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ export const maxDuration = 60;
 // configured provider (Resend if RESEND_API_KEY is set, else SMTP). Isolates
 // whether email delivery itself works.
 export async function GET(req: NextRequest) {
+  // Sends real mail to an arbitrary address — admin-only, explicitly.
+  const authz = await authorize(req, "admin.maintenance");
+  if (!authz.ok) return authz.response;
   const to = new URL(req.url).searchParams.get("to");
   if (!to || !/\S+@\S+\.\S+/.test(to)) {
     return NextResponse.json({ error: "Add ?to=your@email.com" }, { status: 400 });
