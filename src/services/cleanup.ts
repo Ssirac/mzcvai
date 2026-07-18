@@ -11,7 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
+import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation, isPartTimeJob } from "@/lib/berufMap";
 import { normalizeEmployerName, normalizeJobTitle } from "@/lib/normalize";
 import { sourceQualityRank } from "@/lib/sourceQuality";
 
@@ -189,14 +189,19 @@ export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: numb
     description: { contains: kw, mode: "insensitive" as const },
   }));
 
-  const ptVacancies = await prisma.vacancy.findMany({
+  // Candidate rows: anything mentioning a part-time/mini-job keyword. The keyword
+  // is only a PREFILTER — the semantic classifier decides, so "Vollzeit oder
+  // Teilzeit" (FULL_OR_PART) is KEPT and only genuine part-time-only / mini-jobs
+  // are removed.
+  const candidates = await prisma.vacancy.findMany({
     where: {
       OR: [...titleOr, ...descOr],
       matches: { none: { outreach: { some: { sentAt: { not: null } } } } },
     },
-    select: { id: true, matches: { select: { id: true } } },
+    select: { id: true, title: true, description: true, matches: { select: { id: true } } },
   });
 
+  const ptVacancies = candidates.filter((v) => isPartTimeJob(v.title, undefined, v.description ?? undefined));
   const ptIds = ptVacancies.map((v) => v.id);
   const ptMatchIds = ptVacancies.flatMap((v) => v.matches.map((m) => m.id));
 

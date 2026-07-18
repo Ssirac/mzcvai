@@ -367,10 +367,6 @@ export const PART_TIME_TITLE_KEYWORDS = [
   "part-time", "part time", "520-euro", "450-euro", "400-euro",
   "520 euro", "450 euro", "400 euro", "midijob", "midi-job",
 ];
-const PART_TIME_TYPE_KEYWORDS = [
-  "part_time", "part time", "parttime", "mini_job", "minijob",
-  "teilzeit", "geringfügig",
-];
 
 // Unambiguous mini-job / marginal-employment signals. If any of these appears
 // ANYWHERE (incl. the description), the job is part-time — there is no full-time
@@ -488,26 +484,60 @@ export function isNonGermanLocation(location: string): boolean {
   return false;
 }
 
+// ── Semantic employment-type classification ──────────────────────────────────
+// Keyword filtering alone drops any listing that merely mentions "Teilzeit" —
+// but "Koch in Vollzeit oder Teilzeit" OFFERS full-time and a full-time seeker
+// can take it. This classifier reads the whole signal (title + structured types
+// + description) and tells full-time-capable listings apart from part-time-only.
+export type EmploymentType =
+  | "FULL_TIME"      // Vollzeit only
+  | "PART_TIME"      // Teilzeit only (part-time only)
+  | "MINIJOB"        // geringfügig / 520-Euro / Minijob — never full-time
+  | "FULL_OR_PART"   // offers both (Vollzeit oder Teilzeit) — OK for full-time seekers
+  | "UNKNOWN";       // no clear signal (treated as full-time-acceptable)
+
+const FULL_TIME_RE = /\b(vollzeit|voll-?zeit|full[\s_-]?time)\b/i;
+const PART_TIME_RE = /\b(teilzeit|teil-?zeit|part[\s_-]?time)\b/i;
+// Explicit "part-time only" — no full-time option even if Vollzeit appears nearby.
+const PART_TIME_ONLY_RE = /\b(nur|ausschlie(ß|ss)lich)\s+(in\s+)?teilzeit\b/i;
+// Explicit "offers both" phrasings (incl. the abbreviated "Voll- und Teilzeit").
+const BOTH_RE = /(voll-?\s*(und|oder|\/|,)\s*teilzeit|teilzeit\s*(und|oder|\/)\s*vollzeit|voll-\s*\/\s*teilzeit|teilzeit\s+m(ö|oe)glich|auch\s+in\s+teilzeit)/i;
+
+export function classifyEmploymentType(title: string, types?: string[], description?: string): EmploymentType {
+  const titleTypes = `${title ?? ""} ${(types ?? []).join(" ")}`.toLowerCase();
+  const desc = (description ?? "").toLowerCase();
+
+  // Mini-job wins outright — it is never full-time. Read title/types always, and
+  // the description for the same hard signals.
+  if (PART_TIME_HARD_KEYWORDS.some((kw) => titleTypes.includes(kw) || desc.includes(kw))) {
+    return "MINIJOB";
+  }
+
+  // "Both" is decisive wherever it appears (title or description).
+  if (BOTH_RE.test(titleTypes) || BOTH_RE.test(desc)) return "FULL_OR_PART";
+
+  const hasFT = FULL_TIME_RE.test(titleTypes) || (types ?? []).some((x) => /full_?time/i.test(x));
+  const hasPT = PART_TIME_RE.test(titleTypes) || (types ?? []).some((x) => /part_?time|teilzeit/i.test(x));
+
+  // Explicit "nur Teilzeit" anywhere ⇒ part-time only.
+  if (PART_TIME_ONLY_RE.test(titleTypes) || PART_TIME_ONLY_RE.test(desc)) return "PART_TIME";
+
+  if (hasFT && hasPT) return "FULL_OR_PART";
+  if (hasPT) return "PART_TIME";
+  if (hasFT) return "FULL_TIME";
+
+  // Description-only "Teilzeit" (no full-time signal) is too weak to exclude on —
+  // it may be an incidental mention — so a bare desc hit stays UNKNOWN (kept).
+  return "UNKNOWN";
+}
+
+// Full-time seekers can take everything except part-time-only and mini-jobs.
+export function isFullTimeAcceptable(type: EmploymentType): boolean {
+  return type !== "PART_TIME" && type !== "MINIJOB";
+}
+
+// Back-compat wrapper: true only for listings a full-time seeker should NOT get.
+// "Vollzeit oder Teilzeit" is NO LONGER treated as part-time (it offers full-time).
 export function isPartTimeJob(title: string, types?: string[], description?: string): boolean {
-  const t = (title ?? "").toLowerCase();
-  if (PART_TIME_TITLE_KEYWORDS.some((kw) => t.includes(kw))) return true;
-
-  if (types && types.length > 0) {
-    const combined = types.join(" ").toLowerCase();
-    if (PART_TIME_TYPE_KEYWORDS.some((kw) => combined.includes(kw))) {
-      // Only skip if there's NO full-time signal at all
-      const hasFullTime = /full.?time|vollzeit|full_time/i.test(combined);
-      if (!hasFullTime) return true;
-    }
-  }
-
-  // Description: only unambiguous mini-job signals (a Minijob is never full-time).
-  if (description) {
-    const d = description.toLowerCase();
-    if (PART_TIME_HARD_KEYWORDS.some((kw) => d.includes(kw))) return true;
-    // "ausschließlich/nur in Teilzeit" = part-time only, no full-time option.
-    if (/\b(nur|ausschlie(ß|ss)lich)\s+(in\s+)?teilzeit\b/.test(d)) return true;
-  }
-
-  return false;
+  return !isFullTimeAcceptable(classifyEmploymentType(title, types, description));
 }

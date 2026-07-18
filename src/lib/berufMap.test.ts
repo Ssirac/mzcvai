@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   berufSearchKeywords, berufMatches, isPartTimeJob, isNonGermanLocation, seniorityLevel,
+  classifyEmploymentType,
 } from "./berufMap";
 
 describe("berufSearchKeywords — AZ→DE + synonyms", () => {
@@ -48,6 +49,27 @@ describe("isPartTimeJob", () => {
   });
   it("hard mini-job signal in description", () => {
     expect(isPartTimeJob("Koch", [], "520-Euro-Basis, geringfügig")).toBe(true);
+  });
+  it("KEEPS 'Vollzeit oder Teilzeit' — offers full-time", () => {
+    expect(isPartTimeJob("Koch Vollzeit oder Teilzeit")).toBe(false);
+    expect(isPartTimeJob("Servicekraft (Voll- und Teilzeit)")).toBe(false);
+    expect(isPartTimeJob("Koch Vollzeit", [], "Teilzeit möglich")).toBe(false);
+  });
+});
+
+describe("classifyEmploymentType", () => {
+  it("distinguishes the five types", () => {
+    expect(classifyEmploymentType("Koch in Vollzeit")).toBe("FULL_TIME");
+    expect(classifyEmploymentType("Reinigungskraft Teilzeit")).toBe("PART_TIME");
+    expect(classifyEmploymentType("Aushilfe (Minijob)")).toBe("MINIJOB");
+    expect(classifyEmploymentType("Koch Vollzeit oder Teilzeit")).toBe("FULL_OR_PART");
+    expect(classifyEmploymentType("Koch (m/w/d)")).toBe("UNKNOWN");
+  });
+  it("nur Teilzeit is part-time only even if described at length", () => {
+    expect(classifyEmploymentType("Koch", [], "Diese Stelle ist nur in Teilzeit zu besetzen")).toBe("PART_TIME");
+  });
+  it("incidental 'Teilzeit' in description alone stays UNKNOWN (kept)", () => {
+    expect(classifyEmploymentType("Barkeeper", [], "Einige Kollegen arbeiten in Teilzeit")).toBe("UNKNOWN");
   });
 });
 

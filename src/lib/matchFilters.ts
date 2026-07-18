@@ -1,5 +1,5 @@
 import type { OutreachStatus } from "@prisma/client";
-import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
+import { PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
 
 /**
  * The single definition of a "fresh, showable" vacancy — used by the matches
@@ -22,16 +22,29 @@ export function freshVacancyWhere() {
   // postedAt cap only prunes ancient ghost postings (60d default).
   const postedCutoff = new Date(Date.now() - parseInt(process.env.VACANCY_MAX_AGE_DAYS ?? "60") * day);
 
-  const partTimeOr = [
-    ...PART_TIME_TITLE_KEYWORDS.map((kw) => ({ title: { contains: kw, mode: "insensitive" as const } })),
+  // SQL approximation of the semantic classifier (classifyEmploymentType can't
+  // run in a Prisma where). Exclude:
+  //   • mini-jobs (hard keywords, title or description) — never full-time
+  //   • part-time-ONLY titles: "Teilzeit" in the title WITHOUT "Vollzeit"
+  // A "Vollzeit oder Teilzeit" title has both words, so it is NOT excluded —
+  // it stays visible for full-time seekers. Genuine part-time-only rows that
+  // slip in via the description are pruned in code by deletePartTimeVacancies.
+  const miniJobOr = [
+    ...PART_TIME_HARD_KEYWORDS.map((kw) => ({ title: { contains: kw, mode: "insensitive" as const } })),
     ...PART_TIME_HARD_KEYWORDS.map((kw) => ({ description: { contains: kw, mode: "insensitive" as const } })),
   ];
+  const partTimeOnlyTitle = {
+    AND: [
+      { title: { contains: "teilzeit", mode: "insensitive" as const } },
+      { NOT: { title: { contains: "vollzeit", mode: "insensitive" as const } } },
+    ],
+  };
 
   return {
     status: "ACTIVE" as const,
     lastSeenAt: { gte: staleCutoff },
     // Hide ancient postings; rows without a postedAt (null) are kept.
-    NOT: { OR: [...partTimeOr, { postedAt: { lt: postedCutoff } }] },
+    NOT: { OR: [...miniJobOr, partTimeOnlyTitle, { postedAt: { lt: postedCutoff } }] },
   };
 }
 
