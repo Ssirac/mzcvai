@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendingPause } from "@/services/deliverability";
 import { SOURCES } from "@/services/sources/registry";
+import { freshVacancyWhere } from "@/lib/matchFilters";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,24 @@ export async function GET() {
   // live without authenticating. `active` = the module is usable right now.
   const sources = SOURCES.map((s) => ({ id: s.id, active: s.available() }));
 
+  // Aggregate data-health counts (numbers only, no PII) — lets us diagnose an
+  // empty candidate view without DB access: is the vacancy pool depleted, or are
+  // matches just not being created?
+  let data: {
+    activeVacancies: number; freshVacancies: number; activeCandidates: number;
+    matches: number; freshMatches: number;
+  } | null = null;
+  try {
+    const [activeVacancies, freshVacancies, activeCandidates, matches, freshMatches] = await Promise.all([
+      prisma.vacancy.count({ where: { status: "ACTIVE" } }),
+      prisma.vacancy.count({ where: freshVacancyWhere() }),
+      prisma.candidate.count({ where: { status: { in: ["ACTIVE", "PENDING"] } } }),
+      prisma.match.count(),
+      prisma.match.count({ where: { vacancy: freshVacancyWhere() } }),
+    ]);
+    data = { activeVacancies, freshVacancies, activeCandidates, matches, freshMatches };
+  } catch { /* ignore */ }
+
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
 
   return NextResponse.json({
@@ -59,6 +78,7 @@ export async function GET() {
     config,              // booleans only
     sending,
     sources,             // { id, active } — no secret values
+    data,                // aggregate counts — no PII
     time: new Date().toISOString(),
   });
 }

@@ -336,7 +336,6 @@
     "rejectReasonLabel": "Səbəb (istəyə bağlı)",
     "openForm": "Formanı aç",
     "fetchJobs": "Elanları çək", "fetchingJobs": "Çəkilir…", "fetchJobsDone": "{jobs} yeni elan tapıldı, {matches} uyğunluq yeniləndi", "fetchJobsPick": "Əvvəlcə namizəd seçin",
-    "scanForms": "Formaları hazırla", "scanningForms": "Yoxlanılır…", "scanFormsDone": "{ready} form hazır, {verify} robot yoxlaması lazım",
     "rejectedResult": "{count} uyğunluq rədd edildi",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",
