@@ -14,6 +14,7 @@ import { runAutoSend } from "@/services/autopilot";
 import { deletePartTimeVacancies, deleteNonGermanVacancies, deleteExpiredVacancies } from "@/services/cleanup";
 import { mergeDuplicateEmployers } from "@/services/dedup";
 import { acquireCronLock, releaseCronLock } from "@/services/cron";
+import { candidateProfiles } from "@/lib/candidateProfiles";
 import { prisma } from "@/lib/prisma";
 
 // Core occupations always covered nightly.
@@ -24,21 +25,22 @@ const CORE_BERUFE = [
   "LKW-Fahrer", "Pflegehelfer", "Bauhelfer",
 ];
 
-// The nightly search list = core occupations + what ACTIVE candidates actually
-// need (their beruf and desired position). A candidate outside the core list
-// (e.g. Vertrieb / Social Media) gets fresh jobs every night automatically.
+// The nightly search list = what ACTIVE candidates actually need FIRST (their
+// full-CV occupation profiles — desired position, beruf, experience titles),
+// then the core occupations fill the remaining slots. Candidate berufe lead
+// because the cap below truncates the tail: with core first, a candidate
+// outside the core list could lose their nightly search entirely once the
+// matrix filled up — the exact people the deep pass exists for.
 async function buildNightlySearches(): Promise<{ beruf: string; region: string }[]> {
   const candidates = await prisma.candidate.findMany({
     where: { status: { in: ["ACTIVE", "PENDING"] } },
-    select: { beruf: true, desiredPosition: true },
+    select: { beruf: true, desiredPosition: true, experience: true },
   });
-  const berufe = new Set<string>(CORE_BERUFE);
+  const berufe = new Set<string>();
   for (const c of candidates) {
-    for (const raw of [c.desiredPosition, c.beruf]) {
-      const b = raw?.trim();
-      if (b && b.length >= 3) berufe.add(b);
-    }
+    for (const p of candidateProfiles(c)) berufe.add(p);
   }
+  for (const core of CORE_BERUFE) berufe.add(core); // Set keeps first-insertion order
   // Cap the matrix so the run stays within a sane duration.
   return Array.from(berufe).slice(0, 30).map((beruf) => ({ beruf, region: "Deutschland" }));
 }

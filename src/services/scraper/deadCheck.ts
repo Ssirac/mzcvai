@@ -144,10 +144,19 @@ export async function pruneDeadVacancies(
   });
 
   const deadIds: string[] = [];
+  const aliveIds: string[] = [];
   for (const v of candidates) {
     if (!v.url) continue;
     if (await isListingDead(page, v.url, opts.extraMarkers)) deadIds.push(v.id);
+    else aliveIds.push(v.id);
     await new Promise((r) => setTimeout(r, opts.delayMs)); // respect the site's rate limit
+  }
+  // A checked-and-alive ad page IS a liveness signal: bump lastSeenAt so (a) the
+  // stale cleanup never deletes a listing we just verified is up, and (b) the
+  // oldest-first queue rotates instead of re-checking the same alive rows
+  // forever while the rest of the corpus is never reached.
+  if (aliveIds.length) {
+    await prisma.vacancy.updateMany({ where: { id: { in: aliveIds } }, data: { lastSeenAt: new Date() } }).catch(() => {});
   }
   const { deleted, expired } = await retireDeadVacancies(deadIds);
   return deleted + expired;
@@ -194,6 +203,7 @@ export async function sweepDeadVacancies(
 
   const browser = await launchBrowser();
   const deadIds: string[] = [];
+  const aliveIds: string[] = [];
   let checked = 0;
   try {
     const page = await browser.newPage();
@@ -205,11 +215,19 @@ export async function sweepDeadVacancies(
       checked++;
       try {
         if (await isListingDead(page, v.url)) deadIds.push(v.id);
+        else aliveIds.push(v.id);
       } catch { /* inconclusive — leave for the stale-based cleanup */ }
       await new Promise((r) => setTimeout(r, delayMs));
     }
   } finally {
     await browser.close();
+  }
+  // Verified-alive ⇒ refresh lastSeenAt: protects the row from the stale
+  // cleanup and rotates the oldest-first sweep queue so every listing gets its
+  // turn (without this, the same alive rows were re-visited every tick and the
+  // rest of the corpus was starved). Inconclusive checks are NOT bumped.
+  if (aliveIds.length) {
+    await prisma.vacancy.updateMany({ where: { id: { in: aliveIds } }, data: { lastSeenAt: new Date() } }).catch(() => {});
   }
   const { deleted, expired } = await retireDeadVacancies(deadIds);
   return { checked, deleted, expired };
