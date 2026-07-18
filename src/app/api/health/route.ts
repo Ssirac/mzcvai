@@ -62,6 +62,52 @@ async function crossFieldDiagnostic(): Promise<{
   }
 }
 
+// Per-candidate cluster breakdown (only on ?deep=1): for each active candidate,
+// their CORE occupation field(s) and which fields the jobs currently matched to
+// them fall into — the data-level equivalent of "open a candidate and check no
+// IT jobs come to a non-IT person". `foreign` lists any matched cluster outside
+// the core (should always be empty now); `it` is called out explicitly since
+// that was the operator's example. No names — occupation category + counts only.
+async function candidateFieldBreakdown(): Promise<Array<{
+  occupation: string; core: string[]; matched: number;
+  byField: Record<string, number>; foreign: string[]; itJobs: number;
+}> | null> {
+  try {
+    const candidates = await prisma.candidate.findMany({
+      where: { status: { in: ["ACTIVE", "PENDING"] } },
+      select: { id: true, desiredPosition: true, beruf: true },
+    });
+    const out = [];
+    for (const c of candidates) {
+      const core = new Set<string>();
+      for (const t of [c.desiredPosition, c.beruf]) if (t && t.trim()) for (const cl of occupationClusters(t)) core.add(cl);
+      const matches = await prisma.match.findMany({
+        where: { candidateId: c.id, vacancy: freshVacancyWhere(), ...notRejectedWhere(), ...undispatchedWhere() },
+        select: { vacancy: { select: { title: true } } },
+        take: 3000,
+      });
+      const byField: Record<string, number> = {};
+      for (const m of matches) {
+        for (const cl of occupationClusters(m.vacancy.title)) byField[cl] = (byField[cl] ?? 0) + 1;
+      }
+      const foreign = core.size ? Object.keys(byField).filter((cl) => !core.has(cl)) : [];
+      out.push({
+        occupation: (c.desiredPosition || c.beruf || "?").slice(0, 45),
+        core: Array.from(core),
+        matched: matches.length,
+        byField,
+        foreign,
+        itJobs: byField["it"] ?? 0,
+      });
+    }
+    // Heaviest offenders first (any foreign match), then by volume.
+    out.sort((a, b) => b.foreign.length - a.foreign.length || b.matched - a.matched);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/health — liveness + DB + mail provider + critical-config status.
  * PUBLIC (no auth), so it exposes ONLY booleans/enums — never secret values
@@ -144,6 +190,7 @@ export async function GET(req: NextRequest) {
 
   // Cross-field match diagnostic — only when explicitly requested (heavier scan).
   const crossField = deep ? await crossFieldDiagnostic() : undefined;
+  const byCandidate = deep ? await candidateFieldBreakdown() : undefined;
 
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
 
@@ -157,6 +204,7 @@ export async function GET(req: NextRequest) {
     sources,             // { id, active } — no secret values
     data,                // aggregate counts — no PII
     ...(crossField !== undefined ? { crossField } : {}), // only on ?deep=1
+    ...(byCandidate !== undefined ? { byCandidate } : {}), // per-candidate field breakdown, only on ?deep=1
     time: new Date().toISOString(),
   });
 }
