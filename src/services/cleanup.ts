@@ -12,6 +12,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation } from "@/lib/berufMap";
+import { normalizeEmployerName } from "@/lib/normalize";
+import { sourceQualityRank } from "@/lib/sourceQuality";
 
 // Remove dead and expired listings so candidates only ever see currently-open
 // jobs. Two independent freshness tests (either one triggers removal):
@@ -97,11 +99,98 @@ export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: nu
 // One-shot purge run after every ingest: drop part-time/mini-job, non-German,
 // and stale listings in a single call. The deletes cascade to Match + Outreach,
 // so purged jobs also disappear from every candidate's matches immediately.
-export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number }> {
+export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number; duplicatesDeleted: number }> {
   const pt = await deletePartTimeVacancies();
   const ng = await deleteNonGermanVacancies();
   const ex = await deleteExpiredVacancies();
-  return { ...pt, ...ng, ...ex };
+  const dup = await collapseCrossSourceDuplicates();
+  return { ...pt, ...ng, ...ex, ...dup };
+}
+
+// Normalize a job title into a dedup token: drop gender markers (m/w/d),
+// punctuation and case so "Koch (m/w/d)" and "Koch / Köchin" collapse.
+function normalizeTitle(title: string): string {
+  return (title || "")
+    .toLowerCase()
+    .replace(/\(\s*[mwdfx](\s*\/\s*[mwdfx])*\s*\)/g, " ") // (m/w/d), (w/m/d), (m/w/d/x)
+    .replace(/\bm\s*\/\s*w\s*\/\s*d\b/g, " ")
+    .replace(/[^a-z0-9äöüß]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Cross-source de-duplication. The same job routinely arrives from several
+ * sources (Bundesagentur + Adzuna + Jooble + JSearch…), each as its own Vacancy
+ * row — that inflates a candidate's match list and count, and shows aggregator
+ * links where a direct one exists. JSearch (a meta-aggregator) makes this the
+ * common case, so this runs on every cleanup pass.
+ *
+ * Two vacancies are the same job when normalized title + employer + city match.
+ * The survivor is the highest-authority source (see sourceQuality) — the direct
+ * employer page / Bundesagentur beats an aggregator — tie-broken by freshest
+ * lastSeenAt, then by having a real URL. Losers are removed WITH their matches.
+ *
+ * Safety: only removes vacancies with NO dispatched outreach (same guard as the
+ * other cleanup passes) — a job an application was already sent for is never
+ * touched, preserving the send/reply history.
+ */
+export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDeleted: number }> {
+  const vacancies = await prisma.vacancy.findMany({
+    where: {
+      status: "ACTIVE",
+      // Protect sent history: never collapse a vacancy with a dispatched mail.
+      matches: { none: { outreach: { some: { sentAt: { not: null } } } } },
+    },
+    select: {
+      id: true, source: true, title: true, url: true, lastSeenAt: true,
+      employer: { select: { name: true, city: true } },
+      matches: { select: { id: true } },
+    },
+  });
+
+  // Group by dedup key. Weak keys (too-short title/employer) are skipped so we
+  // never collapse unrelated rows on a thin match.
+  const groups = new Map<string, typeof vacancies>();
+  for (const v of vacancies) {
+    const t = normalizeTitle(v.title);
+    const e = normalizeEmployerName(v.employer?.name ?? "");
+    if (t.length < 4 || e.length < 3) continue;
+    const city = (v.employer?.city ?? "").toLowerCase().trim();
+    const key = `${t}|${e}|${city}`;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(v);
+  }
+
+  const loserVacancyIds: string[] = [];
+  const loserMatchIds: string[] = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    // Survivor: highest source authority, then freshest, then has a URL.
+    const survivor = [...group].sort((a, b) => {
+      const qa = sourceQualityRank(a.source), qb = sourceQualityRank(b.source);
+      if (qa !== qb) return qb - qa;
+      const la = a.lastSeenAt?.getTime() ?? 0, lb = b.lastSeenAt?.getTime() ?? 0;
+      if (la !== lb) return lb - la;
+      return (b.url ? 1 : 0) - (a.url ? 1 : 0);
+    })[0];
+    for (const v of group) {
+      if (v.id === survivor.id) continue;
+      loserVacancyIds.push(v.id);
+      loserMatchIds.push(...v.matches.map((m) => m.id));
+    }
+  }
+
+  let duplicatesDeleted = 0;
+  if (loserVacancyIds.length > 0) {
+    // Losers carry no dispatched outreach (guaranteed by the query filter), so
+    // deleting their undispatched outreach + matches is safe.
+    await prisma.outreach.deleteMany({ where: { matchId: { in: loserMatchIds } } });
+    await prisma.match.deleteMany({ where: { id: { in: loserMatchIds } } });
+    const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: loserVacancyIds } } });
+    duplicatesDeleted = count;
+  }
+
+  return { duplicatesDeleted };
 }
 
 export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: number }> {
