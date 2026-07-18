@@ -99,7 +99,7 @@ export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: nu
 // One-shot purge run after every ingest: drop part-time/mini-job, non-German,
 // and stale listings in a single call. The deletes cascade to Match + Outreach,
 // so purged jobs also disappear from every candidate's matches immediately.
-export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number; duplicatesDeleted: number }> {
+export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number; duplicatesDeleted: number; matchesReassigned: number }> {
   const pt = await deletePartTimeVacancies();
   const ng = await deleteNonGermanVacancies();
   const ex = await deleteExpiredVacancies();
@@ -117,13 +117,18 @@ export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; no
  * Two vacancies are the same job when normalized title + employer + city match.
  * The survivor is the highest-authority source (see sourceQuality) — the direct
  * employer page / Bundesagentur beats an aggregator — tie-broken by freshest
- * lastSeenAt, then by having a real URL. Losers are removed WITH their matches.
+ * lastSeenAt, then by having a real URL.
  *
- * Safety: only removes vacancies with NO dispatched outreach (same guard as the
+ * Losers' matches are REASSIGNED to the survivor (not deleted), so a candidate
+ * never loses a job — the duplicate copy is merged onto the surviving row. A
+ * match is only dropped when the candidate already has one on the survivor (a
+ * true duplicate). Loser vacancies, now match-free, are removed.
+ *
+ * Safety: only touches vacancies with NO dispatched outreach (same guard as the
  * other cleanup passes) — a job an application was already sent for is never
- * touched, preserving the send/reply history.
+ * moved, preserving the send/reply history.
  */
-export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDeleted: number }> {
+export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDeleted: number; matchesReassigned: number }> {
   const vacancies = await prisma.vacancy.findMany({
     where: {
       status: "ACTIVE",
@@ -133,7 +138,7 @@ export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDelet
     select: {
       id: true, source: true, title: true, url: true, lastSeenAt: true,
       employer: { select: { name: true, city: true } },
-      matches: { select: { id: true } },
+      matches: { select: { id: true, candidateId: true } },
     },
   });
 
@@ -150,7 +155,10 @@ export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDelet
   }
 
   const loserVacancyIds: string[] = [];
-  const loserMatchIds: string[] = [];
+  const toDeleteMatchIds: string[] = [];
+  // survivorId → list of loser match ids to repoint onto it.
+  const reassignBySurvivor = new Map<string, string[]>();
+
   for (const group of groups.values()) {
     if (group.length < 2) continue;
     // Survivor: highest source authority, then freshest, then has a URL.
@@ -161,24 +169,47 @@ export async function collapseCrossSourceDuplicates(): Promise<{ duplicatesDelet
       if (la !== lb) return lb - la;
       return (b.url ? 1 : 0) - (a.url ? 1 : 0);
     })[0];
+    // Candidates already matched to the survivor — a loser match for one of them
+    // is a genuine duplicate and gets dropped; everyone else is moved over. The
+    // set grows as we claim candidates so two losers can't both move the same one
+    // (which would violate the (candidate,vacancy) unique constraint).
+    const claimed = new Set(survivor.matches.map((m) => m.candidateId));
     for (const v of group) {
       if (v.id === survivor.id) continue;
       loserVacancyIds.push(v.id);
-      loserMatchIds.push(...v.matches.map((m) => m.id));
+      for (const m of v.matches) {
+        if (claimed.has(m.candidateId)) {
+          toDeleteMatchIds.push(m.id);
+        } else {
+          claimed.add(m.candidateId);
+          (reassignBySurvivor.get(survivor.id) ?? reassignBySurvivor.set(survivor.id, []).get(survivor.id)!).push(m.id);
+        }
+      }
     }
   }
 
+  let matchesReassigned = 0;
   let duplicatesDeleted = 0;
   if (loserVacancyIds.length > 0) {
-    // Losers carry no dispatched outreach (guaranteed by the query filter), so
-    // deleting their undispatched outreach + matches is safe.
-    await prisma.outreach.deleteMany({ where: { matchId: { in: loserMatchIds } } });
-    await prisma.match.deleteMany({ where: { id: { in: loserMatchIds } } });
+    // 1. Move keeper matches onto the survivor (per survivor, distinct candidates).
+    for (const [survivorId, matchIds] of reassignBySurvivor) {
+      const { count } = await prisma.match.updateMany({
+        where: { id: { in: matchIds } },
+        data: { vacancyId: survivorId },
+      });
+      matchesReassigned += count;
+    }
+    // 2. Drop the true-duplicate matches (undispatched — safe to remove).
+    if (toDeleteMatchIds.length > 0) {
+      await prisma.outreach.deleteMany({ where: { matchId: { in: toDeleteMatchIds } } });
+      await prisma.match.deleteMany({ where: { id: { in: toDeleteMatchIds } } });
+    }
+    // 3. Loser vacancies are now match-free → remove the duplicate rows.
     const { count } = await prisma.vacancy.deleteMany({ where: { id: { in: loserVacancyIds } } });
     duplicatesDeleted = count;
   }
 
-  return { duplicatesDeleted };
+  return { duplicatesDeleted, matchesReassigned };
 }
 
 export async function deletePartTimeVacancies(): Promise<{ partTimeDeleted: number }> {
