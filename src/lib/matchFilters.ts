@@ -1,3 +1,4 @@
+import type { OutreachStatus } from "@prisma/client";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS } from "@/lib/berufMap";
 
 /**
@@ -31,5 +32,27 @@ export function freshVacancyWhere() {
     lastSeenAt: { gte: staleCutoff },
     // Hide ancient postings; rows without a postedAt (null) are kept.
     NOT: { OR: [...partTimeOr, { postedAt: { lt: postedCutoff } }] },
+  };
+}
+
+/**
+ * Match-level filter: NO outreach was ever dispatched for this match. The
+ * server-side twin of the UI's everDispatched() — a mail that went out (auto or
+ * manual) removes the job from "Uyğun işlər", and a reply flipping SENT →
+ * REPLIED must not resurface it. Used by the candidate-list match counter so
+ * the badge drops as soon as an application is sent.
+ */
+export function undispatchedWhere() {
+  return {
+    outreach: {
+      none: {
+        OR: [
+          { sentAt: { not: null } },
+          // Mutable enum array — a readonly `as const` tuple fails Prisma's
+          // OutreachStatus[] input type and broke tsc.
+          { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] as OutreachStatus[] } },
+        ],
+      },
+    },
   };
 }

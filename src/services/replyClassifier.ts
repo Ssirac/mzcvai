@@ -47,19 +47,19 @@ Betreff: ${subject.slice(0, 200)}
 Antwort:
 """${text.slice(0, 2500)}"""`;
 
-  try {
-    const message = await anthropic.messages.create({
-      model: process.env.REPLY_CLASSIFIER_MODEL || "claude-haiku-4-5-20251001",
-      max_tokens: 20,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const raw = extractText(message).toUpperCase();
-    const found = VALID.find((c) => raw.includes(c));
-    return found ?? "OTHER";
-  } catch {
-    // Fail-soft: leave uncategorised rather than blocking the reply pipeline.
-    return "OTHER";
-  }
+  // NOTE: deliberately NOT caught here. A transient API failure must THROW so
+  // the caller stores no category (replies.ts already .catch(() => null)s) and
+  // the backfill can classify the reply later. Returning "OTHER" from a catch
+  // permanently mislabelled replies during outages — backfill only picks up
+  // rows whose category is still null.
+  const message = await anthropic.messages.create({
+    model: process.env.REPLY_CLASSIFIER_MODEL || "claude-haiku-4-5-20251001",
+    max_tokens: 20,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const raw = extractText(message).toUpperCase();
+  const found = VALID.find((c) => raw.includes(c));
+  return found ?? "OTHER";
 }
 
 /**
@@ -76,9 +76,13 @@ export async function classifyStoredReplies(limit = 25): Promise<{ classified: n
 
   let classified = 0;
   for (const r of rows) {
-    const category = await classifyReply(r.replySubject ?? "", r.replyText ?? "");
-    await prisma.outreach.update({ where: { id: r.id }, data: { replyCategory: category } });
-    classified++;
+    try {
+      const category = await classifyReply(r.replySubject ?? "", r.replyText ?? "");
+      await prisma.outreach.update({ where: { id: r.id }, data: { replyCategory: category } });
+      classified++;
+    } catch {
+      break; // API down — stop the batch; the rows stay null for the next run
+    }
   }
 
   const remaining = await prisma.outreach.count({ where: { repliedAt: { not: null }, replyCategory: null } });

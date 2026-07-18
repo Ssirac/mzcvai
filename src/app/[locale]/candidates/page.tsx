@@ -378,13 +378,13 @@ export default function CandidatesPage() {
   // revisiting a candidate doesn't burn API credits re-searching every time.
   const autoEnrichedRef = useRef<Set<string>>(new Set());
 
-  async function loadMatches(id: string) {
-    setMatchesLoading(true);
+  async function loadMatches(id: string, opts?: { silent?: boolean }) {
+    if (!opts?.silent) setMatchesLoading(true);
     const res = await fetch(`/api/candidates/${id}/matches`);
     const data = await res.json();
     const list: Match[] = data.matches ?? [];
     setMatches(list);
-    setMatchesLoading(false);
+    if (!opts?.silent) setMatchesLoading(false);
 
     // Automatically find emails the first time we see this candidate, for any
     // matched employer that doesn't have one yet. Runs in the background; the
@@ -416,6 +416,20 @@ export default function CandidatesPage() {
   }
 
   useEffect(() => { loadCandidates(); loadUnread(); }, []);
+
+  // Live refresh: applications can go out in the BACKGROUND (auto-pilot /
+  // refresh cron), and a dispatched job must leave "Uyğun işlər" + drop the
+  // sidebar badge without the user re-clicking the candidate. Poll silently
+  // (no spinner) while a candidate is open.
+  useEffect(() => {
+    if (!selectedId) return;
+    const t = setInterval(() => {
+      void loadMatches(selectedId, { silent: true });
+      void loadCandidates();
+    }, 120_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   function selectCandidate(id: string) {
     setSelectedId(id);

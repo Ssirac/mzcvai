@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
-import { freshVacancyWhere } from "@/lib/matchFilters";
+import { freshVacancyWhere, undispatchedWhere } from "@/lib/matchFilters";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { autoIngestForBeruf } from "@/services/autoIngest";
 import { sendAllForCandidate } from "@/services/outreach";
@@ -16,7 +16,14 @@ export async function GET() {
         // Count only FRESH matches (same filter as the matches view) — a raw
         // count also included expired/stale listings, so the sidebar said e.g.
         // "573 uyğun iş" while the detail view correctly showed 188.
-        _count: { select: { matches: { where: { vacancy: freshVacancyWhere() } } } },
+        // AND only matches with no dispatched mail (auto or manual): once an
+        // application went out, the job leaves "Uyğun işlər", so the badge
+        // must drop with it instead of keeping the old inflated number.
+        _count: {
+          select: {
+            matches: { where: { vacancy: freshVacancyWhere(), ...undispatchedWhere() } },
+          },
+        },
       },
     });
     // Expose a lightweight flag instead of the bytes
