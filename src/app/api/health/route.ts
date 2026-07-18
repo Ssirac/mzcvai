@@ -70,7 +70,7 @@ async function crossFieldDiagnostic(): Promise<{
 // that was the operator's example. No names — occupation category + counts only.
 async function candidateFieldBreakdown(): Promise<Array<{
   occupation: string; core: string[]; matched: number;
-  byField: Record<string, number>; foreign: string[]; itJobs: number;
+  byField: Record<string, number>; pureForeign: number; itTitles: string[];
 }> | null> {
   try {
     const candidates = await prisma.candidate.findMany({
@@ -87,21 +87,30 @@ async function candidateFieldBreakdown(): Promise<Array<{
         take: 3000,
       });
       const byField: Record<string, number> = {};
+      // pureForeign = a match whose clusters ALL fall OUTSIDE the core (the real
+      // wrong-field case). A match that shares one core cluster is legitimate even
+      // if its title also touches another field (e.g. "Lager … mit IT-Kenntnissen"
+      // classifies {logistics, it} but is a logistics job). byField counts every
+      // cluster, so its "it" tally can be >0 without any PURE IT job.
+      let pureForeign = 0;
+      const itTitles: string[] = [];
+      const coreKnown = core.size > 0;
       for (const m of matches) {
-        for (const cl of occupationClusters(m.vacancy.title)) byField[cl] = (byField[cl] ?? 0) + 1;
+        const cls = occupationClusters(m.vacancy.title);
+        for (const cl of cls) byField[cl] = (byField[cl] ?? 0) + 1;
+        if (coreKnown && cls.size > 0 && !Array.from(cls).some((cl) => core.has(cl))) pureForeign++;
+        if (coreKnown && !core.has("it") && cls.has("it") && itTitles.length < 3) itTitles.push(m.vacancy.title.slice(0, 55));
       }
-      const foreign = core.size ? Object.keys(byField).filter((cl) => !core.has(cl)) : [];
       out.push({
         occupation: (c.desiredPosition || c.beruf || "?").slice(0, 45),
         core: Array.from(core),
         matched: matches.length,
         byField,
-        foreign,
-        itJobs: byField["it"] ?? 0,
+        pureForeign,        // MUST be 0 — a truly off-field match
+        itTitles,           // IT-tagged titles for a non-IT candidate (should read as core-field jobs mentioning IT)
       });
     }
-    // Heaviest offenders first (any foreign match), then by volume.
-    out.sort((a, b) => b.foreign.length - a.foreign.length || b.matched - a.matched);
+    out.sort((a, b) => b.pureForeign - a.pureForeign || b.matched - a.matched);
     return out;
   } catch {
     return null;
