@@ -21,6 +21,12 @@ window.MZ_SELECTORS = {
   land:          { names: ["land", "country", "staat"], labels: ["Land", "Country"], select: true },
   beruf:         { names: ["beruf", "position", "jobtitle", "job_title", "taetigkeit"], labels: ["Beruf", "Position", "Tätigkeit", "Berufsbezeichnung"] },
   deutschniveau: { names: ["deutsch", "german", "sprachniveau"], labels: ["Deutschkenntnisse", "Deutsch", "German level"] },
+  // Salary + legal-status fields ATS forms (Jobylon, Personio…) commonly ask for.
+  // Filled only when the candidate record holds the value (content.js skips empty).
+  gehaltswunsch:    { names: ["gehalt", "salary", "gehaltswunsch", "gehaltsvorstellung", "compensation"], labels: ["Gehaltswunsch", "Gehaltsvorstellung", "Gehalt", "Salary", "Salary expectation"] },
+  aufenthaltstitel: { names: ["aufenthalt", "aufenthaltstitel", "residence", "residencepermit"], labels: ["Aufenthaltstitel", "Aufenthaltsstatus", "Aufenthalt", "Residence permit", "Residence title"] },
+  arbeitserlaubnis: { names: ["arbeitserlaubnis", "arbeitsgenehmigung", "workpermit", "work_permit"], labels: ["Arbeitserlaubnis", "Arbeitsgenehmigung", "Work permit"] },
+  fuehrerschein:    { names: ["fuehrerschein", "führerschein", "driverlicense", "drivinglicense", "fuehrerscheinklasse"], labels: ["Führerschein", "Fahrerlaubnis", "Driving license", "Driver's license"] },
 };
 
 // File input for the CV / Lebenslauf.

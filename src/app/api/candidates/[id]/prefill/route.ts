@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         name: true, email: true, phone: true, gender: true, dateOfBirth: true,
         nationality: true, address: true, currentCity: true, currentCountry: true,
         beruf: true, desiredPosition: true, germanLevel: true,
+        salaryExpectation: true, visaStatus: true, drivingLicense: true,
         cvData: true, cvFileName: true, cvMimeType: true,
       },
     });
@@ -52,6 +53,13 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       land: c.currentCountry ?? "Deutschland",
       beruf: c.desiredPosition?.trim() || c.beruf || "",
       deutschniveau: c.germanLevel ?? "",
+      // Additional recruiter-entered facts (only sent when actually stored — the
+      // extension skips empty values, so nothing is fabricated on a real
+      // application). Salary + legal-status are the fields ATS forms ask for most.
+      gehaltswunsch: c.salaryExpectation ?? "",
+      aufenthaltstitel: c.visaStatus ?? "",   // residence permit ← visa status
+      arbeitserlaubnis: c.visaStatus ?? "",   // work permit ← visa status (same source)
+      fuehrerschein: c.drivingLicense ?? "",
     };
 
     // CV as base64 so the extension can attach it to file inputs (Lebenslauf).

@@ -174,14 +174,11 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
   return (
     <nav className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
       <div className="px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
-        {/* Brand */}
-        <a href={`/${locale}/dashboard`} className="flex items-center gap-2.5 shrink-0 group">
+        {/* Brand — logo only (per the operator's request); the wordmark is
+            dropped, which also frees width for the tab bar. */}
+        <a href={`/${locale}/dashboard`} className="flex items-center shrink-0 group" title="MZ Talent Intelligence">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-icon.jpeg" alt="MZ" className="w-8 h-8 rounded-xl object-cover shadow-lg ring-1 ring-white/10 transition-transform group-hover:scale-105" />
-          <span className="flex flex-col leading-none">
-            <span className="text-ink font-semibold text-sm tracking-tight">Talent Intelligence</span>
-            <span className="hidden sm:block text-ink-3 text-[10px] tracking-wide">MZ Personalvermittlung</span>
-          </span>
+          <img src="/logo-icon.jpeg" alt="MZ Talent Intelligence" className="w-9 h-9 rounded-xl object-cover shadow-lg ring-1 ring-white/10 transition-transform group-hover:scale-105" />
         </a>
 
         {/* Desktop tabs — lg+ (tablets/small laptops use the hamburger). Icon-only
