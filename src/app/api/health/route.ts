@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendingPause } from "@/services/deliverability";
+import { SOURCES } from "@/services/sources/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,11 @@ export async function GET() {
     };
   } catch { /* ignore */ }
 
+  // Job-source availability snapshot (ids + booleans only — no keys/values), so
+  // a newly-added source key (e.g. RAPIDAPI_KEY for JSearch) can be confirmed
+  // live without authenticating. `active` = the module is usable right now.
+  const sources = SOURCES.map((s) => ({ id: s.id, active: s.available() }));
+
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
 
   return NextResponse.json({
@@ -52,6 +58,7 @@ export async function GET() {
     mailConfigured: mailProvider !== "none",
     config,              // booleans only
     sending,
+    sources,             // { id, active } — no secret values
     time: new Date().toISOString(),
   });
 }
