@@ -56,7 +56,8 @@ export async function GET() {
   let data: {
     activeVacancies: number; freshVacancies: number; activeCandidates: number;
     matches: number; freshMatches: number;
-    perCandidateVisible: number[]; candidatesWithZero: number;
+    freshBad: number; freshDispatched: number; freshVisible: number;
+    pendingAnyVacancy: number; totalDispatchedOutreach: number; totalBad: number;
   } | null = null;
   try {
     const [activeVacancies, freshVacancies, activeCandidates, matches, freshMatches] = await Promise.all([
@@ -66,26 +67,21 @@ export async function GET() {
       prisma.match.count(),
       prisma.match.count({ where: { vacancy: freshVacancyWhere() } }),
     ]);
-    // Per-candidate VISIBLE job count — exactly what the sidebar badge computes
-    // (fresh vacancy, not dispatched, not rejected). Sorted desc; no PII (counts
-    // only). Tells us whether every candidate is empty or just some.
-    const cands = await prisma.candidate.findMany({
-      where: { status: { in: ["ACTIVE", "PENDING"] } }, select: { id: true },
-    });
-    const perCandidateVisible = (await Promise.all(
-      cands.map((c) =>
-        prisma.match.count({
-          where: {
-            candidateId: c.id,
-            vacancy: freshVacancyWhere(),
-            feedback: { not: "BAD" },
-            outreach: { none: { OR: [{ sentAt: { not: null } }, { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] } } ] } },
-          },
-        })
-      )
-    )).sort((a, b) => b - a);
-    const candidatesWithZero = perCandidateVisible.filter((n) => n === 0).length;
-    data = { activeVacancies, freshVacancies, activeCandidates, matches, freshMatches, perCandidateVisible, candidatesWithZero };
+    // Breakdown of WHY fresh matches may be invisible: dispatched vs rejected vs
+    // the two filters together, plus totals. Pinpoints the cause without DB access.
+    const dispatchedFilter = { OR: [{ sentAt: { not: null } }, { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] } }] };
+    const [freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad] = await Promise.all([
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), feedback: "BAD" } }),
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), outreach: { some: dispatchedFilter } } }),
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), feedback: { not: "BAD" }, outreach: { none: dispatchedFilter } } }),
+      prisma.match.count({ where: { feedback: { not: "BAD" }, outreach: { none: dispatchedFilter } } }),
+      prisma.outreach.count({ where: { sentAt: { not: null } } }),
+      prisma.match.count({ where: { feedback: "BAD" } }),
+    ]);
+    data = {
+      activeVacancies, freshVacancies, activeCandidates, matches, freshMatches,
+      freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad,
+    };
   } catch { /* ignore */ }
 
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
