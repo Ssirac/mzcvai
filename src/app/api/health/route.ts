@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendingPause } from "@/services/deliverability";
 import { SOURCES } from "@/services/sources/registry";
 import { freshVacancyWhere } from "@/lib/matchFilters";
+import type { OutreachStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function GET() {
     ]);
     // Breakdown of WHY fresh matches may be invisible: dispatched vs rejected vs
     // the two filters together, plus totals. Pinpoints the cause without DB access.
-    const dispatchedFilter = { OR: [{ sentAt: { not: null } }, { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] } }] };
+    const dispatchedFilter = { OR: [{ sentAt: { not: null } }, { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] as OutreachStatus[] } }] };
     const [freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad] = await Promise.all([
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), feedback: "BAD" } }),
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), outreach: { some: dispatchedFilter } } }),
