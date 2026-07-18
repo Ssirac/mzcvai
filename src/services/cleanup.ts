@@ -14,6 +14,59 @@ import { prisma } from "@/lib/prisma";
 import { PART_TIME_TITLE_KEYWORDS, PART_TIME_HARD_KEYWORDS, isNonGermanLocation, isPartTimeJob } from "@/lib/berufMap";
 import { normalizeEmployerName, normalizeJobTitle } from "@/lib/normalize";
 import { sourceQualityRank } from "@/lib/sourceQuality";
+import { occupationClusters } from "@/lib/occupationFamily";
+
+/**
+ * Cross-field match purge — the fast, standalone twin of the specialization gate
+ * in matchCandidateToVacancies. That gate stops NEW wrong-field matches, but old
+ * ones created before the fix only clear when a full re-match runs — and the
+ * intraday re-match is coupled to a slow ingest (it drives browser scrapers), so
+ * wrong matches can linger for a long time. This pass removes them directly, no
+ * ingest: for every un-dispatched, un-judged match it compares the candidate's
+ * CORE occupation cluster(s) (desired position + beruf) with the vacancy title's;
+ * when both classify and DON'T overlap, the match is a wrong-specialization one
+ * (logistics↔IT) and is deleted. SAFE: never touches a match with ANY outreach
+ * (history) or any recruiter feedback (a hand-judged verdict).
+ */
+export async function pruneCrossFieldMatches(): Promise<{ crossFieldDeleted: number }> {
+  const matches = await prisma.match.findMany({
+    where: { outreach: { none: {} }, feedback: null },
+    select: {
+      id: true,
+      candidate: { select: { desiredPosition: true, beruf: true } },
+      vacancy: { select: { title: true } },
+    },
+  });
+
+  // Cache clusters per distinct core string (many matches share a candidate).
+  const coreCache = new Map<string, Set<string>>();
+  const coreClustersFor = (dp: string | null, b: string | null): Set<string> => {
+    const key = `${dp ?? ""}|${b ?? ""}`;
+    let c = coreCache.get(key);
+    if (!c) {
+      c = new Set<string>();
+      for (const t of [dp, b]) if (t && t.trim()) for (const cl of occupationClusters(t)) c.add(cl);
+      coreCache.set(key, c);
+    }
+    return c;
+  };
+
+  const wrongIds: string[] = [];
+  for (const m of matches) {
+    const core = coreClustersFor(m.candidate.desiredPosition, m.candidate.beruf);
+    if (core.size === 0) continue;                 // core unclassifiable → never prune (safety)
+    const vac = occupationClusters(m.vacancy.title);
+    if (vac.size === 0) continue;                  // title unclassifiable → leave to keyword gate
+    if (!Array.from(vac).some((cl) => core.has(cl))) wrongIds.push(m.id);
+  }
+
+  let crossFieldDeleted = 0;
+  if (wrongIds.length > 0) {
+    const { count } = await prisma.match.deleteMany({ where: { id: { in: wrongIds }, outreach: { none: {} }, feedback: null } });
+    crossFieldDeleted = count;
+  }
+  return { crossFieldDeleted };
+}
 
 // Remove dead and expired listings so candidates only ever see currently-open
 // jobs. Two independent freshness tests (either one triggers removal):
@@ -99,12 +152,13 @@ export async function deleteNonGermanVacancies(): Promise<{ nonGermanDeleted: nu
 // One-shot purge run after every ingest: drop part-time/mini-job, non-German,
 // and stale listings in a single call. The deletes cascade to Match + Outreach,
 // so purged jobs also disappear from every candidate's matches immediately.
-export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number; duplicatesDeleted: number; matchesReassigned: number }> {
+export async function runVacancyCleanup(): Promise<{ partTimeDeleted: number; nonGermanDeleted: number; expiredDeleted: number; duplicatesDeleted: number; matchesReassigned: number; crossFieldDeleted: number }> {
   const pt = await deletePartTimeVacancies();
   const ng = await deleteNonGermanVacancies();
   const ex = await deleteExpiredVacancies();
   const dup = await collapseCrossSourceDuplicates();
-  return { ...pt, ...ng, ...ex, ...dup };
+  const cf = await pruneCrossFieldMatches();
+  return { ...pt, ...ng, ...ex, ...dup, ...cf };
 }
 
 /**

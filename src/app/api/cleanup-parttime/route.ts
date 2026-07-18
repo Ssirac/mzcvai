@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
-import { deletePartTimeVacancies, deleteNonGermanVacancies } from "@/services/cleanup";
+import { deletePartTimeVacancies, deleteNonGermanVacancies, pruneCrossFieldMatches } from "@/services/cleanup";
 import { authorize } from "@/lib/rbac";
 
 // POST /api/cleanup-parttime
@@ -14,7 +14,9 @@ export async function POST(req: NextRequest) {
     if (!authz.ok) return authz.response;
     const result = await deletePartTimeVacancies();
     const nonGerman = await deleteNonGermanVacancies();
-    return NextResponse.json({ ok: true, ...result, ...nonGerman });
+    // Also drop wrong-specialization matches (logistics↔IT) right away.
+    const crossField = await pruneCrossFieldMatches();
+    return NextResponse.json({ ok: true, ...result, ...nonGerman, ...crossField });
   } catch (err) {
     return apiError(err);
   }
