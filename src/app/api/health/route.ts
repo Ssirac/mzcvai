@@ -56,6 +56,7 @@ export async function GET() {
   let data: {
     activeVacancies: number; freshVacancies: number; activeCandidates: number;
     matches: number; freshMatches: number;
+    perCandidateVisible: number[]; candidatesWithZero: number;
   } | null = null;
   try {
     const [activeVacancies, freshVacancies, activeCandidates, matches, freshMatches] = await Promise.all([
@@ -65,7 +66,26 @@ export async function GET() {
       prisma.match.count(),
       prisma.match.count({ where: { vacancy: freshVacancyWhere() } }),
     ]);
-    data = { activeVacancies, freshVacancies, activeCandidates, matches, freshMatches };
+    // Per-candidate VISIBLE job count — exactly what the sidebar badge computes
+    // (fresh vacancy, not dispatched, not rejected). Sorted desc; no PII (counts
+    // only). Tells us whether every candidate is empty or just some.
+    const cands = await prisma.candidate.findMany({
+      where: { status: { in: ["ACTIVE", "PENDING"] } }, select: { id: true },
+    });
+    const perCandidateVisible = (await Promise.all(
+      cands.map((c) =>
+        prisma.match.count({
+          where: {
+            candidateId: c.id,
+            vacancy: freshVacancyWhere(),
+            feedback: { not: "BAD" },
+            outreach: { none: { OR: [{ sentAt: { not: null } }, { status: { in: ["SENT", "OPENED", "REPLIED", "BOUNCED"] } } ] } },
+          },
+        })
+      )
+    )).sort((a, b) => b - a);
+    const candidatesWithZero = perCandidateVisible.filter((n) => n === 0).length;
+    data = { activeVacancies, freshVacancies, activeCandidates, matches, freshMatches, perCandidateVisible, candidatesWithZero };
   } catch { /* ignore */ }
 
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
