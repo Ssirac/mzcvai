@@ -335,7 +335,7 @@
     "rejectSelected": "Reject ({count})",
     "rejectReasonLabel": "Reason (optional)",
     "openForm": "Open form",
-    "fetchJobs": "Fetch listings", "fetchingJobs": "Fetching…", "fetchJobsDone": "{jobs} new listings, {matches} matches refreshed", "fetchJobsPick": "Select a candidate first",
+    "fetchJobs": "Fetch listings", "fetchingJobs": "Fetching…", "fetchJobsDone": "{jobs} new listings, {matches} matches refreshed", "fetchJobsPick": "Select a candidate first", "fetchJobsAll": "Fetch jobs for all candidates", "fetchJobsAllStarted": "Job fetch started for all candidates — new matches appear in a few minutes",
     "rejectedResult": "{count} match(es) rejected",
     "sendingAll": "Sending...",
     "sendAllConfirm": "Apply to {count} employers? (Daily limit and cooldown are respected)",

@@ -335,7 +335,7 @@
     "rejectSelected": "Rədd et ({count})",
     "rejectReasonLabel": "Səbəb (istəyə bağlı)",
     "openForm": "Formanı aç",
-    "fetchJobs": "Elanları çək", "fetchingJobs": "Çəkilir…", "fetchJobsDone": "{jobs} yeni elan tapıldı, {matches} uyğunluq yeniləndi", "fetchJobsPick": "Əvvəlcə namizəd seçin",
+    "fetchJobs": "Elanları çək", "fetchingJobs": "Çəkilir…", "fetchJobsDone": "{jobs} yeni elan tapıldı, {matches} uyğunluq yeniləndi", "fetchJobsPick": "Əvvəlcə namizəd seçin", "fetchJobsAll": "Bütün namizədlər üçün elan çək", "fetchJobsAllStarted": "Bütün namizədlər üçün elan çəkilişi başladı — yeni uyğun işlər bir neçə dəqiqəyə görünəcək",
     "rejectedResult": "{count} uyğunluq rədd edildi",
     "sendingAll": "Göndərilir...",
     "sendAllConfirm": "{count} işəgötürənə müraciət göndərilsin? (Gündəlik limit və soyuma müddətinə riayət olunur)",

@@ -823,22 +823,35 @@ export default function CandidatesPage() {
     }
   }
 
-  // "Elanları çək": pull fresh listings for this candidate's occupation from
-  // every source NOW (instead of waiting for the 4-hourly refresh) + re-match.
+  // "Elanları çək": pull fresh listings NOW instead of waiting for the 4-hourly
+  // refresh, then re-match. With a candidate selected → just that candidate's
+  // occupation (fast, synchronous, shows counts). With NONE selected → the whole
+  // roster: every active candidate's occupations, run detached (202) since it
+  // can take minutes; new matches surface on their own.
   async function fetchJobsNow() {
-    if (!selectedId || fetchingJobs) return;
+    if (fetchingJobs) return;
     setFetchingJobs(true);
     try {
-      const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/fetch-jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (ok && data.ok) {
-        toast(t("fetchJobsDone", { jobs: Number(data.vacanciesNew ?? 0), matches: Number(data.matched ?? 0) }), "success");
-        await loadMatches(selectedId);
+      if (selectedId) {
+        const { ok, data } = await jsonFetch(`/api/candidates/${selectedId}/fetch-jobs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (ok && data.ok) {
+          toast(t("fetchJobsDone", { jobs: Number(data.vacanciesNew ?? 0), matches: Number(data.matched ?? 0) }), "success");
+          await loadMatches(selectedId);
+        } else {
+          toast(String(data.error ?? "error"), "error");
+        }
       } else {
-        toast(String(data.error ?? "error"), "error");
+        const { ok, data } = await jsonFetch(`/api/candidates/fetch-all`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (ok && (data.ok || data.started)) toast(t("fetchJobsAllStarted"), "success");
+        else toast(String(data.error ?? "error"), "error");
       }
     } catch {
       toast("error", "error");
@@ -978,8 +991,8 @@ export default function CandidatesPage() {
               candidate is selected (the pull is occupation-specific). */}
           <button
             onClick={fetchJobsNow}
-            disabled={fetchingJobs || !selectedId}
-            title={selectedId ? t("fetchJobs") : t("fetchJobsPick")}
+            disabled={fetchingJobs}
+            title={selectedId ? t("fetchJobs") : t("fetchJobsAll")}
             className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 text-white text-sm px-3 sm:px-4 py-2 rounded-lg font-medium inline-flex items-center gap-2 whitespace-nowrap"
           >
             {fetchingJobs ? (
