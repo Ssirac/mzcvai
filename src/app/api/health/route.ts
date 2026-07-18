@@ -117,6 +117,58 @@ async function candidateFieldBreakdown(): Promise<Array<{
   }
 }
 
+// The ACTUAL matched-job list for ONE non-IT candidate (only on ?deep=1&sample=1)
+// — the data-level equivalent of opening that candidate and reading their
+// "Uyğun işlər" list. Picks the non-IT candidate with the most matches, returns
+// their real vacancy titles (capped), each flagged pureIT = classifies as IT
+// with NO overlap of the candidate's core field (a true wrong-field IT job).
+// Every pureIT should be false. No candidate name — occupation + titles only.
+async function sampleCandidateTitles(): Promise<{
+  occupation: string; core: string[]; total: number; shown: number;
+  pureItCount: number; titles: { title: string; pureIT: boolean }[];
+} | null> {
+  try {
+    const candidates = await prisma.candidate.findMany({
+      where: { status: { in: ["ACTIVE", "PENDING"] } },
+      select: { id: true, desiredPosition: true, beruf: true },
+    });
+    // Choose the non-IT candidate (core known, excludes "it") with the most matches.
+    let best: { id: string; occ: string; core: Set<string>; count: number } | null = null;
+    for (const c of candidates) {
+      const core = new Set<string>();
+      for (const t of [c.desiredPosition, c.beruf]) if (t && t.trim()) for (const cl of occupationClusters(t)) core.add(cl);
+      if (core.size === 0 || core.has("it")) continue;
+      const count = await prisma.match.count({
+        where: { candidateId: c.id, vacancy: freshVacancyWhere(), ...notRejectedWhere(), ...undispatchedWhere() },
+      });
+      if (!best || count > best.count) best = { id: c.id, occ: (c.desiredPosition || c.beruf || "?").slice(0, 45), core, count };
+    }
+    if (!best) return null;
+
+    const rows = await prisma.match.findMany({
+      where: { candidateId: best.id, vacancy: freshVacancyWhere(), ...notRejectedWhere(), ...undispatchedWhere() },
+      select: { vacancy: { select: { title: true } } },
+      orderBy: { fitScore: "desc" },
+      take: 60,
+    });
+    const titles = rows.map((r) => {
+      const cls = occupationClusters(r.vacancy.title);
+      const pureIT = cls.has("it") && !Array.from(cls).some((cl) => best!.core.has(cl));
+      return { title: r.vacancy.title.slice(0, 70), pureIT };
+    });
+    return {
+      occupation: best.occ,
+      core: Array.from(best.core),
+      total: best.count,
+      shown: titles.length,
+      pureItCount: titles.filter((t) => t.pureIT).length,
+      titles,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/health — liveness + DB + mail provider + critical-config status.
  * PUBLIC (no auth), so it exposes ONLY booleans/enums — never secret values
@@ -200,6 +252,10 @@ export async function GET(req: NextRequest) {
   // Cross-field match diagnostic — only when explicitly requested (heavier scan).
   const crossField = deep ? await crossFieldDiagnostic() : undefined;
   const byCandidate = deep ? await candidateFieldBreakdown() : undefined;
+  // ?sample=1 (with deep): the ACTUAL job-title list one non-IT candidate sees —
+  // the data-level "open a candidate and look at their Uyğun işlər". Each title
+  // flagged pureIT (classifies as IT with no core overlap) — should all be false.
+  const sample = deep && req.nextUrl.searchParams.get("sample") === "1" ? await sampleCandidateTitles() : undefined;
 
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
 
@@ -214,6 +270,7 @@ export async function GET(req: NextRequest) {
     data,                // aggregate counts — no PII
     ...(crossField !== undefined ? { crossField } : {}), // only on ?deep=1
     ...(byCandidate !== undefined ? { byCandidate } : {}), // per-candidate field breakdown, only on ?deep=1
+    ...(sample !== undefined ? { sample } : {}), // one candidate's real job list, only on ?deep=1&sample=1
     time: new Date().toISOString(),
   });
 }
