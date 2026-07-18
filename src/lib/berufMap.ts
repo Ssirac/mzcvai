@@ -463,9 +463,14 @@ const NON_GERMAN_LOCATIONS = [
 
 // Word-boundary matcher — avoids false positives where a foreign token is a
 // substring of a German place name (e.g. "bern" inside "Bernau").
+// Unicode-aware word boundaries: JS \b is ASCII-only, so entries that START or
+// END with a non-ASCII letter ("österreich", "poznań", "łódź") never matched at
+// a real word edge. Lookarounds on \p{L}\p{N} give true boundaries everywhere.
 const NON_GERMAN_RE = new RegExp(
-  "\\b(" + NON_GERMAN_LOCATIONS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b",
-  "i"
+  "(?<![\\p{L}\\p{N}])(" +
+    NON_GERMAN_LOCATIONS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") +
+    ")(?![\\p{L}\\p{N}])",
+  "iu"
 );
 
 export function isNonGermanLocation(location: string): boolean {
@@ -476,7 +481,7 @@ export function isNonGermanLocation(location: string): boolean {
   // and NL uses "1234 AB". A location whose only postal code is 4-digit (small
   // foreign towns the denylist can't enumerate) is not in Germany. Only applies
   // when NO 5-digit German code is present, so mixed strings stay safe.
-  if (!/\b\d{5}\b/.test(loc)) {
+  if (!/\b\d{5}\b/.test(loc) && !/deutschland|germany/.test(loc)) {
     if (/\b[1-9]\d{3}\s*[a-z]{2}\b/.test(loc)) return true; // Dutch "1082 xa amsterdam"
     if (/\b[1-9]\d{3}\s+\p{L}/u.test(loc)) return true; // "4600 wels", "8001 zürich"
   }

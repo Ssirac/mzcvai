@@ -31,11 +31,16 @@ export async function GET() {
     testMode: !!process.env.OUTREACH_TEST_RECIPIENT,
   };
 
-  // Deliverability pause snapshot (aggregate, no PII).
-  let sending: { paused: boolean; reason: string | null; rate: number } | null = null;
+  // Deliverability pause snapshot (aggregate, no PII). sent/bounced expose the
+  // last-48h VOLUME so auto-pilot activity is observable without DB access —
+  // rate alone reads 0 both when everything works and when nothing sends.
+  let sending: { paused: boolean; reason: string | null; rate: number; sent48h: number; bounced48h: number } | null = null;
   try {
     const p = await sendingPause();
-    sending = { paused: p.paused, reason: p.reason, rate: Number(p.stats.rate.toFixed(3)) };
+    sending = {
+      paused: p.paused, reason: p.reason, rate: Number(p.stats.rate.toFixed(3)),
+      sent48h: p.stats.sent, bounced48h: p.stats.bounced,
+    };
   } catch { /* ignore */ }
 
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
