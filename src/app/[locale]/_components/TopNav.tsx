@@ -156,16 +156,18 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
     </div>
   );
 
-  const logoutBtn = (full: boolean) => (
+  // `responsive` = top-bar logout: show the label only from xl up so the bar
+  // stays compact on laptop widths (the icon + tooltip carry it below xl).
+  const logoutBtn = (full: boolean, responsive = false) => (
     <button
       onClick={logout}
       title={t("logout")}
-      className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-3 py-2"
+      className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink bg-card-2 hover:bg-line border border-line-strong rounded-lg px-2.5 py-2"
     >
       <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
       </svg>
-      {full && <span>{t("logout")}</span>}
+      {full && <span className={responsive ? "hidden 2xl:inline" : ""}>{t("logout")}</span>}
     </button>
   );
 
@@ -182,8 +184,10 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
           </span>
         </a>
 
-        {/* Desktop tabs (md+) */}
-        <div className="hidden md:flex items-center gap-1 ml-2">
+        {/* Desktop tabs — lg+ (tablets/small laptops use the hamburger). Icon-only
+            through the laptop range so all 8 fit; labels appear only from 2xl
+            (≥1536px) up, where there's genuinely room for them. */}
+        <div className="hidden lg:flex items-center gap-0.5 2xl:gap-1 ml-1 2xl:ml-2 min-w-0">
           {tabs.map((tab) => {
             const isActive = active === tab.key;
             return (
@@ -192,7 +196,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                 href={tab.href}
                 aria-current={isActive ? "page" : undefined}
                 title={tab.label}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-2.5 2xl:px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-accent/15 text-accent ring-1 ring-accent/30"
                     : "text-ink-2 hover:text-ink hover:bg-card-2"
@@ -211,21 +215,21 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                     </span>
                   )}
                 </span>
-                <span>{tab.label}</span>
+                <span className="hidden 2xl:inline">{tab.label}</span>
               </a>
             );
           })}
         </div>
 
-        {/* Desktop right controls (md+) */}
-        <div className="hidden md:flex ml-auto items-center gap-3">
+        {/* Desktop right controls — lg+ */}
+        <div className="hidden lg:flex ml-auto items-center gap-2 2xl:gap-3">
           {localeSwitcher}
           <ThemeToggle />
-          {logoutBtn(true)}
+          {logoutBtn(true, true)}
         </div>
 
-        {/* Mobile controls (< md): theme toggle + hamburger */}
-        <div className="md:hidden ml-auto flex items-center gap-2">
+        {/* Mobile/tablet controls (< lg): theme toggle + hamburger */}
+        <div className="lg:hidden ml-auto flex items-center gap-2">
           <ThemeToggle />
           <button
             onClick={() => setMenuOpen((o) => !o)}
@@ -253,7 +257,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <div className="fixed inset-x-0 top-14 bottom-0 z-20 bg-black/40" onClick={() => setMenuOpen(false)} />
           <div className="absolute left-0 right-0 top-14 z-30 border-b border-line bg-surface shadow-xl animate-[slideIn_0.16s_ease-out]">
             <div className="px-3 py-3 space-y-1">
