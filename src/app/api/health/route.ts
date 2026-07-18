@@ -1,18 +1,75 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendingPause } from "@/services/deliverability";
 import { SOURCES } from "@/services/sources/registry";
-import { freshVacancyWhere, notRejectedWhere } from "@/lib/matchFilters";
+import { freshVacancyWhere, notRejectedWhere, undispatchedWhere } from "@/lib/matchFilters";
+import { occupationClusters } from "@/lib/occupationFamily";
 import type { OutreachStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+// Cross-field diagnostic (only on ?deep=1 — it scans the visible matches, too
+// heavy for every monitoring ping). Counts matches whose candidate CORE
+// occupation (desired position + beruf) and vacancy title BOTH classify into
+// clusters that DON'T overlap — i.e. a wrong-specialization match (logistics↔IT).
+// After the specialization-anchor fix rematches, this should sit at ~0. Also
+// returns a few example occupation→title pairs (no names/PII) for insight.
+async function crossFieldDiagnostic(): Promise<{
+  scanned: number; crossField: number; examples: string[];
+} | null> {
+  try {
+    const rows = await prisma.match.findMany({
+      where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), ...undispatchedWhere() },
+      select: {
+        candidate: { select: { desiredPosition: true, beruf: true } },
+        vacancy: { select: { title: true } },
+      },
+      take: 5000,
+    });
+
+    // Cache clusters per distinct core string so we don't recompute per row.
+    const coreCache = new Map<string, Set<string>>();
+    const coreClustersFor = (dp: string | null, b: string | null): Set<string> => {
+      const key = `${dp ?? ""}|${b ?? ""}`;
+      let c = coreCache.get(key);
+      if (!c) {
+        c = new Set<string>();
+        for (const t of [dp, b]) if (t && t.trim()) for (const cl of occupationClusters(t)) c.add(cl);
+        coreCache.set(key, c);
+      }
+      return c;
+    };
+
+    let crossField = 0;
+    const examples: string[] = [];
+    for (const r of rows) {
+      const core = coreClustersFor(r.candidate.desiredPosition, r.candidate.beruf);
+      if (core.size === 0) continue;
+      const vac = occupationClusters(r.vacancy.title);
+      if (vac.size === 0) continue;
+      const overlap = Array.from(vac).some((c) => core.has(c));
+      if (!overlap) {
+        crossField++;
+        if (examples.length < 8) {
+          const coreStr = (r.candidate.desiredPosition || r.candidate.beruf || "").slice(0, 40);
+          examples.push(`${coreStr} → ${r.vacancy.title.slice(0, 45)}`);
+        }
+      }
+    }
+    return { scanned: rows.length, crossField, examples };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * GET /api/health — liveness + DB + mail provider + critical-config status.
  * PUBLIC (no auth), so it exposes ONLY booleans/enums — never secret values
  * (host/user/from/keys). Previously it leaked SMTP host/user/from; now redacted.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // ?deep=1 adds the (heavier) cross-field diagnostic; plain calls stay cheap.
+  const deep = req.nextUrl.searchParams.get("deep") === "1";
   let db: "up" | "down" = "down";
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -85,6 +142,9 @@ export async function GET() {
     };
   } catch { /* ignore */ }
 
+  // Cross-field match diagnostic — only when explicitly requested (heavier scan).
+  const crossField = deep ? await crossFieldDiagnostic() : undefined;
+
   const healthy = db === "up" && mailProvider !== "none" && config.cronSecret && config.sessionSecret;
 
   return NextResponse.json({
@@ -96,6 +156,7 @@ export async function GET() {
     sending,
     sources,             // { id, active } — no secret values
     data,                // aggregate counts — no PII
+    ...(crossField !== undefined ? { crossField } : {}), // only on ?deep=1
     time: new Date().toISOString(),
   });
 }
