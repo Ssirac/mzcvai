@@ -111,7 +111,13 @@ export async function POST(req: NextRequest) {
     case "email.complained": {
       await prisma.outreach.update({
         where: { id: outreach.id },
-        data: { bouncedAt: now, status: "BOUNCED" },
+        data: {
+          bouncedAt: now,
+          // Never downgrade a REPLIED thread: an out-of-order bounce/complaint
+          // event must not erase the fact that the employer answered (the inbox
+          // and follow-up suppression key off REPLIED).
+          ...(outreach.status === "REPLIED" ? {} : { status: "BOUNCED" }),
+        },
       });
       // Recover the lost employer: remember the bad address, clear it, and let
       // re-enrichment (matches load / nightly) find an alternative that isn't on

@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
 // "Vəli — 4 matching jobs awaiting robot confirmation".
 export async function GET(req: NextRequest) {
   try {
+    const VALID_STATUSES = ["PENDING", "IN_PROGRESS", "SUBMITTED", "SKIPPED", "FAILED"];
     const statusParam = new URL(req.url).searchParams.get("status");
-    const where = statusParam
+    // Unknown status values fall back to the default view instead of a Prisma 500.
+    const where = statusParam && VALID_STATUSES.includes(statusParam)
       ? { status: statusParam }
       : { status: { in: ["PENDING", "IN_PROGRESS"] } };
 

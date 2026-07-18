@@ -73,6 +73,9 @@ export async function notifyImportantReply(input: ImportantReplyInput): Promise<
 
     const label = CATEGORY_LABEL[input.category] ?? input.category;
     const base = process.env.SELF_URL || process.env.APP_URL || "https://mzcvai-production.up.railway.app";
+    // Locale-prefixed link (the app routes are /az|de|en/…): a bare /inbox costs
+    // an extra redirect and can drop the deep link on the login round-trip.
+    const inboxUrl = `${base}/az/inbox`;
     const snippet = input.replyText.replace(/\s+/g, " ").trim().slice(0, 400);
 
     const lines = [
@@ -84,7 +87,7 @@ export async function notifyImportantReply(input: ImportantReplyInput): Promise<
       "",
       snippet ? `„${snippet}${input.replyText.length > 400 ? "…" : ""}“` : "(kein Text)",
       "",
-      `Im Posteingang öffnen: ${base}/inbox`,
+      `Im Posteingang öffnen: ${inboxUrl}`,
     ];
 
     await sendMail({
