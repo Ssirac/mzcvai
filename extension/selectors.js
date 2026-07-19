@@ -26,8 +26,8 @@ window.MZ_SELECTORS = {
   land:          { names: ["land", "country", "staat"], labels: ["Land", "Country"], select: true },
   beruf:         { names: ["beruf", "position", "jobtitle", "job_title", "taetigkeit"], labels: ["Beruf", "Position", "Tätigkeit", "Berufsbezeichnung"] },
   berufserfahrung:{ names: ["berufserfahrung", "jahreberufserfahrung"], labels: ["Berufserfahrung", "Jahre Berufserfahrung", "Berufserfahrung in Jahren", "Years of experience"] },
-  deutschniveau: { names: ["deutsch", "german", "sprachniveau"], labels: ["Deutschkenntnisse", "Deutsch", "Sprachkenntnisse - Deutsch", "German level"] },
-  englischniveau:{ names: ["englisch", "english"], labels: ["Englischkenntnisse", "Englisch", "Sprachkenntnisse - Englisch", "English level", "English"] },
+  deutschniveau: { level: true, names: ["deutsch", "german", "sprachniveau"], labels: ["Deutschkenntnisse", "Deutsch", "Sprachkenntnisse - Deutsch", "German level"] },
+  englischniveau:{ level: true, names: ["englisch", "english"], labels: ["Englischkenntnisse", "Englisch", "Sprachkenntnisse - Englisch", "English level", "English"] },
   // Salary + legal-status fields ATS forms (Jobylon, Personio…) commonly ask for.
   // Filled only when the candidate record holds the value (content.js skips empty).
   gehaltswunsch:    { names: ["gehalt", "salary", "gehaltswunsch", "gehaltsvorstellung", "compensation"], labels: ["Gehaltswunsch", "Gehaltsvorstellung", "Gehalt", "Salary", "Salary expectation"] },

@@ -58,9 +58,38 @@
 
   function setSelect(el, val) {
     const want = norm(val);
-    const opt = Array.from(el.options).find((o) => norm(o.value) === want || norm(o.textContent) === want || norm(o.textContent).includes(want));
-    if (opt) { el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); return true; }
+    if (!want) return false;
+    const opts = Array.from(el.options);
+    // Exact match first (value or visible text), then a looser contains match —
+    // so "gut" picks "Gut", not "Sehr gut" when an exact "Gut" exists. Never
+    // pick the empty placeholder option.
+    const opt = opts.find((o) => norm(o.value) === want || norm(o.textContent) === want)
+      || opts.find((o) => o.value !== "" && (norm(o.textContent).includes(want) || (want.length >= 3 && norm(o.value).includes(want))));
+    if (opt && opt.value !== "") {
+      el.value = opt.value;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
     return false;
+  }
+
+  // Map a CEFR level (A1..C2 / Muttersprache) to the words a language-skill
+  // dropdown might use, tried in order. The CEFR code goes first (some forms list
+  // A1..C2 directly), then descriptive synonyms (Anfänger/Gut/Fließend…) so word
+  // dropdowns (onlyfy) also fill.
+  function levelCandidates(cefr) {
+    const v = norm(cefr);
+    const M = {
+      "a1": ["a1", "anfänger", "anfaenger", "beginner", "basic", "grundkenntnisse"],
+      "a2": ["a2", "grundkenntnisse", "basic", "elementary", "anfänger"],
+      "b1": ["b1", "fortgeschritten", "intermediate", "gut", "mittelstufe"],
+      "b2": ["b2", "gut", "good", "fortgeschritten", "upper intermediate"],
+      "c1": ["c1", "fließend", "fliessend", "fluent", "verhandlungssicher", "sehr gut"],
+      "c2": ["c2", "fließend", "fliessend", "fluent", "muttersprachlich", "verhandlungssicher"],
+      "muttersprache": ["muttersprache", "native", "mother tongue", "muttersprachlich", "fließend"],
+    };
+    return M[v] || [cefr];
   }
 
   // Checkbox: tick when the value is affirmative ("Ja"/"yes"/true/…). An empty
@@ -147,7 +176,13 @@
       // Fill according to the element's ACTUAL kind (a spec may target text OR select).
       const k = kindOf(el);
       try {
-        if (k === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
+        if (k === "select") {
+          // Language-level selects try CEFR then descriptive synonyms.
+          const cands = spec.level ? levelCandidates(val) : [val];
+          let ok = false;
+          for (const cv of cands) { if (setSelect(el, cv)) { ok = true; break; } }
+          if (ok) { used.add(el); filled++; }
+        }
         else if (k === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
         else if (k === "radio") { if (setRadio(el)) { used.add(el); filled++; } }
         else {
