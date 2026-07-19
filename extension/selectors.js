@@ -9,6 +9,7 @@
  */
 window.MZ_SELECTORS = {
   anrede:        { names: ["anrede", "salutation", "title"], labels: ["Anrede", "Salutation"], select: true },
+  geschlecht:    { names: ["geschlecht", "gender", "sex"], labels: ["Geschlecht", "Gender", "Sex"] },
   vorname:       { names: ["vorname", "firstname", "first_name", "given-name", "fname"], labels: ["Vorname", "First name"] },
   nachname:      { names: ["nachname", "lastname", "last_name", "surname", "family-name", "lname"], labels: ["Nachname", "Last name", "Familienname"] },
   name:          { names: ["fullname", "full_name", "name"], labels: ["Name", "Vollständiger Name"] },
@@ -24,6 +25,7 @@ window.MZ_SELECTORS = {
   ort:           { names: ["ort", "city", "stadt", "wohnort"], labels: ["Ort", "Stadt", "Wohnort", "City"] },
   land:          { names: ["land", "country", "staat"], labels: ["Land", "Country"], select: true },
   beruf:         { names: ["beruf", "position", "jobtitle", "job_title", "taetigkeit"], labels: ["Beruf", "Position", "Tätigkeit", "Berufsbezeichnung"] },
+  berufserfahrung:{ names: ["berufserfahrung", "jahreberufserfahrung"], labels: ["Berufserfahrung", "Jahre Berufserfahrung", "Berufserfahrung in Jahren", "Years of experience"] },
   deutschniveau: { names: ["deutsch", "german", "sprachniveau"], labels: ["Deutschkenntnisse", "Deutsch", "Sprachkenntnisse - Deutsch", "German level"] },
   englischniveau:{ names: ["englisch", "english"], labels: ["Englischkenntnisse", "Englisch", "Sprachkenntnisse - Englisch", "English level", "English"] },
   // Salary + legal-status fields ATS forms (Jobylon, Personio…) commonly ask for.

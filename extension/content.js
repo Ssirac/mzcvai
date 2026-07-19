@@ -150,7 +150,15 @@
         if (k === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
         else if (k === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
         else if (k === "radio") { if (setRadio(el)) { used.add(el); filled++; } }
-        else { setValue(el, val); used.add(el); filled++; }
+        else {
+          let v = val;
+          // Date fields: a native <input type=date> wants the ISO YYYY-MM-DD we
+          // send, but a German TEXT date mask expects dd.mm.yyyy — convert for text.
+          if ((el.getAttribute("type") || "").toLowerCase() !== "date" && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
+            const [y, m, d] = String(v).split("-"); v = `${d}.${m}.${y}`;
+          }
+          setValue(el, v); used.add(el); filled++;
+        }
       } catch { /* skip */ }
     }
     // CV file input

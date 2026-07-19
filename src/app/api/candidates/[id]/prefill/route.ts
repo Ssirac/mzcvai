@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         name: true, email: true, phone: true, gender: true, dateOfBirth: true,
         nationality: true, address: true, currentCity: true, currentCountry: true,
         beruf: true, desiredPosition: true, germanLevel: true, englishLevel: true,
+        yearsExperience: true,
         salaryExpectation: true, visaStatus: true, drivingLicense: true,
         needsSponsorship: true, regionPrefs: true, availableFrom: true,
         cvData: true, cvFileName: true, cvMimeType: true,
@@ -33,6 +34,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     const vorname = parts[0] ?? "";
     const nachname = parts.length > 1 ? parts.slice(1).join(" ") : "";
     const anrede = c.gender === "male" ? "Herr" : c.gender === "female" ? "Frau" : "";
+    const geschlecht = c.gender === "male" ? "männlich" : c.gender === "female" ? "weiblich" : c.gender === "other" ? "divers" : "";
     // Always the MZ agency address (not the candidate's), so an employer who
     // replies from the application form reaches MZ — the same inbox the reply
     // detection monitors. This keeps MZ in the loop as the broker.
@@ -42,6 +44,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     // extension's selector map (config/selectors.json) resolves each to inputs.
     const fields: Record<string, string> = {
       anrede,
+      geschlecht,
       vorname,
       nachname,
       name: c.name,
@@ -58,6 +61,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       ort: c.currentCity ?? "",
       land: c.currentCountry ?? "Deutschland",
       beruf: c.desiredPosition?.trim() || c.beruf || "",
+      berufserfahrung: c.yearsExperience ? String(c.yearsExperience) : "",
       deutschniveau: c.germanLevel ?? "",
       englischniveau: c.englishLevel ?? "",
       // Additional recruiter-entered facts (only sent when actually stored — the
