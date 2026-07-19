@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
-import { candidateProfiles } from "@/lib/candidateProfiles";
-import { occupationRelevant } from "@/services/scoring";
+import { occupationClusters } from "@/lib/occupationFamily";
 
 export const dynamic = "force-dynamic";
 
@@ -28,20 +27,32 @@ export async function GET(req: NextRequest) {
     const candIds = Array.from(new Set(allRows.map((r) => r.candidateId)));
     const cands = await prisma.candidate.findMany({
       where: { id: { in: candIds } },
-      select: { id: true, name: true, beruf: true, desiredPosition: true, experience: true },
+      select: { id: true, name: true, beruf: true, desiredPosition: true },
     });
     const nameOf = new Map(cands.map((c) => [c.id, c]));
 
     // Occupation re-check against the CURRENT gate: old queue rows were enqueued
-    // under looser matching, so a Projektkoordinator could still show a "Koch"
-    // job here. Hide any row whose title no longer fits the candidate's profiles,
-    // so tightening the matcher clears stale mismatches immediately (no wait for
-    // a re-match). Rows for unknown candidates are kept (can't judge).
-    const profilesOf = new Map(cands.map((c) => [c.id, candidateProfiles(c)]));
+    // under looser matching, so a hotel candidate could still show a technical
+    // "Servicetechniker" job here. Apply the SAME core-cluster cross-field gate
+    // the matcher uses — the candidate's CORE field (desired position + beruf)
+    // must share a cluster with the vacancy title. Clears stale mismatches
+    // immediately, without waiting for a re-match. Unclassifiable core/title →
+    // keep (can't judge, low risk).
+    const coreClustersOf = new Map(
+      cands.map((c) => {
+        const set = new Set<string>();
+        for (const core of [c.desiredPosition, c.beruf]) {
+          if (core && core.trim()) for (const cl of occupationClusters(core)) set.add(cl);
+        }
+        return [c.id, set] as const;
+      })
+    );
     const rows = allRows.filter((r) => {
-      const profiles = profilesOf.get(r.candidateId);
-      if (!profiles || profiles.length === 0) return true;
-      return profiles.some((p) => occupationRelevant(p, r.jobTitle));
+      const core = coreClustersOf.get(r.candidateId);
+      if (!core || core.size === 0) return true;
+      const vac = occupationClusters(r.jobTitle);
+      if (vac.size === 0) return true;
+      return Array.from(vac).some((cl) => core.has(cl));
     });
 
     const groupMap = new Map<string, { candidateId: string; candidateName: string; beruf: string; items: typeof rows }>();

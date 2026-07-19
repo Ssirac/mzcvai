@@ -84,10 +84,8 @@ export async function matchCandidateToVacancies(candidateId: string) {
   const regions = candidate.regionPrefs.length > 0 ? candidate.regionPrefs : ["Deutschland"];
   const allGermany = regions.includes("Deutschland");
 
-  // The FULL CV drives which jobs are matched: desired position (primary),
-  // general beruf, plus every distinct job title from the CV's experience
-  // history — a vacancy fitting ANY of those occupations qualifies. The
-  // strict occupation gate below still rejects titles outside all of them.
+  // FULL CV broadens the SEARCH (so we don't miss adjacent jobs); the gate below
+  // narrows it back to the candidate's core field.
   const profiles = candidateProfiles(candidate);
 
   // SPECIALIZATION ANCHOR (the operator's core requirement: don't cross fields —
