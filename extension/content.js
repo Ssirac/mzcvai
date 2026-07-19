@@ -50,6 +50,32 @@
     return false;
   }
 
+  // Checkbox: tick when the value is affirmative ("Ja"/"yes"/true/…). An empty
+  // value never reaches here (skipped earlier), so a box is only ever CHECKED on
+  // a real signal, never blindly. The human reviews before submitting.
+  function setCheckbox(el, val) {
+    const on = /^(ja|yes|true|1|x|vorhanden|ja,?\s|✓)/i.test(String(val).trim());
+    if (el.checked !== on) {
+      el.checked = on;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  }
+
+  // What kind of control is this element / does this spec target?
+  function kindOf(el) {
+    if (el.tagName === "SELECT") return "select";
+    const t = (el.getAttribute("type") || "").toLowerCase();
+    if (t === "checkbox") return "checkbox";
+    return "text";
+  }
+  function specKind(spec) {
+    if (spec.select) return "select";
+    if (spec.checkbox) return "checkbox";
+    return "text";
+  }
+
   function fileFromBase64(b64, name, mime) {
     const bin = atob(b64);
     const arr = new Uint8Array(bin.length);
@@ -84,10 +110,15 @@
       if (!val) continue;
       const spec = S[key];
       if (!spec) continue;
-      const el = inputs.find((i) => !used.has(i) && (i.tagName === "SELECT") === !!spec.select && matches(i, spec));
+      const want = specKind(spec);
+      // Type-aware match: a checkbox spec only matches checkboxes, a select spec
+      // only selects, a text spec only text/textarea — so a Yes/No checkbox and a
+      // free-text field sharing a label (e.g. "Arbeitserlaubnis") don't collide.
+      const el = inputs.find((i) => !used.has(i) && kindOf(i) === want && matches(i, spec));
       if (!el) continue;
       try {
-        if (el.tagName === "SELECT") { if (setSelect(el, val)) { used.add(el); filled++; } }
+        if (want === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
+        else if (want === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
         else { setValue(el, val); used.add(el); filled++; }
       } catch { /* skip */ }
     }

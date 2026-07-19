@@ -17,6 +17,9 @@ window.MZ_SELECTORS = {
   geburtsdatum:  { names: ["geburtsdatum", "birthdate", "dob", "birthday"], types: ["date"], labels: ["Geburtsdatum", "Date of birth"] },
   nationalitaet: { names: ["nationalitaet", "nationality", "staatsangehoerigkeit"], labels: ["Nationalität", "Staatsangehörigkeit", "Nationality"] },
   adresse:       { names: ["adresse", "address", "strasse", "street"], labels: ["Adresse", "Straße", "Anschrift", "Address"] },
+  // Desired work location — listed BEFORE `ort` so it claims a "Gewünschter
+  // Anstellungsort" field instead of the current-city value grabbing it.
+  anstellungsort:{ names: ["anstellungsort", "arbeitsort", "einsatzort", "wunschort", "worklocation"], labels: ["Gewünschter Anstellungsort", "Anstellungsort", "Arbeitsort", "Einsatzort", "Desired location"] },
   ort:           { names: ["ort", "city", "stadt", "wohnort"], labels: ["Ort", "Stadt", "Wohnort", "City"] },
   land:          { names: ["land", "country", "staat"], labels: ["Land", "Country"], select: true },
   beruf:         { names: ["beruf", "position", "jobtitle", "job_title", "taetigkeit"], labels: ["Beruf", "Position", "Tätigkeit", "Berufsbezeichnung"] },
@@ -27,6 +30,10 @@ window.MZ_SELECTORS = {
   aufenthaltstitel: { names: ["aufenthalt", "aufenthaltstitel", "residence", "residencepermit"], labels: ["Aufenthaltstitel", "Aufenthaltsstatus", "Aufenthalt", "Residence permit", "Residence title"] },
   arbeitserlaubnis: { names: ["arbeitserlaubnis", "arbeitsgenehmigung", "workpermit", "work_permit"], labels: ["Arbeitserlaubnis", "Arbeitsgenehmigung", "Work permit"] },
   fuehrerschein:    { names: ["fuehrerschein", "führerschein", "driverlicense", "drivinglicense", "fuehrerscheinklasse"], labels: ["Führerschein", "Fahrerlaubnis", "Driving license", "Driver's license"] },
+  // Same "valid work permit" question, but as a CHECKBOX (Personio-style forms).
+  // Ticked only when the candidate is work-authorised (see prefill API) — never
+  // guessed. A distinct key so it targets the checkbox, not the free-text field.
+  arbeitserlaubnisJa: { checkbox: true, names: ["arbeitserlaubnis", "arbeitsgenehmigung", "workpermit", "work_permit"], labels: ["Gültige Arbeitserlaubnis", "Arbeitserlaubnis", "Arbeitsgenehmigung", "Work permit"] },
 };
 
 // File input for the CV / Lebenslauf.

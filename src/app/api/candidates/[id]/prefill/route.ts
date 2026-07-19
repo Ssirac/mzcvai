@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         nationality: true, address: true, currentCity: true, currentCountry: true,
         beruf: true, desiredPosition: true, germanLevel: true,
         salaryExpectation: true, visaStatus: true, drivingLicense: true,
+        needsSponsorship: true, regionPrefs: true,
         cvData: true, cvFileName: true, cvMimeType: true,
       },
     });
@@ -49,6 +50,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       geburtsdatum: c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : "",
       nationalitaet: c.nationality ?? "",
       adresse: c.address ?? "",
+      // Desired place of employment — processed BEFORE `ort` so it claims a
+      // "Gewünschter Anstellungsort" field instead of the current-city value.
+      anstellungsort: (c.regionPrefs ?? []).filter((r) => r && r !== "Deutschland")[0] || c.currentCity || "",
       ort: c.currentCity ?? "",
       land: c.currentCountry ?? "Deutschland",
       beruf: c.desiredPosition?.trim() || c.beruf || "",
@@ -58,8 +62,13 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       // application). Salary + legal-status are the fields ATS forms ask for most.
       gehaltswunsch: c.salaryExpectation ?? "",
       aufenthaltstitel: c.visaStatus ?? "",   // residence permit ← visa status
-      arbeitserlaubnis: c.visaStatus ?? "",   // work permit ← visa status (same source)
+      arbeitserlaubnis: c.visaStatus ?? "",   // work permit (free-text) ← visa status
       fuehrerschein: c.drivingLicense ?? "",
+      // "Valid work permit?" as a CHECKBOX: tick ONLY when the candidate does not
+      // need visa sponsorship (EU / already authorised). When sponsorship IS
+      // needed the value is empty, so the box is left unchecked for the human —
+      // never a false "yes" on a legal declaration.
+      arbeitserlaubnisJa: c.needsSponsorship === false ? "Ja" : "",
     };
 
     // CV as base64 so the extension can attach it to file inputs (Lebenslauf).
