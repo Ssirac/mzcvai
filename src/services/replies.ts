@@ -391,3 +391,106 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
 
   return result;
 }
+
+export interface UnmatchedReply {
+  from: string;
+  fromName: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  domain: string;
+  // Candidates we mailed that domain — the reply most likely concerns one of them.
+  candidates: string[];
+}
+export interface UnmatchedScanResult {
+  scanned: number;
+  unmatched: UnmatchedReply[];
+  errors: string[];
+}
+
+/**
+ * Read the inbox and return replies from a CONTACTED employer domain that are
+ * NOT linked to any candidate — i.e. a real reply the auto-matcher couldn't
+ * attribute (employer answered from a different address, subject lost the code,
+ * etc.). Nothing is stored; this is a read-only "so no reply is ever invisible"
+ * view. Newsletters/spam are excluded because their domain was never contacted.
+ */
+export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedScanResult> {
+  const result: UnmatchedScanResult = { scanned: 0, unmatched: [], errors: [] };
+
+  const host = process.env.IMAP_HOST || "imap.ionos.de";
+  const port = parseInt(process.env.IMAP_PORT || "993");
+  const user = process.env.IMAP_USER || process.env.SMTP_USER;
+  const pass = process.env.IMAP_PASS || process.env.SMTP_PASS;
+  if (!user || !pass) {
+    result.errors.push("IMAP credentials not configured");
+    return result;
+  }
+
+  const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const sent = await prisma.outreach.findMany({
+    where: { sentAt: { gte: cutoff, not: null }, toAddress: { not: null } },
+    select: {
+      toAddress: true, repliedAt: true, replySubject: true,
+      match: { select: { candidate: { select: { name: true } } } },
+    },
+  });
+  // domain → set of candidate names we mailed there.
+  const namesByDomain = new Map<string, Set<string>>();
+  // Keys of replies ALREADY linked (so we don't re-list them as "unmatched").
+  const linkedKeys = new Set<string>();
+  for (const o of sent) {
+    const d = domainOf(o.toAddress);
+    if (d) {
+      const nm = o.match?.candidate?.name;
+      if (nm) (namesByDomain.get(d) ?? namesByDomain.set(d, new Set()).get(d)!).add(nm);
+    }
+    if (o.repliedAt && o.replySubject) linkedKeys.add(`${o.replySubject.slice(0, 200).toLowerCase()}`);
+  }
+  if (namesByDomain.size === 0) return result; // nothing sent yet
+
+  const client = new ImapFlow({ host, port, secure: port === 993, auth: { user, pass }, logger: false, socketTimeout: 20000 });
+  try {
+    await client.connect();
+  } catch (err) {
+    result.errors.push(`IMAP connect failed: ${(err as Error).message}`);
+    return result;
+  }
+  try {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+      const uids = await client.search({ since }, { uid: true });
+      if (!uids || uids.length === 0) return result;
+      for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+        result.scanned++;
+        const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
+        if (!fromAddr) continue;
+        const domain = domainOf(fromAddr) ?? "";
+        const names = namesByDomain.get(domain);
+        if (!names) continue; // not from a contacted employer → skip (newsletter/spam)
+        const subject = msg.envelope?.subject ?? "";
+        if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) continue; // already linked
+        let body = "";
+        try { if (msg.source) body = ((await simpleParser(msg.source)).text || "").trim(); } catch { /* ignore */ }
+        result.unmatched.push({
+          from: fromAddr,
+          fromName: msg.envelope?.from?.[0]?.name ?? "",
+          subject,
+          date: (msg.envelope?.date ?? new Date()).toISOString(),
+          snippet: body.replace(/\s+/g, " ").slice(0, 240),
+          domain,
+          candidates: Array.from(names),
+        });
+      }
+    } finally {
+      lock.release();
+    }
+  } catch (err) {
+    result.errors.push(`IMAP read failed: ${(err as Error).message}`);
+  } finally {
+    await client.logout().catch(() => {});
+  }
+  result.unmatched.sort((a, b) => b.date.localeCompare(a.date));
+  return result;
+}

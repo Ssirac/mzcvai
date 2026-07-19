@@ -28,6 +28,16 @@ interface Reply {
   };
 }
 
+interface UnmatchedReply {
+  from: string;
+  fromName: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  domain: string;
+  candidates: string[];
+}
+
 // AI reply categories — display order, emoji and badge colours. Labels are a
 // local trilingual map (same convention as the candidates page reason labels).
 const CATEGORIES = ["INTERESTED", "INTERVIEW", "QUESTION", "REJECTED", "AUTO_REPLY", "OPT_OUT", "OTHER"] as const;
@@ -131,6 +141,24 @@ export default function InboxPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("ALL");
+  // "Unmatched replies": mailbox messages from a contacted employer that the
+  // auto-matcher couldn't link to a candidate (answered from another address /
+  // subject lost the code). On-demand IMAP scan so no reply stays invisible.
+  const [unmatched, setUnmatched] = useState<UnmatchedReply[] | null>(null);
+  const [scanning, setScanning] = useState(false);
+
+  async function scanUnmatched() {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/inbox/unmatched");
+      const data = await res.json();
+      setUnmatched(Array.isArray(data.unmatched) ? data.unmatched : []);
+    } catch {
+      setUnmatched([]);
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function setOptOut(employerId: string, optedOut: boolean) {
     setReplies((prev) => prev.map((r) =>
@@ -199,6 +227,63 @@ export default function InboxPage() {
               className="w-full bg-card border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-3"
             />
           </div>
+        </div>
+
+        {/* Unmatched replies — mailbox messages from a contacted employer we
+            couldn't auto-link to a candidate. Manual scan (opens IMAP). */}
+        <div className="bg-card border border-amber-500/25 rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-ink">
+                📥 {locale === "de" ? "Nicht zugeordnete Antworten" : locale === "en" ? "Unmatched replies" : "Tanınmayan cavablar"}
+              </div>
+              <div className="text-xs text-ink-3">
+                {locale === "de"
+                  ? "Antworten im Postfach, die keinem Kandidaten zugeordnet werden konnten"
+                  : locale === "en"
+                    ? "Mailbox replies that couldn't be linked to a candidate"
+                    : "Poçt qutusundakı, namizədə bağlana bilməyən cavablar"}
+              </div>
+            </div>
+            <button
+              onClick={scanUnmatched}
+              disabled={scanning}
+              className="shrink-0 text-xs font-medium bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white rounded-lg px-3 py-2 inline-flex items-center gap-2"
+            >
+              {scanning
+                ? <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {locale === "de" ? "Prüft…" : locale === "en" ? "Scanning…" : "Yoxlanılır…"}</>
+                : <>{locale === "de" ? "Postfach prüfen" : locale === "en" ? "Scan mailbox" : "Poçtu yoxla"}</>}
+            </button>
+          </div>
+          {unmatched !== null && (
+            unmatched.length === 0 ? (
+              <div className="mt-3 text-xs text-ink-3">
+                {locale === "de" ? "Keine nicht zugeordneten Antworten gefunden — alle Antworten sind sichtbar."
+                  : locale === "en" ? "No unmatched replies — every reply is already visible."
+                    : "Tanınmayan cavab tapılmadı — bütün cavablar artıq görünür."}
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {unmatched.map((u, i) => (
+                  <div key={i} className="bg-card-2 border border-line rounded-xl p-3">
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="font-semibold text-ink">{u.fromName || u.from}</span>
+                      <span className="text-ink-3">{u.from}</span>
+                      <span className="text-ink-3 ml-auto">{fmt(u.date)}</span>
+                    </div>
+                    {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
+                    {u.snippet && <div className="text-xs text-ink-3 mt-1 line-clamp-2">{u.snippet}</div>}
+                    {u.candidates.length > 0 && (
+                      <div className="text-[11px] text-ink-3 mt-2">
+                        {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
+                        <span className="text-ink-2">{u.candidates.join(", ")}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </div>
 
         {/* AI category filter — what do the answers actually say? */}
