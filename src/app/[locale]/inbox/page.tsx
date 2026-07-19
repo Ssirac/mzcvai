@@ -262,6 +262,21 @@ export default function InboxPage() {
   // Category counts for the filter chips (independent of the active filter).
   const catCount = (c: string) => replies.filter((r) => (r.replyCategory ?? "OTHER") === c).length;
 
+  // Unified feed: matched replies AND unmatched mailbox messages in ONE list,
+  // newest first — unmatched ones aren't tucked away in a separate box. They
+  // carry no AI category, so they only show under "Hamısı" (ALL).
+  const unmatchedShown = (cat === "ALL" && unmatched ? unmatched : []).filter(
+    (u) => !term || u.from.toLowerCase().includes(term) || (u.subject ?? "").toLowerCase().includes(term) ||
+      (u.snippet ?? "").toLowerCase().includes(term) || u.candidates.some((c) => c.name.toLowerCase().includes(term))
+  );
+  type MergedItem =
+    | { kind: "matched"; date: string | null; r: Reply }
+    | { kind: "unmatched"; date: string; u: UnmatchedReply; idx: number };
+  const merged: MergedItem[] = [
+    ...list.map((r): MergedItem => ({ kind: "matched", date: r.repliedAt, r })),
+    ...unmatchedShown.map((u, idx): MergedItem => ({ kind: "unmatched", date: u.date, u, idx })),
+  ].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+
   return (
     <div className="min-h-screen bg-surface">
       <TopNav active="inbox" />
@@ -272,90 +287,38 @@ export default function InboxPage() {
             <div>
               <h1 className="text-xl font-bold text-ink flex items-center gap-2">
                 {t("title")}
-                {!loading && list.length > 0 && (
-                  <span className="tabular text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent">{list.length}</span>
+                {!loading && (replies.length + (unmatched?.length ?? 0)) > 0 && (
+                  <span className="tabular text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent">{replies.length + (unmatched?.length ?? 0)}</span>
                 )}
               </h1>
               <p className="text-xs text-ink-3">{t("subtitle")}</p>
             </div>
           </div>
-          <div className="relative w-full sm:w-72">
-            <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("searchPlaceholder")}
-              className="w-full bg-card border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-3"
-            />
-          </div>
-        </div>
-
-        {/* Unmatched replies — mailbox messages from a contacted employer we
-            couldn't auto-link to a candidate. Manual scan (opens IMAP). */}
-        <div className="bg-card border border-amber-500/25 rounded-2xl p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-ink">
-                📥 {locale === "de" ? "Nicht zugeordnete Antworten" : locale === "en" ? "Unmatched replies" : "Tanınmayan cavablar"}
-              </div>
-              <div className="text-xs text-ink-3">
-                {locale === "de"
-                  ? "Antworten im Postfach, die keinem Kandidaten zugeordnet werden konnten"
-                  : locale === "en"
-                    ? "Mailbox replies that couldn't be linked to a candidate"
-                    : "Poçt qutusundakı, namizədə bağlana bilməyən cavablar"}
-              </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-72">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("searchPlaceholder")}
+                className="w-full bg-card border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-ink-3"
+              />
             </div>
+            {/* Refresh the mailbox scan (unmatched replies are auto-loaded too). */}
             <button
               onClick={scanUnmatched}
               disabled={scanning}
-              className="shrink-0 text-xs font-medium bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white rounded-lg px-3 py-2 inline-flex items-center gap-2"
+              title={locale === "de" ? "Postfach prüfen" : locale === "en" ? "Scan mailbox" : "Poçtu yoxla"}
+              className="shrink-0 text-xs font-medium bg-card-2 hover:bg-line border border-line-strong text-ink-2 hover:text-ink rounded-lg px-3 py-2 inline-flex items-center gap-1.5 disabled:opacity-60"
             >
               {scanning
-                ? <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {locale === "de" ? "Prüft…" : locale === "en" ? "Scanning…" : "Yoxlanılır…"}</>
-                : <>{locale === "de" ? "Postfach prüfen" : locale === "en" ? "Scan mailbox" : "Poçtu yoxla"}</>}
+                ? <span className="w-3.5 h-3.5 border-2 border-ink-3/40 border-t-ink-2 rounded-full animate-spin" />
+                : "🔄"}
+              <span className="hidden sm:inline">{locale === "de" ? "Postfach" : locale === "en" ? "Mailbox" : "Poçt"}</span>
             </button>
           </div>
-          {unmatched !== null && (
-            unmatched.length === 0 ? (
-              <div className="mt-3 text-xs text-ink-3">
-                {locale === "de" ? "Keine nicht zugeordneten Antworten gefunden — alle Antworten sind sichtbar."
-                  : locale === "en" ? "No unmatched replies — every reply is already visible."
-                    : "Tanınmayan cavab tapılmadı — bütün cavablar artıq görünür."}
-              </div>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {unmatched.map((u, i) => (
-                  <div key={i} className="bg-card-2 border border-line rounded-xl p-3">
-                    <div className="flex items-center gap-2 flex-wrap text-xs">
-                      <span className="font-semibold text-ink">{u.fromName || u.from}</span>
-                      <span className="text-ink-3">{u.from}</span>
-                      <span className="text-ink-3 ml-auto">{fmt(u.date)}</span>
-                    </div>
-                    {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
-                    {u.snippet && <div className="text-xs text-ink-2 mt-2 whitespace-pre-wrap leading-relaxed bg-surface/50 rounded-lg p-2.5 max-h-64 overflow-y-auto">{u.snippet}</div>}
-                    <div className="flex items-center gap-3 mt-2">
-                      {u.candidates.length > 0 && (
-                        <div className="text-[11px] text-ink-3">
-                          {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
-                          <span className="text-ink-2">{u.candidates.map((c) => c.name).join(", ")}</span>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => setReplyOpen(replyOpen === i ? null : i)}
-                        className="ml-auto text-xs font-medium text-emerald-400 hover:text-emerald-300"
-                      >
-                        ↩ {locale === "de" ? "Antworten" : locale === "en" ? "Reply" : "Cavab yaz"}
-                      </button>
-                    </div>
-                    {replyOpen === i && <UnmatchedComposer u={u} locale={locale} onSent={() => setReplyOpen(null)} />}
-                  </div>
-                ))}
-              </div>
-            )
-          )}
         </div>
 
         {/* AI category filter — what do the answers actually say? */}
@@ -389,7 +352,7 @@ export default function InboxPage() {
               </div>
             ))}
           </div>
-        ) : list.length === 0 ? (
+        ) : merged.length === 0 ? (
           <div className="card p-10 text-center">
             <div className="text-4xl mb-3">📭</div>
             <div className="text-ink font-semibold mb-1">{q ? t("noResults") : t("noReplies")}</div>
@@ -397,7 +360,38 @@ export default function InboxPage() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {list.map((r) => {
+            {merged.map((item) => {
+              // Unmatched mailbox message — rendered inline in the same feed, with
+              // a distinct amber badge, full text, and its own reply composer.
+              if (item.kind === "unmatched") {
+                const u = item.u;
+                return (
+                  <div key={`um-${item.idx}`} className="bg-card border border-amber-500/25 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-ink truncate">{u.fromName || u.from}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/25">📥 {locale === "de" ? "Nicht zugeordnet" : locale === "en" ? "Unmatched" : "Tanınmayan"}</span>
+                      <span className="text-xs text-ink-3">{u.from}</span>
+                      <span className="text-[11px] text-ink-3 ml-auto">{fmt(u.date)}</span>
+                    </div>
+                    {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
+                    {u.snippet && <div className="text-sm text-ink mt-2 whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">{u.snippet}</div>}
+                    <div className="flex items-center gap-3 mt-2">
+                      {u.candidates.length > 0 && (
+                        <div className="text-[11px] text-ink-3">
+                          {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
+                          <span className="text-ink-2">{u.candidates.map((c) => c.name).join(", ")}</span>
+                        </div>
+                      )}
+                      <button onClick={() => setReplyOpen(replyOpen === item.idx ? null : item.idx)}
+                        className="ml-auto text-xs font-medium text-emerald-400 hover:text-emerald-300">
+                        ↩ {locale === "de" ? "Antworten" : locale === "en" ? "Reply" : "Cavab yaz"}
+                      </button>
+                    </div>
+                    {replyOpen === item.idx && <UnmatchedComposer u={u} locale={locale} onSent={() => setReplyOpen(null)} />}
+                  </div>
+                );
+              }
+              const r = item.r;
               const isOpen = open === r.id;
               return (
                 <div key={r.id} className="bg-card border border-line rounded-2xl overflow-hidden">
