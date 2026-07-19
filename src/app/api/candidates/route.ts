@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
       willingToRelocate: b.willingToRelocate ?? true,
       drivingLicense: b.drivingLicense || null,
       germanLevel: b.germanLevel || null,
+      englishLevel: b.englishLevel || null,
       education: Array.isArray(b.education) ? b.education : undefined,
       experience: Array.isArray(b.experience) ? b.experience : undefined,
       skills: asStringArray(b.skills),

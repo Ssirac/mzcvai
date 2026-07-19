@@ -282,6 +282,7 @@ model Candidate {
   willingToRelocate Boolean   @default(true)
   drivingLicense    String?
   germanLevel       String?
+  englishLevel      String?
   education         Json?     // [{ school, degree, field, from, to }]
   experience        Json?     // [{ company, title, from, to, description }]
   skills            String[]  @default([])

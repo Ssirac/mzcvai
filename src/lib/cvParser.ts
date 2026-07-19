@@ -19,6 +19,7 @@ export const CV_INSTRUCTION = `Du bekommst einen Lebenslauf (CV). Extrahiere die
   "desiredPosition": string,
   "yearsExperience": number,      // geschätzte Gesamtjahre, 0 wenn unbekannt
   "germanLevel": "A1"|"A2"|"B1"|"B2"|"C1"|"C2"|"Muttersprache"|"",
+  "englishLevel": "A1"|"A2"|"B1"|"B2"|"C1"|"C2"|"Muttersprache"|"",
   "otherLanguages": string[],     // nur Codes aus: az,en,ru,tr,ar,uk,fa
   "visaStatus": string,
   "salaryExpectation": string,
@@ -37,7 +38,7 @@ Regeln (WICHTIG — vollständig extrahieren):
 - Extrahiere ALLE genannten Fähigkeiten, Computerkenntnisse und Software in "skills".
 - Extrahiere ALLE Zertifikate, Lizenzen, Kurse in "certificates".
 - "notes": fasse Profil/Zusammenfassung sowie zusätzliche Infos (Verfügbarkeit, Umzugsbereitschaft, Schichtbereitschaft) hier zusammen.
-- Sprachen: Deutsch-Niveau → "germanLevel"; alle ANDEREN Sprachen als Codes in "otherLanguages".
+- Sprachen: Deutsch-Niveau → "germanLevel"; Englisch-Niveau → "englishLevel" (CEFR schätzen, wenn nur "gut/fließend" angegeben ist); alle ANDEREN Sprachen als Codes in "otherLanguages".
 - Daten exakt aus dem CV übernehmen, NICHTS erfinden. Nur wirklich fehlende Felder leer ("" / [] / 0) lassen.
 - "from"/"to" als Jahr (z.B. "2019") oder Monat/Jahr.
 - Wenn Berufserfahrung NUR als Fließtext ohne Firmennamen vorliegt, fasse sie in EINEM experience-Eintrag zusammen (company = "", title = Hauptberuf, description = die Tätigkeiten).

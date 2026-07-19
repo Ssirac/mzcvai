@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       select: {
         name: true, email: true, phone: true, gender: true, dateOfBirth: true,
         nationality: true, address: true, currentCity: true, currentCountry: true,
-        beruf: true, desiredPosition: true, germanLevel: true,
+        beruf: true, desiredPosition: true, germanLevel: true, englishLevel: true,
         salaryExpectation: true, visaStatus: true, drivingLicense: true,
         needsSponsorship: true, regionPrefs: true, availableFrom: true,
         cvData: true, cvFileName: true, cvMimeType: true,
@@ -59,6 +59,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       land: c.currentCountry ?? "Deutschland",
       beruf: c.desiredPosition?.trim() || c.beruf || "",
       deutschniveau: c.germanLevel ?? "",
+      englischniveau: c.englishLevel ?? "",
       // Additional recruiter-entered facts (only sent when actually stored — the
       // extension skips empty values, so nothing is fabricated on a real
       // application). Salary + legal-status are the fields ATS forms ask for most.

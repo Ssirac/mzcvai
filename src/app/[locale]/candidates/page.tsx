@@ -33,6 +33,7 @@ interface Candidate {
   skills?: string[];
   experience?: unknown[];
   germanLevel?: string | null;
+  englishLevel?: string | null;
   yearsExperience?: number | null;
   createdAt?: string;
   _count: { matches: number };
@@ -253,7 +254,7 @@ const BLANK_FORM = {
   name: "", email: "", phone: "", beruf: "Housekeeping",
   regionPrefs: [] as string[], languages: [] as string[],
   needsSponsorship: true, visaStatus: "", notes: "",
-  germanLevel: "A1",
+  germanLevel: "A1", englishLevel: "",
   dateOfBirth: "", gender: "", nationality: "", maritalStatus: "",
   currentCity: "", currentCountry: "", address: "", photoUrl: "",
   desiredPosition: "", yearsExperience: "", salaryExpectation: "",
@@ -502,6 +503,7 @@ export default function CandidatesPage() {
       visaStatus: c.visaStatus ?? "",
       notes: c.notes ?? "",
       germanLevel: germanEntry ? germanEntry.split("-")[1] : "A1",
+      englishLevel: c.englishLevel ?? "",
       dateOfBirth: c.dateOfBirth ? String(c.dateOfBirth).slice(0, 10) : "",
       gender: c.gender ?? "",
       nationality: c.nationality ?? "",
@@ -572,6 +574,7 @@ export default function CandidatesPage() {
       desiredPosition: s(d.desiredPosition) || f.desiredPosition,
       yearsExperience: d.yearsExperience ? String(d.yearsExperience) : f.yearsExperience,
       germanLevel: s(d.germanLevel) || f.germanLevel,
+      englishLevel: s(d.englishLevel) || f.englishLevel,
       languages: Array.isArray(d.otherLanguages) ? (d.otherLanguages as string[]).filter((l) => langCodes.includes(l)) : f.languages,
       visaStatus: s(d.visaStatus) || f.visaStatus,
       salaryExpectation: s(d.salaryExpectation) || f.salaryExpectation,
@@ -1446,6 +1449,13 @@ export default function CandidatesPage() {
                     <div>
                       <label className={labelCls}>{t("germanLevel")}</label>
                       <select value={form.germanLevel} onChange={(e) => set("germanLevel", e.target.value)} className={inputCls}>
+                        {GERMAN_LEVELS.map((l) => <option key={l}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t("englishLevel")}</label>
+                      <select value={form.englishLevel} onChange={(e) => set("englishLevel", e.target.value)} className={inputCls}>
+                        <option value="">—</option>
                         {GERMAN_LEVELS.map((l) => <option key={l}>{l}</option>)}
                       </select>
                     </div>

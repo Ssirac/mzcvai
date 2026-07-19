@@ -261,6 +261,7 @@
     "preferredRegions": "Preferred regions (empty = all Germany)",
     "drivingLicense": "Driving license",
     "germanLevel": "German level",
+    "englishLevel": "English level",
     "otherLanguages": "Other languages",
     "skills": "Skills (comma separated)",
     "certificates": "Certificates (comma separated)",

@@ -261,6 +261,7 @@
     "preferredRegions": "Bevorzugte Regionen (leer = ganz Deutschland)",
     "drivingLicense": "Führerschein",
     "germanLevel": "Deutsch-Niveau",
+    "englishLevel": "Englisch-Niveau",
     "otherLanguages": "Weitere Sprachen",
     "skills": "Fähigkeiten (mit Komma trennen)",
     "certificates": "Zertifikate (mit Komma trennen)",
