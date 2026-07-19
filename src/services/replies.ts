@@ -479,7 +479,13 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
           fromName: msg.envelope?.from?.[0]?.name ?? "",
           subject,
           date: (msg.envelope?.date ?? new Date()).toISOString(),
-          snippet: body.replace(/\s+/g, " ").slice(0, 240),
+          // Keep enough of the body to read the whole message (employer replies
+          // are short); strip the quoted original after common reply separators.
+          snippet: body
+            .split(/-----Ursprüngliche Nachricht-----|________________________________|^Von:\s|^Gesendet:\s/m)[0]
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 2000),
           domain,
           candidates: Array.from(cands.entries()).map(([id, name]) => ({ id, name })),
         });

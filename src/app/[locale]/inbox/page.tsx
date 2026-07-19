@@ -335,7 +335,7 @@ export default function InboxPage() {
                       <span className="text-ink-3 ml-auto">{fmt(u.date)}</span>
                     </div>
                     {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
-                    {u.snippet && <div className="text-xs text-ink-3 mt-1 line-clamp-2">{u.snippet}</div>}
+                    {u.snippet && <div className="text-xs text-ink-2 mt-2 whitespace-pre-wrap leading-relaxed bg-surface/50 rounded-lg p-2.5 max-h-64 overflow-y-auto">{u.snippet}</div>}
                     <div className="flex items-center gap-3 mt-2">
                       {u.candidates.length > 0 && (
                         <div className="text-[11px] text-ink-3">
