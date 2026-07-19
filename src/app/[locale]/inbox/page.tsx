@@ -204,7 +204,6 @@ export default function InboxPage() {
   // subject lost the code). On-demand IMAP scan so no reply stays invisible.
   const [unmatched, setUnmatched] = useState<UnmatchedReply[] | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [replyOpen, setReplyOpen] = useState<number | null>(null);
 
   async function scanUnmatched() {
     setScanning(true);
@@ -367,38 +366,45 @@ export default function InboxPage() {
         ) : (
           <div className="space-y-2.5">
             {merged.map((item) => {
-              // Unmatched mailbox message — rendered inline in the same feed, with
-              // a distinct amber badge, full text, and its own reply composer.
+              // Unmatched mailbox message — same collapsible card as a matched
+              // reply (click to open), just with an amber "Tanınmayan" marker.
               if (item.kind === "unmatched") {
                 const u = item.u;
+                const umKey = `um-${item.idx}`;
+                const isOpen = open === umKey;
                 return (
-                  <div key={`um-${item.idx}`} className="bg-card border border-amber-500/25 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-ink truncate">{u.fromName || u.from}</span>
-                      {u.category && CAT_STYLE[u.category] && (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] border ${CAT_STYLE[u.category].cls}`}>
-                          {CAT_STYLE[u.category].icon} {catLabel(u.category)}
-                        </span>
-                      )}
-                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/25">📥 {locale === "de" ? "Nicht zugeordnet" : locale === "en" ? "Unmatched" : "Tanınmayan"}</span>
-                      <span className="text-xs text-ink-3">{u.from}</span>
-                      <span className="text-[11px] text-ink-3 ml-auto">{fmt(u.date)}</span>
-                    </div>
-                    {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
-                    {u.snippet && <div className="text-sm text-ink mt-2 whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">{u.snippet}</div>}
-                    <div className="flex items-center gap-3 mt-2">
-                      {u.candidates.length > 0 && (
-                        <div className="text-[11px] text-ink-3">
-                          {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
-                          <span className="text-ink-2">{u.candidates.map((c) => c.name).join(", ")}</span>
+                  <div key={umKey} className="bg-card border border-amber-500/25 rounded-2xl overflow-hidden">
+                    <button onClick={() => setOpen(isOpen ? null : umKey)}
+                      className="w-full text-left p-4 hover:bg-card-2/30 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-ink truncate">{u.fromName || u.from}</span>
+                            {u.category && CAT_STYLE[u.category] && (
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] border ${CAT_STYLE[u.category].cls}`}>
+                                {CAT_STYLE[u.category].icon} {catLabel(u.category)}
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/25">📥 {locale === "de" ? "Nicht zugeordnet" : locale === "en" ? "Unmatched" : "Tanınmayan"}</span>
+                          </div>
+                          <div className="text-xs text-ink-3 mt-0.5 truncate">{u.subject}</div>
+                          <div className="text-[11px] text-ink-3 mt-1">{u.from} · {fmt(u.date)}</div>
                         </div>
-                      )}
-                      <button onClick={() => setReplyOpen(replyOpen === item.idx ? null : item.idx)}
-                        className="ml-auto text-xs font-medium text-emerald-400 hover:text-emerald-300">
-                        ↩ {locale === "de" ? "Antworten" : locale === "en" ? "Reply" : "Cavab yaz"}
-                      </button>
-                    </div>
-                    {replyOpen === item.idx && <UnmatchedComposer u={u} locale={locale} onSent={() => setReplyOpen(null)} />}
+                        <span className={`shrink-0 text-ink-3 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-4 border-t border-line/70 pt-3">
+                        {u.snippet && <div className="text-sm text-ink whitespace-pre-wrap leading-relaxed bg-surface/60 rounded-lg p-3 max-h-96 overflow-y-auto">{u.snippet}</div>}
+                        {u.candidates.length > 0 && (
+                          <div className="text-[11px] text-ink-3 mt-2">
+                            {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
+                            <span className="text-ink-2">{u.candidates.map((c) => c.name).join(", ")}</span>
+                          </div>
+                        )}
+                        <UnmatchedComposer u={u} locale={locale} onSent={() => setOpen(null)} />
+                      </div>
+                    )}
                   </div>
                 );
               }
