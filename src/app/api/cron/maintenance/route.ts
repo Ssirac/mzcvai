@@ -9,6 +9,7 @@ import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
 import { candidateProfiles } from "@/lib/candidateProfiles";
 import { runAutoSend } from "@/services/autopilot";
+import { enrichPendingEmployers } from "@/services/enrichment";
 import { runScrapeCycle } from "@/services/scraper/cycle";
 import { sendDailyDigest } from "@/services/digest";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,11 @@ async function runHeavyJob(job: string): Promise<void> {
     if (job === "refresh") {
       await withCronLock("refresh", 30 * 60 * 1000, async () => ({
         refresh: await refreshJobs(),
+        // Hunt generic emails for employers that don't have one yet, so more
+        // matches become mailable over time (bounded per run so it works
+        // through the backlog gradually instead of hammering sites at once).
+        enrich: await enrichPendingEmployers(parseInt(process.env.ENRICH_LIMIT ?? "40")),
+        // autoSend AFTER enrich → newly-found emails are mailable this run.
         autoSend: await runAutoSend(),
       }));
     } else if (job === "scrape") {
