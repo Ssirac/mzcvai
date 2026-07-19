@@ -40,6 +40,16 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     // detection monitors. This keeps MZ in the loop as the broker.
     const contactEmail = process.env.AGENCY_CONTACT_EMAIL || process.env.SMTP_USER || "info@mz-personalvermittlung.de";
 
+    // Nationality: the agency places (mostly) Azerbaijani candidates, so when the
+    // profile has none, default to Azerbaijan; and normalise the common spellings
+    // (Azerbaijani / Aserbaidschanisch / Azərbaycan) to the German country name
+    // "Aserbaidschan" so it matches a German ATS dropdown option. An explicitly
+    // different stored nationality is kept as-is.
+    const rawNat = (c.nationality ?? "").trim();
+    const nationalitaet = !rawNat
+      ? "Aserbaidschan"
+      : /aserbaid|azerbaij|az[əe]rbayc?an/i.test(rawNat) ? "Aserbaidschan" : rawNat;
+
     // German application forms overwhelmingly use these field labels/names; the
     // extension's selector map (config/selectors.json) resolves each to inputs.
     const fields: Record<string, string> = {
@@ -53,7 +63,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       geburtsdatum: c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : "",
       // Earliest possible start date (ISO — native date inputs accept it).
       starttermin: c.availableFrom ? c.availableFrom.toISOString().slice(0, 10) : "",
-      nationalitaet: c.nationality ?? "",
+      nationalitaet,
       adresse: c.address ?? "",
       // Desired place of employment — processed BEFORE `ort` so it claims a
       // "Gewünschter Anstellungsort" field instead of the current-city value.
@@ -63,7 +73,8 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       beruf: c.desiredPosition?.trim() || c.beruf || "",
       berufserfahrung: c.yearsExperience ? String(c.yearsExperience) : "",
       deutschniveau: c.germanLevel ?? "",
-      englischniveau: c.englishLevel ?? "",
+      // Default English to A1 (beginner — a conservative, low claim) when unset.
+      englischniveau: c.englishLevel || "A1",
       // Additional recruiter-entered facts (only sent when actually stored — the
       // extension skips empty values, so nothing is fabricated on a real
       // application). Salary + legal-status are the fields ATS forms ask for most.
