@@ -27,14 +27,23 @@
     const wrap = el.closest("label");
     if (wrap) t += " " + wrap.textContent;
     // Custom ATS (onlyfy, softgarden…) render the question as a SIBLING node
-    // ("4 - Gehaltsvorstellungen…") rather than a <label for>. Walk up a few
-    // levels and take the nearest short preceding-sibling text as the question.
+    // ("4 - Gehaltsvorstellungen…") or as a <label>/<legend> wrapping the field
+    // group — NOT a <label for>. The control can sit several React wrappers deep,
+    // so walk up generously; at each level take the nearest short preceding
+    // sibling, or a label/legend that is a direct child of the ancestor.
     let p = el;
-    for (let i = 0; i < 4 && p; i++) {
+    for (let i = 0; i < 8 && p; i++) {
       const prev = p.previousElementSibling;
-      const txt = prev && (prev.textContent || "").trim();
-      if (txt && txt.length <= 140) { t += " " + txt; break; }
-      p = p.parentElement;
+      const ptxt = prev && (prev.textContent || "").trim();
+      if (ptxt && ptxt.length <= 180) { t += " " + ptxt; break; }
+      const par = p.parentElement;
+      if (par) {
+        let lab = null;
+        try { lab = par.querySelector(":scope > label, :scope > legend"); } catch { /* older engines */ }
+        const ltxt = lab && !lab.contains(el) ? (lab.textContent || "").trim() : "";
+        if (ltxt && ltxt.length <= 180) { t += " " + ltxt; break; }
+      }
+      p = par;
     }
     return norm(t);
   }
