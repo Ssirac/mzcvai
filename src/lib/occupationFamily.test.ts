@@ -152,3 +152,26 @@ describe("occupation cluster gate (core specialization anchor)", () => {
     expect(shareCluster("Koch", "Restaurantfachmann")).toBe(true);
   });
 });
+
+describe("context-word leaks (Großküchen / Veranstaltung / Technisch)", () => {
+  it("'Anlagenmonteur für Großküchen' is a trades role, NOT gastronomy", () => {
+    const fams = occupationFamilies("Anlagenmonteur für Großküchen- und Speiseausgabeanlagen");
+    expect(fams.has("gastro")).toBe(false); // the 'Küchen' setting must not read as a kitchen job
+    expect(fams.has("trades")).toBe(true);
+    // A cook must NOT match it; a real installer/technician still does.
+    expect(familyCompatibility("Koch", "Anlagenmonteur für Großküchen").compatible).toBe(false);
+  });
+
+  it("a coordinator does not bridge to a cook on the shared word 'Veranstaltung'", () => {
+    // Both mention Veranstaltung, but one is a Koordinator and one a Koch.
+    expect(berufMatches("Veranstaltungskoordinator", "", "Bankett & Veranstaltungs Koch")).toBe(false);
+    // A real cook still matches the cook role.
+    expect(berufMatches("Koch", "", "Bankett & Veranstaltungs Koch")).toBe(true);
+  });
+
+  it("real kitchen roles still classify as gastronomy", () => {
+    for (const t of ["Küchenhilfe (m/w/d)", "Küchenmitarbeiter", "Koch / Köchin", "Beikoch"]) {
+      expect(occupationFamilies(t).has("gastro")).toBe(true);
+    }
+  });
+});

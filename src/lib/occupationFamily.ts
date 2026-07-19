@@ -20,7 +20,12 @@
 // Order doesn't matter; a text can belong to several families.
 const FAMILIES: Record<string, string[]> = {
   gastro: [
-    "koch", "köchin", "kochhilfe", "küchenhilfe", "küchenmitarbeiter", "küche", "beikoch",
+    // NB: bare "küche"/"küchen" is intentionally NOT here — it fired as a
+    // substring inside "Großküchen" and mislabelled an "Anlagenmonteur für
+    // Großküchen" (an equipment INSTALLER) as a kitchen job. Real kitchen roles
+    // carry a specific term (koch, küchenhilfe, küchenmitarbeiter, …).
+    "koch", "köchin", "kochhilfe", "küchenhilfe", "küchenmitarbeiter", "küchenkraft",
+    "küchenpersonal", "beikoch",
     "commis", "chef de partie", "sous chef", "souschef", "küchenchef", "chefkoch", "gardemanger",
     "saucier", "cook", "servicekraft", "servicemitarbeiter", "servicepersonal", "kellner", "kellnerin",
     "chef de rang", "commis de rang", "restaurantfachmann", "restaurantfachfrau",
@@ -64,6 +69,9 @@ const FAMILIES: Record<string, string[]> = {
     "sanitär", "sanitaer", "anlagenmechaniker", "shk", "heizung", "klempner", "schweißer", "schweisser",
     "welder", "maler", "lackierer", "painter", "tischler", "schreiner", "carpenter", "schlosser",
     "metallbau", "metallbauer", "zerspanung", "cnc", "mechaniker", "mechatroniker", "kfz",
+    // Installer / maintenance roles — technical, not the setting they work in
+    // (e.g. "Anlagenmonteur für Großküchen" is an installer, not a cook).
+    "monteur", "anlagenmonteur", "servicemonteur", "instandhaltung", "instandhalter", "wartung",
   ],
   facility: [
     "objektverwalter", "objektbetreuer", "objektleiter", "hausmeister", "haustechnik", "haustechniker",

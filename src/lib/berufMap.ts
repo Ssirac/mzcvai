@@ -335,7 +335,33 @@ const MATCH_STOPWORDS = new Set([
   "vollzeit", "teilzeit", "team", "quereinsteiger", "quereinsteigerin", "worker", "staff",
   "sonstige", "sonstiges", "sucht", "gesucht", "und", "oder", "für", "der", "die", "das",
 ]);
+
+// CONTEXT / MODIFIER words: they describe a job's domain or setting, not the
+// ROLE itself, so they must never bridge two different occupations in the weak
+// keyword/token fallback. Without this, "Bankett & Veranstaltungs Koch" (a cook)
+// matched a "Veranstaltungskoordinator" on the shared word "Veranstaltung", and
+// "Anlagenmonteur für Großküchen" (an installer) matched a cook on "Küchen".
+// The family classifier still USES these words (e.g. bankett → gastro); only the
+// occupation-bridging fallback in berufMatches ignores them.
+const MODIFIER_TERMS = new Set([
+  "bankett", "veranstaltung", "veranstaltungs", "veranstaltungen", "event", "events",
+  "technisch", "technische", "technischer", "technisches", "technik",
+  "objekt", "objekts", "objekte", "anlage", "anlagen",
+  "bereich", "bereichs", "bereiche", "großküche", "großküchen", "grosskueche", "grosskuechen",
+  "küche", "küchen", "speiseausgabe", "speiseausgabeanlagen",
+  "projekt", "projekts", "projekte", "digital", "digitale", "digitales", "digitaler",
+  "system", "systeme", "systems", "strategisch", "strategische", "strategischer",
+  "premium", "senior", "junior", "international", "national", "regional", "zentral",
+  "mobil", "mobile", "modern", "gross", "groß", "klein",
+]);
 const isStopword = (w: string) => MATCH_STOPWORDS.has(w.toLowerCase());
+// For the occupation-bridging fallback: skip both stopwords AND context modifiers.
+// Exact-match only — a real compound ROLE like "Anlagenmonteur" (starts with the
+// modifier "anlage") must still count as an occupation word.
+const isNonOccupationWord = (w: string) => {
+  const lw = w.toLowerCase();
+  return MATCH_STOPWORDS.has(lw) || MODIFIER_TERMS.has(lw);
+};
 
 export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacancyTitle = ""): boolean {
   const c = candidateBeruf.trim().toLowerCase();
@@ -349,15 +375,16 @@ export function berufMatches(candidateBeruf: string, vacancyBeruf: string, vacan
   if (c.length >= 4 && v.includes(c)) return true;
 
   // Synonym-group match: candidate family term appears in vacancy beruf/title.
-  // Generic words (Mitarbeiter, Allround, …) are excluded so they can't match
-  // across unrelated occupations.
+  // Generic words (Mitarbeiter, Allround, …) AND context modifiers (Veranstaltung,
+  // Technisch, Großküchen, …) are excluded so they can't bridge unrelated roles.
   const candKeywords = berufSearchKeywords(candidateBeruf)
     .map((k) => k.toLowerCase())
-    .filter((k) => k.length >= 3 && !isStopword(k));
+    .filter((k) => k.length >= 3 && !isNonOccupationWord(k));
   if (candKeywords.some((kw) => termIncludes(v, kw) || termIncludes(title, kw))) return true;
 
-  // token overlap against vacancy beruf/title (stopwords excluded)
-  const tokens = c.split(/[\s/,-]+/).filter((t) => t.length >= 3 && !isStopword(t));
+  // token overlap against vacancy beruf/title — occupation words only (context
+  // modifiers excluded), so a shared setting word never links two different jobs.
+  const tokens = c.split(/[\s/,-]+/).filter((t) => t.length >= 3 && !isNonOccupationWord(t));
   return tokens.some((t) => termIncludes(v, t) || termIncludes(title, t));
 }
 
