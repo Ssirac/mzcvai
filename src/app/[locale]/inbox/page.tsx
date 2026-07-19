@@ -250,9 +250,22 @@ export default function InboxPage() {
   }, []);
 
   const term = q.trim().toLowerCase();
+  // "Maraqlanır" (leads) groups every reply where the employer ENGAGED — clearly
+  // interested, proposing an interview, OR asking for the CV / terms / info. Those
+  // QUESTION replies ("send us the CV and your terms") are real leads, so they
+  // belong here, apart from the dead ones (rejected / auto / opt-out).
+  const LEAD_CATS = ["INTERESTED", "INTERVIEW", "QUESTION"];
+  // Does a reply's category pass the active filter (handles the ALL / LEADS /
+  // specific-category cases; UNMATCHED is handled separately per-source).
+  const catMatches = (c: string | null | undefined) => {
+    const cc = c ?? "OTHER";
+    if (cat === "ALL") return true;
+    if (cat === "LEADS") return LEAD_CATS.includes(cc);
+    return cc === cat;
+  };
   const list = replies.filter(
     (r) =>
-      (cat === "ALL" || (r.replyCategory ?? "OTHER") === cat) &&
+      (cat === "UNMATCHED" ? false : catMatches(r.replyCategory)) &&
       (!term ||
         r.match.employer.name.toLowerCase().includes(term) ||
         r.match.candidate.name.toLowerCase().includes(term) ||
@@ -264,12 +277,13 @@ export default function InboxPage() {
   const catCount = (c: string) =>
     replies.filter((r) => (r.replyCategory ?? "OTHER") === c).length +
     (unmatched ?? []).filter((u) => (u.category ?? "OTHER") === c).length;
+  const leadsCount = LEAD_CATS.reduce((n, c) => n + catCount(c), 0);
 
   // Unified feed: matched replies AND unmatched mailbox messages in ONE list,
   // newest first. Unmatched are classified too, so they honour the category
   // filter just like matched ones.
   const unmatchedShown = (unmatched ?? [])
-    .filter((u) => cat === "ALL" || cat === "UNMATCHED" || (u.category ?? "OTHER") === cat)
+    .filter((u) => cat === "UNMATCHED" || catMatches(u.category))
     .filter(
       (u) => !term || u.from.toLowerCase().includes(term) || (u.subject ?? "").toLowerCase().includes(term) ||
         (u.snippet ?? "").toLowerCase().includes(term) || u.candidates.some((c) => c.name.toLowerCase().includes(term))
@@ -335,6 +349,16 @@ export default function InboxPage() {
             >
               {locale === "de" ? "Alle" : locale === "en" ? "All" : "Hamısı"} {replies.length + (unmatched?.length ?? 0)}
             </button>
+            {/* Leads: employers who engaged (interested / interview / asking for
+                CV + terms) — the replies actually worth following up. */}
+            {leadsCount > 0 && (
+              <button
+                onClick={() => setCat(cat === "LEADS" ? "ALL" : "LEADS")}
+                className={`text-xs font-semibold rounded-full px-3 py-1.5 border ${cat === "LEADS" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/15"}`}
+              >
+                💚 {locale === "de" ? "Interessiert" : locale === "en" ? "Interested" : "Maraqlanır"} {leadsCount}
+              </button>
+            )}
             {CATEGORIES.filter((c) => catCount(c) > 0).map((c) => (
               <button
                 key={c}
