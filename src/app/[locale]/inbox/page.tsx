@@ -35,6 +35,7 @@ interface UnmatchedReply {
   date: string;
   snippet: string;
   domain: string;
+  category: string | null;
   candidates: { id: string; name: string }[];
 }
 
@@ -259,16 +260,21 @@ export default function InboxPage() {
         (r.replySubject ?? "").toLowerCase().includes(term) ||
         (r.replyText ?? "").toLowerCase().includes(term))
   );
-  // Category counts for the filter chips (independent of the active filter).
-  const catCount = (c: string) => replies.filter((r) => (r.replyCategory ?? "OTHER") === c).length;
+  // Category counts for the filter chips — matched AND unmatched, since both are
+  // now classified, so a chip like "Sual verir" tallies replies from both.
+  const catCount = (c: string) =>
+    replies.filter((r) => (r.replyCategory ?? "OTHER") === c).length +
+    (unmatched ?? []).filter((u) => (u.category ?? "OTHER") === c).length;
 
   // Unified feed: matched replies AND unmatched mailbox messages in ONE list,
-  // newest first — unmatched ones aren't tucked away in a separate box. They
-  // carry no AI category, so they only show under "Hamısı" (ALL).
-  const unmatchedShown = (cat === "ALL" && unmatched ? unmatched : []).filter(
-    (u) => !term || u.from.toLowerCase().includes(term) || (u.subject ?? "").toLowerCase().includes(term) ||
-      (u.snippet ?? "").toLowerCase().includes(term) || u.candidates.some((c) => c.name.toLowerCase().includes(term))
-  );
+  // newest first. Unmatched are classified too, so they honour the category
+  // filter just like matched ones.
+  const unmatchedShown = (unmatched ?? [])
+    .filter((u) => cat === "ALL" || (u.category ?? "OTHER") === cat)
+    .filter(
+      (u) => !term || u.from.toLowerCase().includes(term) || (u.subject ?? "").toLowerCase().includes(term) ||
+        (u.snippet ?? "").toLowerCase().includes(term) || u.candidates.some((c) => c.name.toLowerCase().includes(term))
+    );
   type MergedItem =
     | { kind: "matched"; date: string | null; r: Reply }
     | { kind: "unmatched"; date: string; u: UnmatchedReply; idx: number };
@@ -322,13 +328,13 @@ export default function InboxPage() {
         </div>
 
         {/* AI category filter — what do the answers actually say? */}
-        {!loading && replies.length > 0 && (
+        {!loading && (replies.length > 0 || (unmatched?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => setCat("ALL")}
               className={`text-xs font-medium rounded-full px-3 py-1.5 border ${cat === "ALL" ? "bg-accent/15 text-accent border-accent/40" : "bg-card-2 text-ink-2 border-line hover:text-ink"}`}
             >
-              {locale === "de" ? "Alle" : locale === "en" ? "All" : "Hamısı"} {replies.length}
+              {locale === "de" ? "Alle" : locale === "en" ? "All" : "Hamısı"} {replies.length + (unmatched?.length ?? 0)}
             </button>
             {CATEGORIES.filter((c) => catCount(c) > 0).map((c) => (
               <button
@@ -369,6 +375,11 @@ export default function InboxPage() {
                   <div key={`um-${item.idx}`} className="bg-card border border-amber-500/25 rounded-2xl p-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-ink truncate">{u.fromName || u.from}</span>
+                      {u.category && CAT_STYLE[u.category] && (
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] border ${CAT_STYLE[u.category].cls}`}>
+                          {CAT_STYLE[u.category].icon} {catLabel(u.category)}
+                        </span>
+                      )}
                       <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/25">📥 {locale === "de" ? "Nicht zugeordnet" : locale === "en" ? "Unmatched" : "Tanınmayan"}</span>
                       <span className="text-xs text-ink-3">{u.from}</span>
                       <span className="text-[11px] text-ink-3 ml-auto">{fmt(u.date)}</span>

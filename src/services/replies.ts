@@ -399,6 +399,10 @@ export interface UnmatchedReply {
   date: string;
   snippet: string;
   domain: string;
+  // Same AI category as matched replies (Sual verir / Rədd / Avtomatik …) so
+  // unmatched mail is filterable by the inbox category chips too. null = the
+  // classifier failed for this one.
+  category: string | null;
   // Candidates we mailed that domain — the reply most likely concerns one of
   // them; id lets the UI attach that candidate's CV to a reply.
   candidates: { id: string; name: string }[];
@@ -474,11 +478,16 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
         if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) continue; // already linked
         let body = "";
         try { if (msg.source) body = ((await simpleParser(msg.source)).text || "").trim(); } catch { /* ignore */ }
+        // Classify like a matched reply (heuristics first, then Haiku) so the
+        // inbox category chips include unmatched mail too. Fail-soft → null.
+        let category: string | null = null;
+        try { category = await classifyReply(subject, body); } catch { category = null; }
         result.unmatched.push({
           from: fromAddr,
           fromName: msg.envelope?.from?.[0]?.name ?? "",
           subject,
           date: (msg.envelope?.date ?? new Date()).toISOString(),
+          category,
           // Keep enough of the body to read the whole message (employer replies
           // are short); strip the quoted original after common reply separators.
           snippet: body
