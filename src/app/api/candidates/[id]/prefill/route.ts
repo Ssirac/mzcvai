@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/apiError";
 import { prisma } from "@/lib/prisma";
+import { AGENCY_NAME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,14 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       ? "Aserbaidschan"
       : /aserbaid|azerbaij|az[əe]rbayc?an/i.test(rawNat) ? "Aserbaidschan" : rawNat;
 
+    // Residence/work-permit answer for required yes/no textareas: use the
+    // recruiter's stored visa status, else derive an HONEST answer — "Ja" for a
+    // work-authorised candidate (no sponsorship needed), otherwise a note that
+    // the permit is organised via the agency. Never a false "Ja".
+    const permitAnswer = c.needsSponsorship === false
+      ? "Ja"
+      : `Nein, wird über die Personalvermittlung ${AGENCY_NAME} organisiert`;
+
     // German application forms overwhelmingly use these field labels/names; the
     // extension's selector map (config/selectors.json) resolves each to inputs.
     const fields: Record<string, string> = {
@@ -78,9 +87,13 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       // Additional recruiter-entered facts (only sent when actually stored — the
       // extension skips empty values, so nothing is fabricated on a real
       // application). Salary + legal-status are the fields ATS forms ask for most.
-      gehaltswunsch: c.salaryExpectation ?? "",
-      aufenthaltstitel: c.visaStatus ?? "",   // residence permit ← visa status
-      arbeitserlaubnis: c.visaStatus ?? "",   // work permit (free-text) ← visa status
+      // Salary: stored expectation, else a non-committal standard answer so the
+      // required field stays valid (recruiter can set a figure per candidate).
+      gehaltswunsch: c.salaryExpectation?.trim() || "nach Vereinbarung",
+      // Residence/work permit (free-text yes/no): stored visa status, else the
+      // honest needsSponsorship-derived answer above.
+      aufenthaltstitel: c.visaStatus?.trim() || permitAnswer,
+      arbeitserlaubnis: c.visaStatus?.trim() || permitAnswer,
       fuehrerschein: c.drivingLicense ?? "",
       // Weekly working time — the agency places FULL-TIME candidates only, so on
       // a "hours per week?" radio group the Vollzeit option is always correct.

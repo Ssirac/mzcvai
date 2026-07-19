@@ -8,6 +8,34 @@ import type { OutreachStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+// IMAP reachability check — connects to the reply mailbox with the same creds
+// pollReplies uses and reports login success + INBOX message count. Confirms
+// whether employer replies can be read at all (e.g. after an IONOS password
+// rotation that wasn't mirrored to Railway). Opens a real socket → deep only.
+async function imapCheck(): Promise<{ configured: boolean; ok: boolean; error: string | null; inboxMessages: number | null }> {
+  const host = process.env.IMAP_HOST || "imap.ionos.de";
+  const port = parseInt(process.env.IMAP_PORT || "993");
+  const user = process.env.IMAP_USER || process.env.SMTP_USER;
+  const pass = process.env.IMAP_PASS || process.env.SMTP_PASS;
+  if (!user || !pass) return { configured: false, ok: false, error: "no IMAP/SMTP credentials set", inboxMessages: null };
+  try {
+    const { ImapFlow } = await import("imapflow");
+    const client = new ImapFlow({ host, port, secure: true, auth: { user, pass }, logger: false });
+    await client.connect();
+    let inboxMessages: number | null = null;
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      inboxMessages = typeof client.mailbox === "object" && client.mailbox ? client.mailbox.exists : null;
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+    return { configured: true, ok: true, error: null, inboxMessages };
+  } catch (e) {
+    return { configured: true, ok: false, error: (e as Error).message.slice(0, 200), inboxMessages: null };
+  }
+}
+
 // Cross-field diagnostic (only on ?deep=1 — it scans the visible matches, too
 // heavy for every monitoring ping). Counts matches whose candidate CORE
 // occupation (desired position + beruf) and vacancy title BOTH classify into
@@ -224,6 +252,7 @@ export async function GET(req: NextRequest) {
     freshBad: number; freshDispatched: number; freshVisible: number;
     pendingAnyVacancy: number; totalDispatchedOutreach: number; totalBad: number;
     pendingWithEmail: number; pendingNoEmail: number; candidatesWithCv: number;
+    repliesStored: number;
   } | null = null;
   try {
     const [activeVacancies, freshVacancies, activeCandidates, matches, freshMatches] = await Promise.all([
@@ -247,17 +276,25 @@ export async function GET(req: NextRequest) {
     // WHY aren't more mails going out? Auto-send needs (a) an employer generic
     // email and (b) a candidate with a CV. Split the pending pool so we can see
     // if it's an email-discovery gap, a missing-CV gap, or genuinely all sent.
-    const [pendingWithEmail, pendingNoEmail, candidatesWithCv] = await Promise.all([
+    const [pendingWithEmail, pendingNoEmail, candidatesWithCv, repliesStored] = await Promise.all([
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), outreach: { none: dispatchedFilter }, employer: { genericEmail: { not: null }, optedOut: false } } }),
       prisma.match.count({ where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), outreach: { none: dispatchedFilter }, employer: { genericEmail: null } } }),
       prisma.candidate.count({ where: { status: { in: ["ACTIVE", "PENDING"] }, cvData: { not: null } } }),
+      prisma.outreach.count({ where: { repliedAt: { not: null } } }),
     ]);
     data = {
       activeVacancies, freshVacancies, activeCandidates, matches, freshMatches,
       freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad,
-      pendingWithEmail, pendingNoEmail, candidatesWithCv,
+      pendingWithEmail, pendingNoEmail, candidatesWithCv, repliesStored,
     };
   } catch { /* ignore */ }
+
+  // Reply-reading (IMAP) health — the mailbox we poll for employer replies.
+  // Sending goes via Resend, but replies land in the IONOS inbox and are read
+  // over IMAP with IMAP_USER/PASS (falling back to SMTP_USER/PASS). If the IONOS
+  // password was rotated but Railway still has the old one, sending keeps working
+  // while reply-reading silently breaks. Only on ?deep=1 (opens a real socket).
+  const imap = deep ? await imapCheck() : undefined;
 
   // Cross-field match diagnostic — only when explicitly requested (heavier scan).
   const crossField = deep ? await crossFieldDiagnostic() : undefined;
@@ -278,6 +315,7 @@ export async function GET(req: NextRequest) {
     sending,
     sources,             // { id, active } — no secret values
     data,                // aggregate counts — no PII
+    ...(imap !== undefined ? { imap } : {}), // reply-mailbox reachability, only on ?deep=1
     ...(crossField !== undefined ? { crossField } : {}), // only on ?deep=1
     ...(byCandidate !== undefined ? { byCandidate } : {}), // per-candidate field breakdown, only on ?deep=1
     ...(sample !== undefined ? { sample } : {}), // one candidate's real job list, only on ?deep=1&sample=1
