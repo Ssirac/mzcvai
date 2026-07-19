@@ -14,7 +14,7 @@
  * so the rest of the system is unaffected.
  */
 
-import { ImapFlow } from "imapflow";
+import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
 import { outreachRef, parseRefTag } from "@/lib/outreachRef";
@@ -25,6 +25,28 @@ function domainOf(email: string | null | undefined): string | null {
   if (!email) return null;
   const at = email.toLowerCase().split("@")[1];
   return at ? at.replace(/^www\./, "") : null;
+}
+
+// Mailboxes to scan for employer replies: always INBOX, plus any Junk/Spam
+// folder. IONOS (and most providers) file some legitimate employer answers into
+// Spam; polling INBOX alone meant those replies stayed invisible forever — no
+// stored reply, not even an "unmatched" entry. Detection prefers the \Junk
+// special-use flag, with a name fallback (IONOS names the folder "Spam"). Falls
+// back to INBOX-only if the server won't list folders.
+async function replyFolders(client: ImapFlow): Promise<string[]> {
+  const folders = ["INBOX"];
+  try {
+    for (const box of await client.list()) {
+      const path = box.path || "";
+      if (!path || path.toUpperCase() === "INBOX") continue;
+      const special = String(box.specialUse || "").toLowerCase(); // e.g. "\\junk"
+      const leaf = (path.split(/[./]/).pop() || "").toLowerCase(); // "INBOX.Spam" → "spam"
+      if (special.includes("junk") || /^(spam|junk|bulk|junk[- ]?e-?mail)$/.test(leaf)) {
+        folders.push(path);
+      }
+    }
+  } catch { /* listing failed → INBOX only */ }
+  return folders;
 }
 
 // An employer telling us to stop. If the reply says any of these, we flag the
@@ -267,26 +289,23 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
   }
 
   try {
-    const lock = await client.getMailboxLock("INBOX");
-    try {
-      const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-      const uids = await client.search({ since }, { uid: true });
-      if (!uids || uids.length === 0) return result;
-
-      for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+    // Process one fetched message against the shared thread index. Extracted so
+    // INBOX and every Junk/Spam folder run the identical matching logic; returns
+    // early where the old inline loop used `continue`.
+    const handleMessage = async (msg: FetchMessageObject) => {
         result.scanned++;
         const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
         const fromName = msg.envelope?.from?.[0]?.name ?? "";
         const subject = msg.envelope?.subject ?? "";
         const msgDate = msg.envelope?.date ?? new Date();
-        if (!fromAddr) continue;
+        if (!fromAddr) return;
 
         const senderDomain = domainOf(fromAddr) ?? "";
 
         // Already recorded on a previous poll? The IMAP window re-reads the same
         // messages every run — without this, the second run re-matches the mail
         // and (its true thread now REPLIED) attaches it to ANOTHER candidate.
-        if (storedKeys.has(`${msgDate.getTime()}|${subject.slice(0, 300)}`)) continue;
+        if (storedKeys.has(`${msgDate.getTime()}|${subject.slice(0, 300)}`)) return;
 
         // Threads this reply could belong to: exact address first, then
         // same-domain; only ones sent before the reply arrived.
@@ -335,7 +354,7 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
           }
         }
 
-        if (!target) continue;
+        if (!target) return;
 
         const replyStored = `${subject}\n\n${body}`.trim().slice(0, 4000);
 
@@ -379,12 +398,28 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         storedKeys.add(`${msgDate.getTime()}|${subject.slice(0, 300)}`);
         target.status = "REPLIED";
         result.matched++;
+    };
+
+    // Scan INBOX + any Junk/Spam folder. A per-folder try keeps one bad folder
+    // from aborting the rest; logout always runs.
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    for (const folder of await replyFolders(client)) {
+      try {
+        const lock = await client.getMailboxLock(folder);
+        try {
+          const uids = await client.search({ since }, { uid: true });
+          if (uids && uids.length) {
+            for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+              await handleMessage(msg);
+            }
+          }
+        } finally {
+          lock.release();
+        }
+      } catch (e) {
+        result.errors.push(`scan ${folder} failed: ${(e as Error).message}`);
       }
-    } finally {
-      lock.release();
     }
-  } catch (err) {
-    result.errors.push(`IMAP read failed: ${(err as Error).message}`);
   } finally {
     await client.logout().catch(() => {});
   }
@@ -462,20 +497,22 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
     return result;
   }
   try {
-    const lock = await client.getMailboxLock("INBOX");
-    try {
-      const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-      const uids = await client.search({ since }, { uid: true });
-      if (!uids || uids.length === 0) return result;
-      for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+    // De-dupe across folders: the same reply won't be in two folders, but guard
+    // anyway so a message copied to both INBOX and Spam is listed once.
+    const seen = new Set<string>();
+    const handleMessage = async (msg: FetchMessageObject) => {
         result.scanned++;
         const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
-        if (!fromAddr) continue;
+        if (!fromAddr) return;
         const domain = domainOf(fromAddr) ?? "";
         const cands = candsByDomain.get(domain);
-        if (!cands) continue; // not from a contacted employer → skip (newsletter/spam)
+        if (!cands) return; // not from a contacted employer → skip (newsletter/spam)
         const subject = msg.envelope?.subject ?? "";
-        if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) continue; // already linked
+        if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) return; // already linked
+        const msgDate = msg.envelope?.date ?? new Date();
+        const dedupeKey = `${fromAddr}|${subject.slice(0, 200).toLowerCase()}|${msgDate.toISOString().slice(0, 10)}`;
+        if (seen.has(dedupeKey)) return; // same reply already listed from another folder
+        seen.add(dedupeKey);
         let body = "";
         try { if (msg.source) body = ((await simpleParser(msg.source)).text || "").trim(); } catch { /* ignore */ }
         // Classify like a matched reply (heuristics first, then Haiku) so the
@@ -486,7 +523,7 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
           from: fromAddr,
           fromName: msg.envelope?.from?.[0]?.name ?? "",
           subject,
-          date: (msg.envelope?.date ?? new Date()).toISOString(),
+          date: msgDate.toISOString(),
           category,
           // Keep enough of the body to read the whole message (employer replies
           // are short); strip the quoted original after common reply separators.
@@ -498,12 +535,27 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
           domain,
           candidates: Array.from(cands.entries()).map(([id, name]) => ({ id, name })),
         });
+    };
+
+    // Scan INBOX + any Junk/Spam folder; per-folder try, logout always runs.
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+    for (const folder of await replyFolders(client)) {
+      try {
+        const lock = await client.getMailboxLock(folder);
+        try {
+          const uids = await client.search({ since }, { uid: true });
+          if (uids && uids.length) {
+            for await (const msg of client.fetch(uids, { envelope: true, source: true }, { uid: true })) {
+              await handleMessage(msg);
+            }
+          }
+        } finally {
+          lock.release();
+        }
+      } catch (e) {
+        result.errors.push(`scan ${folder} failed: ${(e as Error).message}`);
       }
-    } finally {
-      lock.release();
     }
-  } catch (err) {
-    result.errors.push(`IMAP read failed: ${(err as Error).message}`);
   } finally {
     await client.logout().catch(() => {});
   }

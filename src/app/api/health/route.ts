@@ -12,27 +12,50 @@ export const dynamic = "force-dynamic";
 // pollReplies uses and reports login success + INBOX message count. Confirms
 // whether employer replies can be read at all (e.g. after an IONOS password
 // rotation that wasn't mirrored to Railway). Opens a real socket → deep only.
-async function imapCheck(): Promise<{ configured: boolean; ok: boolean; error: string | null; inboxMessages: number | null }> {
+async function imapCheck(): Promise<{
+  configured: boolean; ok: boolean; error: string | null; inboxMessages: number | null;
+  // Every folder the reply poller now scans (INBOX + any Junk/Spam), with its
+  // message count — so it's visible when a Spam folder holds replies the
+  // INBOX-only poller used to miss.
+  folders: { path: string; messages: number | null; junk: boolean }[];
+}> {
   const host = process.env.IMAP_HOST || "imap.ionos.de";
   const port = parseInt(process.env.IMAP_PORT || "993");
   const user = process.env.IMAP_USER || process.env.SMTP_USER;
   const pass = process.env.IMAP_PASS || process.env.SMTP_PASS;
-  if (!user || !pass) return { configured: false, ok: false, error: "no IMAP/SMTP credentials set", inboxMessages: null };
+  if (!user || !pass) return { configured: false, ok: false, error: "no IMAP/SMTP credentials set", inboxMessages: null, folders: [] };
   try {
     const { ImapFlow } = await import("imapflow");
     const client = new ImapFlow({ host, port, secure: true, auth: { user, pass }, logger: false });
     await client.connect();
-    let inboxMessages: number | null = null;
-    const lock = await client.getMailboxLock("INBOX");
+    // Same folder selection as the poller: INBOX + any Junk/Spam folder.
+    const scan: { path: string; junk: boolean }[] = [{ path: "INBOX", junk: false }];
     try {
-      inboxMessages = typeof client.mailbox === "object" && client.mailbox ? client.mailbox.exists : null;
-    } finally {
-      lock.release();
+      for (const box of await client.list()) {
+        const path = box.path || "";
+        if (!path || path.toUpperCase() === "INBOX") continue;
+        const special = String(box.specialUse || "").toLowerCase();
+        const leaf = (path.split(/[./]/).pop() || "").toLowerCase();
+        if (special.includes("junk") || /^(spam|junk|bulk|junk[- ]?e-?mail)$/.test(leaf)) scan.push({ path, junk: true });
+      }
+    } catch { /* INBOX only */ }
+    const folders: { path: string; messages: number | null; junk: boolean }[] = [];
+    for (const f of scan) {
+      try {
+        const lock = await client.getMailboxLock(f.path);
+        try {
+          const messages = typeof client.mailbox === "object" && client.mailbox ? client.mailbox.exists : null;
+          folders.push({ path: f.path, messages, junk: f.junk });
+        } finally {
+          lock.release();
+        }
+      } catch { folders.push({ path: f.path, messages: null, junk: f.junk }); }
     }
     await client.logout();
-    return { configured: true, ok: true, error: null, inboxMessages };
+    const inboxMessages = folders.find((f) => f.path.toUpperCase() === "INBOX")?.messages ?? null;
+    return { configured: true, ok: true, error: null, inboxMessages, folders };
   } catch (e) {
-    return { configured: true, ok: false, error: (e as Error).message.slice(0, 200), inboxMessages: null };
+    return { configured: true, ok: false, error: (e as Error).message.slice(0, 200), inboxMessages: null, folders: [] };
   }
 }
 
