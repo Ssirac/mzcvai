@@ -63,11 +63,24 @@
     return true;
   }
 
+  // Select a radio option (checking it = choosing that answer). Only ever used
+  // for specs that map to a business FACT (e.g. full-time), never to guess a
+  // candidate's situational answer.
+  function setRadio(el) {
+    if (!el.checked) {
+      el.checked = true;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  }
+
   // What kind of control is this element?
   function kindOf(el) {
     if (el.tagName === "SELECT") return "select";
     const t = (el.getAttribute("type") || "").toLowerCase();
     if (t === "checkbox") return "checkbox";
+    if (t === "radio") return "radio";
     return "text";
   }
   // Which control kinds a spec may fill. Checkbox specs stay checkbox-only (so a
@@ -76,7 +89,9 @@
   // (onlyfy/XING renders nationality, country, language level as dropdowns; other
   // ATS render them as text). We fill by the input's REAL kind, not a guess.
   function fillableKinds(spec) {
-    return spec.checkbox ? ["checkbox"] : ["text", "select"];
+    if (spec.checkbox) return ["checkbox"];
+    if (spec.radio) return ["radio"];
+    return ["text", "select"];
   }
 
   function fileFromBase64(b64, name, mime) {
@@ -121,6 +136,7 @@
       try {
         if (k === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
         else if (k === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
+        else if (k === "radio") { if (setRadio(el)) { used.add(el); filled++; } }
         else { setValue(el, val); used.add(el); filled++; }
       } catch { /* skip */ }
     }

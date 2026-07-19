@@ -66,6 +66,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       aufenthaltstitel: c.visaStatus ?? "",   // residence permit ← visa status
       arbeitserlaubnis: c.visaStatus ?? "",   // work permit (free-text) ← visa status
       fuehrerschein: c.drivingLicense ?? "",
+      // Weekly working time — the agency places FULL-TIME candidates only, so on
+      // a "hours per week?" radio group the Vollzeit option is always correct.
+      arbeitszeitVollzeit: "Vollzeit",
       // "Valid work permit?" as a CHECKBOX: tick ONLY when the candidate does not
       // need visa sponsorship (EU / already authorised). When sponsorship IS
       // needed the value is empty, so the box is left unchecked for the human —

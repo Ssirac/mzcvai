@@ -31,6 +31,11 @@ window.MZ_SELECTORS = {
   aufenthaltstitel: { names: ["aufenthalt", "aufenthaltstitel", "residence", "residencepermit"], labels: ["Aufenthaltstitel", "Aufenthaltsstatus", "Aufenthalt", "Residence permit", "Residence title"] },
   arbeitserlaubnis: { names: ["arbeitserlaubnis", "arbeitsgenehmigung", "workpermit", "work_permit"], labels: ["Arbeitserlaubnis", "Arbeitsgenehmigung", "Work permit"] },
   fuehrerschein:    { names: ["fuehrerschein", "führerschein", "driverlicense", "drivinglicense", "fuehrerscheinklasse"], labels: ["Führerschein", "Fahrerlaubnis", "Driving license", "Driver's license"] },
+  // Working time = full-time. The agency places FULL-TIME candidates only, so on
+  // a "how many hours per week?" RADIO group the Vollzeit / full-time option is
+  // always the right answer (a business fact, not a guess). Distinctive label so
+  // it never selects a part-time option.
+  arbeitszeitVollzeit: { radio: true, names: ["vollzeit", "fulltime"], labels: ["40h/Vollzeit", "Vollzeit", "full time", "full-time", "40h", "40 h"] },
   // Same "valid work permit" question, but as a CHECKBOX (Personio-style forms).
   // Ticked only when the candidate is work-authorised (see prefill API) — never
   // guessed. A distinct key so it targets the checkbox, not the free-text field.
