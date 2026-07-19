@@ -34,7 +34,9 @@
     let p = el;
     for (let i = 0; i < 8 && p; i++) {
       const prev = p.previousElementSibling;
-      const ptxt = prev && (prev.textContent || "").trim();
+      // Skip a BUTTON sibling — that's the custom-dropdown toggle (onlyfy pairs a
+      // <button> with the native <select>), not the field's question label.
+      const ptxt = prev && prev.tagName !== "BUTTON" ? (prev.textContent || "").trim() : "";
       if (ptxt && ptxt.length <= 180) { t += " " + ptxt; break; }
       const par = p.parentElement;
       if (par) {
@@ -99,6 +101,15 @@
       "muttersprache": ["muttersprache", "native", "mother tongue", "muttersprachlich", "fließend"],
     };
     return M[v] || [cefr];
+  }
+
+  // Nationality option text varies by form language — a German dropdown lists
+  // "Aserbaidschan", an English one "Azerbaijan". Try both (+ variants) so the
+  // Azerbaijani candidate pool matches either. Other nationalities pass through.
+  function natCandidates(val) {
+    const v = norm(val);
+    if (/aserbaid|azerbaij|az[əe]rbayc?an/.test(v)) return ["Aserbaidschan", "Azerbaijan", "Aserbaidschanisch", "Azerbaidzhan", "Azərbaycan"];
+    return [val];
   }
 
   // Checkbox: tick when the value is affirmative ("Ja"/"yes"/true/…). An empty
@@ -186,8 +197,9 @@
       const k = kindOf(el);
       try {
         if (k === "select") {
-          // Language-level selects try CEFR then descriptive synonyms.
-          const cands = spec.level ? levelCandidates(val) : [val];
+          // Language-level selects try CEFR→word synonyms; nationality tries
+          // German+English country names; everything else the value as-is.
+          const cands = spec.level ? levelCandidates(val) : spec.nat ? natCandidates(val) : [val];
           let ok = false;
           for (const cv of cands) { if (setSelect(el, cv)) { ok = true; break; } }
           if (ok) { used.add(el); filled++; }

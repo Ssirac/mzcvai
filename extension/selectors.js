@@ -17,7 +17,7 @@ window.MZ_SELECTORS = {
   telefon:       { names: ["telefon", "phone", "tel", "mobile", "handy"], types: ["tel"], labels: ["Telefon", "Phone", "Mobil", "Handy", "Rufnummer"] },
   geburtsdatum:  { names: ["geburtsdatum", "birthdate", "dob", "birthday"], types: ["date"], labels: ["Geburtsdatum", "Date of birth"] },
   starttermin:   { names: ["starttermin", "eintrittsdatum", "verfuegbar", "verfügbar", "startdate", "availablefrom"], labels: ["Frühestmöglicher Starttermin", "Starttermin", "Eintrittsdatum", "Verfügbar ab", "Earliest start", "Start date"] },
-  nationalitaet: { names: ["nationalitaet", "nationality", "staatsangehoerigkeit"], labels: ["Nationalität", "Staatsangehörigkeit", "Nationality"] },
+  nationalitaet: { nat: true, names: ["nationalitaet", "nationality", "staatsangehoerigkeit"], labels: ["Nationalität", "Staatsangehörigkeit", "Nationality"] },
   adresse:       { names: ["adresse", "address", "strasse", "street"], labels: ["Adresse", "Straße", "Anschrift", "Address"] },
   // Desired work location — listed BEFORE `ort` so it claims a "Gewünschter
   // Anstellungsort" field instead of the current-city value grabbing it.
