@@ -15,6 +15,7 @@ window.MZ_SELECTORS = {
   email:         { names: ["email", "e-mail", "mail"], types: ["email"], labels: ["E-Mail", "Email", "E-Mail-Adresse"] },
   telefon:       { names: ["telefon", "phone", "tel", "mobile", "handy"], types: ["tel"], labels: ["Telefon", "Phone", "Mobil", "Handy", "Rufnummer"] },
   geburtsdatum:  { names: ["geburtsdatum", "birthdate", "dob", "birthday"], types: ["date"], labels: ["Geburtsdatum", "Date of birth"] },
+  starttermin:   { names: ["starttermin", "eintrittsdatum", "verfuegbar", "verfügbar", "startdate", "availablefrom"], labels: ["Frühestmöglicher Starttermin", "Starttermin", "Eintrittsdatum", "Verfügbar ab", "Earliest start", "Start date"] },
   nationalitaet: { names: ["nationalitaet", "nationality", "staatsangehoerigkeit"], labels: ["Nationalität", "Staatsangehörigkeit", "Nationality"] },
   adresse:       { names: ["adresse", "address", "strasse", "street"], labels: ["Adresse", "Straße", "Anschrift", "Address"] },
   // Desired work location — listed BEFORE `ort` so it claims a "Gewünschter

@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         nationality: true, address: true, currentCity: true, currentCountry: true,
         beruf: true, desiredPosition: true, germanLevel: true,
         salaryExpectation: true, visaStatus: true, drivingLicense: true,
-        needsSponsorship: true, regionPrefs: true,
+        needsSponsorship: true, regionPrefs: true, availableFrom: true,
         cvData: true, cvFileName: true, cvMimeType: true,
       },
     });
@@ -48,6 +48,8 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       email: contactEmail,
       telefon: c.phone ?? "",
       geburtsdatum: c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : "",
+      // Earliest possible start date (ISO — native date inputs accept it).
+      starttermin: c.availableFrom ? c.availableFrom.toISOString().slice(0, 10) : "",
       nationalitaet: c.nationality ?? "",
       adresse: c.address ?? "",
       // Desired place of employment — processed BEFORE `ort` so it claims a

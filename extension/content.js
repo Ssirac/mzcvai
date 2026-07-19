@@ -63,17 +63,20 @@
     return true;
   }
 
-  // What kind of control is this element / does this spec target?
+  // What kind of control is this element?
   function kindOf(el) {
     if (el.tagName === "SELECT") return "select";
     const t = (el.getAttribute("type") || "").toLowerCase();
     if (t === "checkbox") return "checkbox";
     return "text";
   }
-  function specKind(spec) {
-    if (spec.select) return "select";
-    if (spec.checkbox) return "checkbox";
-    return "text";
+  // Which control kinds a spec may fill. Checkbox specs stay checkbox-only (so a
+  // Yes/No box and a free-text field sharing a label don't collide). Every other
+  // field fills a text/textarea OR a <select> — whichever the site actually uses
+  // (onlyfy/XING renders nationality, country, language level as dropdowns; other
+  // ATS render them as text). We fill by the input's REAL kind, not a guess.
+  function fillableKinds(spec) {
+    return spec.checkbox ? ["checkbox"] : ["text", "select"];
   }
 
   function fileFromBase64(b64, name, mime) {
@@ -110,15 +113,14 @@
       if (!val) continue;
       const spec = S[key];
       if (!spec) continue;
-      const want = specKind(spec);
-      // Type-aware match: a checkbox spec only matches checkboxes, a select spec
-      // only selects, a text spec only text/textarea — so a Yes/No checkbox and a
-      // free-text field sharing a label (e.g. "Arbeitserlaubnis") don't collide.
-      const el = inputs.find((i) => !used.has(i) && kindOf(i) === want && matches(i, spec));
+      const kinds = fillableKinds(spec);
+      const el = inputs.find((i) => !used.has(i) && kinds.includes(kindOf(i)) && matches(i, spec));
       if (!el) continue;
+      // Fill according to the element's ACTUAL kind (a spec may target text OR select).
+      const k = kindOf(el);
       try {
-        if (want === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
-        else if (want === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
+        if (k === "select") { if (setSelect(el, val)) { used.add(el); filled++; } }
+        else if (k === "checkbox") { if (setCheckbox(el, val)) { used.add(el); filled++; } }
         else { setValue(el, val); used.add(el); filled++; }
       } catch { /* skip */ }
     }
