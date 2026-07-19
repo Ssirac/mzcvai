@@ -269,7 +269,7 @@ export default function InboxPage() {
   // newest first. Unmatched are classified too, so they honour the category
   // filter just like matched ones.
   const unmatchedShown = (unmatched ?? [])
-    .filter((u) => cat === "ALL" || (u.category ?? "OTHER") === cat)
+    .filter((u) => cat === "ALL" || cat === "UNMATCHED" || (u.category ?? "OTHER") === cat)
     .filter(
       (u) => !term || u.from.toLowerCase().includes(term) || (u.subject ?? "").toLowerCase().includes(term) ||
         (u.snippet ?? "").toLowerCase().includes(term) || u.candidates.some((c) => c.name.toLowerCase().includes(term))
@@ -344,6 +344,16 @@ export default function InboxPage() {
                 {CAT_STYLE[c].icon} {catLabel(c)} {catCount(c)}
               </button>
             ))}
+            {/* Dedicated chip: only the unmatched mailbox replies (from another
+                address, not auto-linked to a candidate). */}
+            {(unmatched?.length ?? 0) > 0 && (
+              <button
+                onClick={() => setCat(cat === "UNMATCHED" ? "ALL" : "UNMATCHED")}
+                className={`text-xs font-medium rounded-full px-3 py-1.5 border ${cat === "UNMATCHED" ? "bg-amber-500/15 text-amber-300 border-amber-500/40" : "bg-card-2 text-ink-2 border-line hover:text-ink"}`}
+              >
+                📥 {locale === "de" ? "Nicht zugeordnet" : locale === "en" ? "Unmatched" : "Tanınmayan"} {unmatched?.length ?? 0}
+              </button>
+            )}
           </div>
         )}
 
