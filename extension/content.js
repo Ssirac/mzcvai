@@ -21,8 +21,21 @@
       const lab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       if (lab) t += " " + lab.textContent;
     }
+    // aria-labelledby → the referenced element's text (React ATS use this a lot).
+    const lb = el.getAttribute("aria-labelledby");
+    if (lb) { for (const id of lb.split(/\s+/)) { const e = id && document.getElementById(id); if (e) t += " " + e.textContent; } }
     const wrap = el.closest("label");
     if (wrap) t += " " + wrap.textContent;
+    // Custom ATS (onlyfy, softgarden…) render the question as a SIBLING node
+    // ("4 - Gehaltsvorstellungen…") rather than a <label for>. Walk up a few
+    // levels and take the nearest short preceding-sibling text as the question.
+    let p = el;
+    for (let i = 0; i < 4 && p; i++) {
+      const prev = p.previousElementSibling;
+      const txt = prev && (prev.textContent || "").trim();
+      if (txt && txt.length <= 140) { t += " " + txt; break; }
+      p = p.parentElement;
+    }
     return norm(t);
   }
 
