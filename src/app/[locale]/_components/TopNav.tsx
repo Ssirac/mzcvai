@@ -182,9 +182,9 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
         </a>
 
         {/* Desktop tabs — lg+ (tablets/small laptops use the hamburger). Icon-only
-            through the laptop range so all 8 fit; labels appear only from 2xl
-            (≥1536px) up, where there's genuinely room for them. */}
-        <div className="hidden lg:flex items-center gap-0.5 2xl:gap-1 ml-1 2xl:ml-2 min-w-0">
+            on lg (1024–1279); with the wordmark gone there's room for the tab
+            names from xl (≥1280px) up. */}
+        <div className="hidden lg:flex items-center gap-0.5 xl:gap-1 ml-1 xl:ml-2 min-w-0">
           {tabs.map((tab) => {
             const isActive = active === tab.key;
             return (
@@ -212,7 +212,7 @@ export default function TopNav({ active }: { active: "dashboard" | "candidates" 
                     </span>
                   )}
                 </span>
-                <span className="hidden 2xl:inline">{tab.label}</span>
+                <span className="hidden xl:inline">{tab.label}</span>
               </a>
             );
           })}
