@@ -399,8 +399,9 @@ export interface UnmatchedReply {
   date: string;
   snippet: string;
   domain: string;
-  // Candidates we mailed that domain — the reply most likely concerns one of them.
-  candidates: string[];
+  // Candidates we mailed that domain — the reply most likely concerns one of
+  // them; id lets the UI attach that candidate's CV to a reply.
+  candidates: { id: string; name: string }[];
 }
 export interface UnmatchedScanResult {
   scanned: number;
@@ -432,22 +433,22 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
     where: { sentAt: { gte: cutoff, not: null }, toAddress: { not: null } },
     select: {
       toAddress: true, repliedAt: true, replySubject: true,
-      match: { select: { candidate: { select: { name: true } } } },
+      match: { select: { candidate: { select: { id: true, name: true } } } },
     },
   });
-  // domain → set of candidate names we mailed there.
-  const namesByDomain = new Map<string, Set<string>>();
+  // domain → candidateId → name of the candidates we mailed there.
+  const candsByDomain = new Map<string, Map<string, string>>();
   // Keys of replies ALREADY linked (so we don't re-list them as "unmatched").
   const linkedKeys = new Set<string>();
   for (const o of sent) {
     const d = domainOf(o.toAddress);
     if (d) {
-      const nm = o.match?.candidate?.name;
-      if (nm) (namesByDomain.get(d) ?? namesByDomain.set(d, new Set()).get(d)!).add(nm);
+      const c = o.match?.candidate;
+      if (c?.id && c?.name) (candsByDomain.get(d) ?? candsByDomain.set(d, new Map()).get(d)!).set(c.id, c.name);
     }
     if (o.repliedAt && o.replySubject) linkedKeys.add(`${o.replySubject.slice(0, 200).toLowerCase()}`);
   }
-  if (namesByDomain.size === 0) return result; // nothing sent yet
+  if (candsByDomain.size === 0) return result; // nothing sent yet
 
   const client = new ImapFlow({ host, port, secure: port === 993, auth: { user, pass }, logger: false, socketTimeout: 20000 });
   try {
@@ -467,8 +468,8 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
         const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
         if (!fromAddr) continue;
         const domain = domainOf(fromAddr) ?? "";
-        const names = namesByDomain.get(domain);
-        if (!names) continue; // not from a contacted employer → skip (newsletter/spam)
+        const cands = candsByDomain.get(domain);
+        if (!cands) continue; // not from a contacted employer → skip (newsletter/spam)
         const subject = msg.envelope?.subject ?? "";
         if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) continue; // already linked
         let body = "";
@@ -480,7 +481,7 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
           date: (msg.envelope?.date ?? new Date()).toISOString(),
           snippet: body.replace(/\s+/g, " ").slice(0, 240),
           domain,
-          candidates: Array.from(names),
+          candidates: Array.from(cands.entries()).map(([id, name]) => ({ id, name })),
         });
       }
     } finally {

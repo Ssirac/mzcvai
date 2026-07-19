@@ -35,7 +35,7 @@ interface UnmatchedReply {
   date: string;
   snippet: string;
   domain: string;
-  candidates: string[];
+  candidates: { id: string; name: string }[];
 }
 
 // AI reply categories — display order, emoji and badge colours. Labels are a
@@ -132,6 +132,63 @@ function ReplyComposer({ outreachId, candidateName, onSent }: { outreachId: stri
   );
 }
 
+// Reply to an UNMATCHED mailbox message: no thread, so we send to the raw
+// from-address. The likely candidate(s) are offered for a one-click CV attach.
+function UnmatchedComposer({ u, locale, onSent }: { u: UnmatchedReply; locale: string; onSent: () => void }) {
+  const [text, setText] = useState("");
+  const [subject, setSubject] = useState(/^(aw|re)\s*:/i.test(u.subject) ? u.subject : `AW: ${u.subject || "Bewerbung"}`);
+  const [cvFor, setCvFor] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  async function send() {
+    if (!text.trim() || sending) return;
+    setSending(true); setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("to", u.from);
+      fd.append("subject", subject);
+      fd.append("text", text);
+      if (cvFor) fd.append("candidateId", cvFor);
+      const res = await fetch("/api/inbox/unmatched-reply", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(String(data.error ?? "Göndərilmədi")); return; }
+      setDone(true); setText(""); onSent();
+    } catch { setErr("Şəbəkə xətası"); } finally { setSending(false); }
+  }
+
+  if (done) return <div className="mt-2 text-xs text-emerald-400">✓ {locale === "de" ? "Gesendet" : locale === "en" ? "Sent" : "Göndərildi"} → {u.from}</div>;
+
+  return (
+    <div className="mt-3 border border-line rounded-xl p-3 bg-surface/40 space-y-2">
+      <div className="text-xs text-ink-3">{locale === "de" ? "An" : locale === "en" ? "To" : "Kimə"}: <span className="text-ink-2 font-mono">{u.from}</span></div>
+      <input value={subject} onChange={(e) => setSubject(e.target.value)}
+        className="w-full bg-surface border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg px-3 py-2 text-sm" />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
+        placeholder={locale === "de" ? "Antwort schreiben…" : locale === "en" ? "Write a reply…" : "Cavabınızı yazın…"}
+        className="w-full bg-surface border border-line focus:border-emerald-600/50 focus:outline-none text-ink rounded-lg px-3 py-2 text-sm placeholder:text-ink-3 resize-y" />
+      {u.candidates.length > 0 && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-ink-3">CV:</span>
+          <select value={cvFor} onChange={(e) => setCvFor(e.target.value)}
+            className="bg-card border border-line text-ink-2 rounded-lg px-2 py-1.5 text-xs">
+            <option value="">{locale === "de" ? "kein CV" : locale === "en" ? "no CV" : "CV yox"}</option>
+            {u.candidates.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+      {err && <div className="text-xs text-red-400">{err}</div>}
+      <div className="flex justify-end">
+        <button onClick={send} disabled={sending || !text.trim()}
+          className="text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg px-4 py-2 disabled:opacity-50">
+          {sending ? "Göndərilir…" : (locale === "de" ? "Senden" : locale === "en" ? "Send" : "Göndər")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function InboxPage() {
   const t = useTranslations("inbox");
   const locale = useLocale();
@@ -146,6 +203,7 @@ export default function InboxPage() {
   // subject lost the code). On-demand IMAP scan so no reply stays invisible.
   const [unmatched, setUnmatched] = useState<UnmatchedReply[] | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [replyOpen, setReplyOpen] = useState<number | null>(null);
 
   async function scanUnmatched() {
     setScanning(true);
@@ -278,12 +336,21 @@ export default function InboxPage() {
                     </div>
                     {u.subject && <div className="text-sm text-ink-2 mt-1 font-medium">{u.subject}</div>}
                     {u.snippet && <div className="text-xs text-ink-3 mt-1 line-clamp-2">{u.snippet}</div>}
-                    {u.candidates.length > 0 && (
-                      <div className="text-[11px] text-ink-3 mt-2">
-                        {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
-                        <span className="text-ink-2">{u.candidates.join(", ")}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      {u.candidates.length > 0 && (
+                        <div className="text-[11px] text-ink-3">
+                          {locale === "de" ? "Möglicher Kandidat" : locale === "en" ? "Likely candidate" : "Ehtimal olunan namizəd"}:{" "}
+                          <span className="text-ink-2">{u.candidates.map((c) => c.name).join(", ")}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setReplyOpen(replyOpen === i ? null : i)}
+                        className="ml-auto text-xs font-medium text-emerald-400 hover:text-emerald-300"
+                      >
+                        ↩ {locale === "de" ? "Antworten" : locale === "en" ? "Reply" : "Cavab yaz"}
+                      </button>
+                    </div>
+                    {replyOpen === i && <UnmatchedComposer u={u} locale={locale} onSent={() => setReplyOpen(null)} />}
                   </div>
                 ))}
               </div>
