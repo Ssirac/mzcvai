@@ -184,6 +184,11 @@ export default function InboxPage() {
         setLoading(false);
       }
     })();
+    // Auto-pull unmatched mailbox replies in the background so EVERY reply shows
+    // on this page without a manual scan — the matched list renders immediately,
+    // the unmatched section fills in a few seconds later (IMAP read).
+    void scanUnmatched();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const term = q.trim().toLowerCase();
