@@ -223,6 +223,7 @@ export async function GET(req: NextRequest) {
     matches: number; freshMatches: number;
     freshBad: number; freshDispatched: number; freshVisible: number;
     pendingAnyVacancy: number; totalDispatchedOutreach: number; totalBad: number;
+    pendingWithEmail: number; pendingNoEmail: number; candidatesWithCv: number;
   } | null = null;
   try {
     const [activeVacancies, freshVacancies, activeCandidates, matches, freshMatches] = await Promise.all([
@@ -243,9 +244,18 @@ export async function GET(req: NextRequest) {
       prisma.outreach.count({ where: { sentAt: { not: null } } }),
       prisma.match.count({ where: { feedback: "BAD" } }),
     ]);
+    // WHY aren't more mails going out? Auto-send needs (a) an employer generic
+    // email and (b) a candidate with a CV. Split the pending pool so we can see
+    // if it's an email-discovery gap, a missing-CV gap, or genuinely all sent.
+    const [pendingWithEmail, pendingNoEmail, candidatesWithCv] = await Promise.all([
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), outreach: { none: dispatchedFilter }, employer: { genericEmail: { not: null }, optedOut: false } } }),
+      prisma.match.count({ where: { vacancy: freshVacancyWhere(), ...notRejectedWhere(), outreach: { none: dispatchedFilter }, employer: { genericEmail: null } } }),
+      prisma.candidate.count({ where: { status: { in: ["ACTIVE", "PENDING"] }, cvData: { not: null } } }),
+    ]);
     data = {
       activeVacancies, freshVacancies, activeCandidates, matches, freshMatches,
       freshBad, freshDispatched, freshVisible, pendingAnyVacancy, totalDispatchedOutreach, totalBad,
+      pendingWithEmail, pendingNoEmail, candidatesWithCv,
     };
   } catch { /* ignore */ }
 
