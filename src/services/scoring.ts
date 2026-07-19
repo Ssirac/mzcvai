@@ -81,8 +81,13 @@ export async function scoreEmployersForSearch(beruf: string, region: string) {
 // Generate Match records for a candidate against all scored employers
 export async function matchCandidateToVacancies(candidateId: string) {
   const candidate = await prisma.candidate.findUniqueOrThrow({ where: { id: candidateId } });
+  // Business decision (operator, standing): EVERY candidate is searched across
+  // ALL of Germany — the agency places nationwide, so a candidate's stored
+  // region never restricts the job pool. regionPrefs is kept for display and
+  // still feeds the fit-score's region component, but the vacancy query is
+  // country-wide for everyone, now and for every future candidate.
   const regions = candidate.regionPrefs.length > 0 ? candidate.regionPrefs : ["Deutschland"];
-  const allGermany = regions.includes("Deutschland");
+  const allGermany = true;
 
   // FULL CV broadens the SEARCH (so we don't miss adjacent jobs); the gate below
   // narrows it back to the candidate's core field.

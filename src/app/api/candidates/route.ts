@@ -59,11 +59,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "name and beruf are required" }, { status: 400 });
     }
 
+    // Every candidate is searched all-Germany (operator's standing rule): default
+    // an unspecified region to ["Deutschland"] so a new candidate's profile shows
+    // country-wide and is never accidentally restricted. Matching ignores region
+    // for the job pool regardless, but this keeps the stored data consistent.
+    const regionInput = asStringArray(b.regionPrefs);
     const data = {
       name,
       phone: b.phone || null,
       beruf,
-      regionPrefs: asStringArray(b.regionPrefs),
+      regionPrefs: regionInput.length ? regionInput : ["Deutschland"],
       languages: asStringArray(b.languages),
       needsSponsorship: b.needsSponsorship ?? true,
       visaStatus: b.visaStatus || null,
