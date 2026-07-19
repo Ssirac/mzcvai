@@ -63,6 +63,8 @@ const FAMILIES: Record<string, string[]> = {
     "projektentwickler", "projektingenieur", "windpark", "windkraft", "photovoltaik", "solar",
     "altlasten", "umwelttechnik", "umweltingenieur", "geotechnik", "vermessung", "tragwerksplaner",
     "erneuerbare energien", "anlagenplaner", "elektroplaner", "versorgungstechnik",
+    "bauingenieur", "bauingenieurwesen", "offshore", "netzanbindung", "netzausbau",
+    "gebäudemanagement", "gebäudetechnik", "technisches gebäudemanagement",
   ],
   trades: [
     "elektrik", "elektriker", "elektroniker", "elektroinstallateur", "electrician", "installateur",
@@ -93,8 +95,12 @@ const FAMILIES: Record<string, string[]> = {
     // (Bauprojekt…) live in their own family.
   ],
   sales: [
-    "verkäufer", "verkäuferin", "verkauf", "vertrieb", "sales", "einzelhandel", "kasse", "kassierer",
+    // NB: bare "sales" removed — it substring-matched inside "Salesforce"
+    // (an IT/CRM dev role) and mislabelled it as sales. German listings use
+    // Vertrieb/Verkauf; specific English compounds are listed explicitly.
+    "verkäufer", "verkäuferin", "verkauf", "vertrieb", "einzelhandel", "kasse", "kassierer",
     "filiale", "filialleiter", "filialleitung", "verkaufsberater", "kundenberater", "account manager",
+    "sales manager", "sales representative", "vertriebsmitarbeiter", "vertriebsleiter",
     "retail", "shop",
   ],
   it: [
@@ -108,6 +114,9 @@ const FAMILIES: Record<string, string[]> = {
     "programmierer", "programmer",
     "fachinformatiker", "informatiker", "informatik", "it-", "it administrator", "systemadministrator",
     "netzwerkadministrator", "devops", "data scientist",
+    // CRM / helpdesk / platform-dev roles that are IT, not marketing/sales.
+    "salesforce", "sap-entwickler", "sap entwickler", "service desk", "servicedesk",
+    "service-desk", "helpdesk", "help desk", "it-support",
     // Hyphenated German IT titles (substring match; the whole-word "it-" rule
     // misses these because a letter follows the hyphen, e.g. "IT-Administrator").
     "it-administrator", "it-support", "it-techniker", "it-systemadministrator", "it-system",
