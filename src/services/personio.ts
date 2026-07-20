@@ -62,6 +62,46 @@ export function personioCompanyCount(): number {
   return companies().length;
 }
 
+function isUniqueError(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+}
+
+// Resolve (or create) the employer for a company. Employer is unique by
+// (name, website) — the DB's @@unique — so when a website is set, ALL of a
+// company's listings across regions must share ONE row (creating a per-region
+// row would violate the constraint). Without a website, key by name+region like
+// the other sources (a NULL website is distinct in Postgres → no collision). A
+// create race falls back to re-fetching the winner.
+async function resolveEmployer(
+  company: PersonioCompany,
+  region: string,
+  city: string | null,
+  signal: SponsorshipSignal,
+): Promise<{ employer: { id: string }; created: boolean }> {
+  if (company.website) {
+    const existing = await prisma.employer.findFirst({ where: { name: company.name, website: company.website } });
+    if (existing) return { employer: existing, created: false };
+    try {
+      const employer = await prisma.employer.create({
+        data: { name: company.name, city, region, sponsorshipSignal: signal, website: company.website },
+      });
+      return { employer, created: true };
+    } catch (err) {
+      if (isUniqueError(err)) {
+        const again = await prisma.employer.findFirst({ where: { name: company.name, website: company.website } });
+        if (again) return { employer: again, created: false };
+      }
+      throw err;
+    }
+  }
+  const existing = await prisma.employer.findFirst({ where: { name: company.name, region } });
+  if (existing) return { employer: existing, created: false };
+  const employer = await prisma.employer.create({
+    data: { name: company.name, city, region, sponsorshipSignal: signal },
+  });
+  return { employer, created: true };
+}
+
 function feedUrl(sub: string): string {
   return `https://${sub}.jobs.personio.de/xml`;
 }
@@ -216,30 +256,10 @@ export async function ingestPersonio(opts: IngestOptions): Promise<IngestResult>
           }
 
           const signal = detectSignal(`${job.title} ${job.description}`);
-
-          // Employer is the named company (same across its listings) — key by
-          // name+region so each city gets its own employer row, consistent with
-          // the other sources. Set website so enrichment can find bewerbung@.
-          let employer = await prisma.employer.findFirst({ where: { name: company.name, region } });
-          if (!employer) {
-            employer = await prisma.employer.create({
-              data: {
-                name: company.name,
-                city: job.office || null,
-                region,
-                sponsorshipSignal: signal,
-                website: company.website ?? null,
-              },
-            });
-            result.employersNew++;
-          } else {
-            const patch: Record<string, unknown> = {};
-            if (signal !== "UNKNOWN" && employer.sponsorshipSignal === "UNKNOWN") patch.sponsorshipSignal = signal;
-            if (company.website && !employer.website) patch.website = company.website;
-            if (Object.keys(patch).length) {
-              await prisma.employer.update({ where: { id: employer.id }, data: patch });
-            }
-          }
+          // One employer per company (keyed by name+website); enrichment uses the
+          // website to find a bewerbung@ address.
+          const { employer, created } = await resolveEmployer(company, region, job.office || null, signal);
+          if (created) result.employersNew++;
 
           await prisma.vacancy.create({
             data: {
