@@ -250,7 +250,9 @@ export async function ingestPersonio(opts: IngestOptions): Promise<IngestResult>
           const sourceRef = `personio:${company.sub}:${job.id}`;
           const existing = await prisma.vacancy.findUnique({ where: { sourceRef } });
           if (existing) {
-            await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } });
+            // Refresh recency; also null out any postedAt (see below) so rows
+            // created before that fix stop being hidden by the age cap.
+            await prisma.vacancy.update({ where: { id: existing.id }, data: { lastSeenAt: new Date(), postedAt: null } });
             result.vacanciesUpdated++;
             continue;
           }
@@ -276,7 +278,13 @@ export async function ingestPersonio(opts: IngestOptions): Promise<IngestResult>
               // (once enrichment finds it) is what makes the job sendable.
               applyChannel: "FORM" as ApplyChannel,
               applyValue: jobUrl(company.sub, job.id),
-              postedAt: job.createdAt,
+              // Deliberately NULL, not createdAt: Personio positions stay open
+              // for months/years (createdAt is often 2021!), but every job in the
+              // feed is CURRENTLY open. Storing the ancient createdAt as postedAt
+              // would trip the fresh-view's 60-day age cap and hide live roles.
+              // Freshness for a live feed is tracked by lastSeenAt instead (goes
+              // stale → pruned once the job drops out of the feed).
+              postedAt: null,
               rawData: job as object,
             },
           });
