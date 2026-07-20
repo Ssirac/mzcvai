@@ -15,6 +15,7 @@ import { ingestAdzuna } from "@/services/adzuna";
 import { ingestJooble } from "@/services/jooble";
 import { ingestCareerjet } from "@/services/careerjet";
 import { ingestJSearch } from "@/services/jsearch";
+import { ingestPersonio, personioCompanyCount } from "@/services/personio";
 import { asJobSource } from "@/services/scraper/runner";
 import { SCRAPER_ADAPTERS } from "@/services/scraper/sites";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
@@ -101,6 +102,17 @@ const jsearch: JobSource = {
   ingest: (o) => ingestJSearch(o),
 };
 
+// Direct-employer career feeds via Personio (Vapiano, NORDSEE, limehome, …).
+// Named employers with their own website → enrichment can find a bewerbung@
+// address, unlike the portal-gated boards. Extend via PERSONIO_COMPANIES.
+const personio: JobSource = {
+  id: "personio",
+  label: "Firmen-Karriereseiten (Personio: Vapiano, NORDSEE, limehome …)",
+  category: "hospitality",
+  available: () => personioCompanyCount() > 0,
+  ingest: (o) => ingestPersonio(o),
+};
+
 // Script-based (scraped) sources — no API. Each is a ScraperAdapter bridged into
 // this registry via asJobSource(); the shared runner handles rate-limiting,
 // robots, dead-listing removal, dedup and logging (see services/scraper/).
@@ -113,6 +125,9 @@ const scraperSources: JobSource[] = SCRAPER_ADAPTERS.map(asJobSource);
 export const SOURCES: JobSource[] = [
   // Hospitality-focused — script-based scrapers (live)
   ...scraperSources,
+  // Direct-employer career feeds (Personio) — live, matches our candidates and
+  // exposes the employer's own site for email discovery.
+  personio,
   // HOGAPAGE: kein zugänglicher Listing-Endpunkt — /jobs/* liefert 404, Sitemaps
   // 404, /jobs/suche per robots.txt gesperrt (live geprüft, Bot-Schutz vermutet).
   placeholder("hogapage", "HOGAPAGE (Hotel & Gastronomie)", "hospitality", "Kein zugänglicher Listing-Endpunkt (/jobs/* → 404, /jobs/suche gesperrt)"),

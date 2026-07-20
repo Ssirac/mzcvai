@@ -23,6 +23,9 @@ const RANKS: Array<{ match: (s: string) => boolean; rank: number }> = [
   // "career" as a WHOLE word only — so "company-careers" / "career-page" score
   // top, but the job board "hotelcareer" (no word boundary) does NOT.
   { match: (s) => /(^|[^a-z])careers?([^a-z]|$)/.test(s) || s.includes("company") || s === "manual", rank: 100 },
+  // Personio: the employer's OWN ATS feed — direct, live, clean (a career page
+  // by another name), so it outranks the boards and aggregators below.
+  { match: (s) => s.includes("personio"), rank: 88 },
   { match: (s) => s.includes("arbeitsagentur") || s.includes("bundesagentur"), rank: 90 },
   { match: (s) => s.includes("arbeitnow"), rank: 70 },
   // Direct-employer hospitality boards scraped from the source site.
