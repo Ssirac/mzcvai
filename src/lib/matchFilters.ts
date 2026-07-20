@@ -43,8 +43,18 @@ export function freshVacancyWhere() {
   return {
     status: "ACTIVE" as const,
     lastSeenAt: { gte: staleCutoff },
-    // Hide ancient postings; rows without a postedAt (null) are kept.
-    NOT: { OR: [...miniJobOr, partTimeOnlyTitle, { postedAt: { lt: postedCutoff } }] },
+    // Hide ancient postings, but KEEP rows with no postedAt (null). The age cap
+    // MUST be written as (postedAt IS NOT NULL AND postedAt < cutoff): a bare
+    // NOT(postedAt < cutoff) turns NULL→NULL under Postgres 3-valued logic and
+    // silently drops EVERY null-postedAt row — e.g. live-feed listings (Personio)
+    // that carry no meaningful post date — even though the intent is to keep them.
+    NOT: {
+      OR: [
+        ...miniJobOr,
+        partTimeOnlyTitle,
+        { AND: [{ postedAt: { not: null } }, { postedAt: { lt: postedCutoff } }] },
+      ],
+    },
   };
 }
 
