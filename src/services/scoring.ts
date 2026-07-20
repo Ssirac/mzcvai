@@ -148,7 +148,14 @@ export async function matchCandidateToVacancies(candidateId: string) {
         include: { signalLogs: { select: { eventType: true } } },
       },
     },
-    take: 1000,
+    // Freshest-first, not an arbitrary slice: on saturated occupations the pool
+    // exceeds `take`, and an UNORDERED take dropped exactly the newly-ingested
+    // listings (e.g. the direct-employer Personio feeds) so they never reached a
+    // candidate. Ordering by lastSeenAt keeps the most-recently-seen jobs — which
+    // also matches the fresh-view the recruiter sees. Widened past 1000 to cover
+    // busy hospitality berufs.
+    orderBy: { lastSeenAt: "desc" },
+    take: 1500,
   });
 
   // Feedback learning: prior BAD verdicts become suppression rules so matching
