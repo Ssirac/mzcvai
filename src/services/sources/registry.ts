@@ -16,6 +16,7 @@ import { ingestJooble } from "@/services/jooble";
 import { ingestCareerjet } from "@/services/careerjet";
 import { ingestJSearch } from "@/services/jsearch";
 import { ingestPersonio, personioCompanyCount } from "@/services/personio";
+import { ingestFirecrawl, firecrawlIngestEnabled } from "@/services/firecrawlSource";
 import { asJobSource } from "@/services/scraper/runner";
 import { SCRAPER_ADAPTERS } from "@/services/scraper/sites";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
@@ -113,6 +114,18 @@ const personio: JobSource = {
   ingest: (o) => ingestPersonio(o),
 };
 
+// Firecrawl web-search ingestion of DIRECT-EMPLOYER job pages (handles anti-bot /
+// JS-rendered career sites the API feeds + CSS scrapers miss). Opt-in — needs
+// FIRECRAWL_API_KEY + FIRECRAWL_INGEST_ENABLED=true (search costs credits).
+const firecrawl: JobSource = {
+  id: "firecrawl",
+  label: "Firecrawl (Direkt-Arbeitgeber, Websuche)",
+  category: "general",
+  available: () => firecrawlIngestEnabled(),
+  unavailableReason: "FIRECRAWL_API_KEY + FIRECRAWL_INGEST_ENABLED=true erforderlich (Suche kostet Credits)",
+  ingest: (o) => ingestFirecrawl(o),
+};
+
 // Script-based (scraped) sources — no API. Each is a ScraperAdapter bridged into
 // this registry via asJobSource(); the shared runner handles rate-limiting,
 // robots, dead-listing removal, dedup and logging (see services/scraper/).
@@ -128,6 +141,10 @@ export const SOURCES: JobSource[] = [
   // Direct-employer career feeds (Personio) — live, matches our candidates and
   // exposes the employer's own site for email discovery.
   personio,
+  // Firecrawl web-search of direct-employer career pages (opt-in) — reaches the
+  // anti-bot / JS-rendered sites the placeholders below can't, and yields the
+  // employer's own site + bewerbung@ address.
+  firecrawl,
   // HOGAPAGE: kein zugänglicher Listing-Endpunkt — /jobs/* liefert 404, Sitemaps
   // 404, /jobs/suche per robots.txt gesperrt (live geprüft, Bot-Schutz vermutet).
   placeholder("hogapage", "HOGAPAGE (Hotel & Gastronomie)", "hospitality", "Kein zugänglicher Listing-Endpunkt (/jobs/* → 404, /jobs/suche gesperrt)"),

@@ -16,9 +16,64 @@
 import { load } from "cheerio";
 
 const ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
+const SEARCH_ENDPOINT = "https://api.firecrawl.dev/v1/search";
 
 export function firecrawlAvailable(): boolean {
   return !!process.env.FIRECRAWL_API_KEY;
+}
+
+export interface FirecrawlSearchItem {
+  url: string;
+  title: string;
+  description: string;
+  markdown: string;
+}
+
+/**
+ * Web search via Firecrawl. When scrape=true each result also carries the page's
+ * markdown (one round-trip), so a job posting can be turned into a vacancy without
+ * a second fetch. Fail-soft: null on any error / no key.
+ */
+export async function firecrawlSearch(
+  query: string,
+  opts?: { limit?: number; scrape?: boolean; timeoutMs?: number },
+): Promise<FirecrawlSearchItem[] | null> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), opts?.timeoutMs ?? 45000);
+  try {
+    const body: Record<string, unknown> = { query, limit: opts?.limit ?? 10 };
+    if (opts?.scrape) body.scrapeOptions = { formats: ["markdown"] };
+    const res = await fetch(SEARCH_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      data?: unknown;
+    };
+    if (!res.ok || !data.data) return null;
+    // Response shape varies by API version: `data` may be a flat array or an
+    // object keyed by source ({ web: [...] }). Handle both.
+    const raw = Array.isArray(data.data)
+      ? data.data
+      : (data.data as { web?: unknown[] }).web ?? [];
+    return (raw as Record<string, unknown>[])
+      .map((r) => ({
+        url: String(r.url ?? ""),
+        title: String(r.title ?? ""),
+        description: String(r.description ?? ""),
+        markdown: String(r.markdown ?? ""),
+      }))
+      .filter((r) => r.url);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export interface FirecrawlResult {
