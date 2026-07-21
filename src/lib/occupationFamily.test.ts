@@ -159,7 +159,10 @@ describe("context-word leaks (Großküchen / Veranstaltung / Technisch)", () => 
     expect(fams.has("gastro")).toBe(false); // the 'Küchen' setting must not read as a kitchen job
     expect(fams.has("trades")).toBe(true);
     // A cook must NOT match it; a real installer/technician still does.
-    expect(familyCompatibility("Koch", "Anlagenmonteur für Großküchen").compatible).toBe(false);
+    const compat = familyCompatibility("Koch", "Anlagenmonteur für Großküchen");
+    // Narrow on `decided` before reading `compatible` (discriminated union):
+    // "not compatible" is satisfied by either an undecided or a decided-false result.
+    expect(compat.decided && compat.compatible).toBe(false);
   });
 
   it("a coordinator does not bridge to a cook on the shared word 'Veranstaltung'", () => {
