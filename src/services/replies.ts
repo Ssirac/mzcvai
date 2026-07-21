@@ -254,11 +254,18 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
   // max@hotel.de), with an exact-address fast path too.
   const byDomain = new Map<string, typeof threads>();
   const byAddress = new Map<string, typeof threads>();
+  // Also index by the subject reference code across ALL recent threads, so a
+  // reply that carries "[MZ-…]" but comes from an address/domain we never mailed
+  // (employer forwarded it, or answered from a personal mailbox) can still be
+  // matched to its exact outreach. The code is unique per outreach, so this can
+  // never mis-attribute — it only recovers replies the domain index would miss.
+  const byRef = new Map<string, typeof threads[number]>();
   for (const o of threads) {
     const d = domainOf(o.toAddress);
     if (d) (byDomain.get(d) ?? byDomain.set(d, []).get(d)!).push(o);
     const a = o.toAddress!.toLowerCase();
     (byAddress.get(a) ?? byAddress.set(a, []).get(a)!).push(o);
+    byRef.set(outreachRef(o.id), o);
   }
 
   // Map every contacted employer's domain → employerId (ANY outreach status), so
@@ -331,9 +338,17 @@ export async function pollReplies(sinceDays = 5): Promise<ReplyPollResult> {
         // 3) Last resort (no code, no name): the newest still-open thread on the
         //    domain. Never a replied one — and never when the subject names a
         //    different candidate (nameOwner covers that above).
-        const target = replyRef
+        // For a coded reply, prefer the domain-scoped match, then fall back to the
+        // GLOBAL code index — so a reply from a different sender domain that kept
+        // the code is still linked (a personal mailbox / forwarded answer). The
+        // sentAt<=msgDate guard keeps a reply from predating its own send.
+        let target = replyRef
           ? eligible.find((o) => outreachRef(o.id) === replyRef)
           : nameOwner ?? openOnly[0];
+        if (!target && replyRef) {
+          const g = byRef.get(replyRef);
+          if (g && g.sentAt && g.sentAt <= msgDate) target = g;
+        }
 
         // Parse the full message body (needed both for the inbox text and for
         // opt-out phrase detection, including on already-replied threads).
@@ -471,13 +486,22 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
   const sent = await prisma.outreach.findMany({
     where: { sentAt: { gte: cutoff, not: null }, toAddress: { not: null } },
     select: {
-      toAddress: true, repliedAt: true, replySubject: true,
+      toAddress: true, repliedAt: true, replySubject: true, replyFrom: true,
       match: { select: { candidate: { select: { id: true, name: true } } } },
     },
   });
+  // Pull the bare address out of a stored "Name <addr>" replyFrom value.
+  const addrOf = (s: string | null | undefined): string => {
+    const m = s?.match(/<([^>]+)>/);
+    return (m ? m[1] : s ?? "").toLowerCase().trim();
+  };
   // domain → candidateId → name of the candidates we mailed there.
   const candsByDomain = new Map<string, Map<string, string>>();
   // Keys of replies ALREADY linked (so we don't re-list them as "unmatched").
+  // Keyed by SENDER + subject, not subject alone: generic German subjects
+  // ("AW: Ihre Bewerbung", "Automatische Antwort") repeat across employers, and a
+  // subject-only key would suppress a genuine unmatched reply the moment ANY
+  // employer's reply with the same subject had been matched.
   const linkedKeys = new Set<string>();
   for (const o of sent) {
     const d = domainOf(o.toAddress);
@@ -485,7 +509,7 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
       const c = o.match?.candidate;
       if (c?.id && c?.name) (candsByDomain.get(d) ?? candsByDomain.set(d, new Map()).get(d)!).set(c.id, c.name);
     }
-    if (o.repliedAt && o.replySubject) linkedKeys.add(`${o.replySubject.slice(0, 200).toLowerCase()}`);
+    if (o.repliedAt && o.replySubject) linkedKeys.add(`${addrOf(o.replyFrom)}|${o.replySubject.slice(0, 200).toLowerCase()}`);
   }
   if (candsByDomain.size === 0) return result; // nothing sent yet
 
@@ -508,7 +532,7 @@ export async function scanUnmatchedReplies(sinceDays = 14): Promise<UnmatchedSca
         const cands = candsByDomain.get(domain);
         if (!cands) return; // not from a contacted employer → skip (newsletter/spam)
         const subject = msg.envelope?.subject ?? "";
-        if (linkedKeys.has(subject.slice(0, 200).toLowerCase())) return; // already linked
+        if (linkedKeys.has(`${fromAddr}|${subject.slice(0, 200).toLowerCase()}`)) return; // already linked (this sender)
         const msgDate = msg.envelope?.date ?? new Date();
         const dedupeKey = `${fromAddr}|${subject.slice(0, 200).toLowerCase()}|${msgDate.toISOString().slice(0, 10)}`;
         if (seen.has(dedupeKey)) return; // same reply already listed from another folder

@@ -4,6 +4,7 @@ import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies, collapseCrossSourceDuplicates, pruneCrossFieldMatches } from "@/services/cleanup";
 import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
 import { runApplyScan } from "@/services/applyScanner";
+import { runAutoApply } from "@/services/autoApply";
 import { withCronLock } from "@/services/cron";
 import { availableSources } from "@/services/sources/registry";
 import { matchCandidateToVacancies } from "@/services/scoring";
@@ -23,7 +24,7 @@ export const maxDuration = 300;
 // process, so we can start these detached and let them finish after we respond
 // — the caller (GitHub Actions cron / curl) gets an instant 202 instead of
 // waiting 5 minutes and timing out. withCronLock still guarantees single-flight.
-const HEAVY_JOBS = new Set(["refresh", "scrape", "applyscan"]);
+const HEAVY_JOBS = new Set(["refresh", "scrape", "applyscan", "autoapply"]);
 
 async function runHeavyJob(job: string): Promise<void> {
   try {
@@ -41,6 +42,11 @@ async function runHeavyJob(job: string): Promise<void> {
       await withCronLock("scrape", 55 * 60 * 1000, () => runScrapeCycle());
     } else if (job === "applyscan") {
       await withCronLock("applyscan", 30 * 60 * 1000, () => runApplyScan());
+    } else if (job === "autoapply") {
+      // Opt-in, default-off + dry-run engine (see services/autoApply.ts). A no-op
+      // unless AUTO_FORM_APPLY_ENABLED==="true"; the cron lock serialises runs so
+      // a long browser pass never overlaps itself.
+      await withCronLock("autoapply", 30 * 60 * 1000, () => runAutoApply({ maxMs: 25 * 60 * 1000 }));
     }
   } catch (err) {
     // withCronLock records failures itself; this only guards against an

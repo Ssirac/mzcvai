@@ -564,3 +564,18 @@ model CandidateDocument {
   @@unique([candidateId, type])
   @@index([candidateId])
 }
+
+// Cache of text embeddings for semantic matching (opt-in). Keyed by a hash of
+// (model + normalized text) so an identical vacancy title is embedded once and
+// reused across candidates and runs. `vector` is the raw float array (JSON);
+// cosine similarity is computed in JS, so no pgvector extension is required.
+model EmbeddingCache {
+  id        String   @id @default(cuid())
+  hash      String   @unique
+  model     String
+  dim       Int
+  vector    Json
+  createdAt DateTime @default(now())
+
+  @@index([model])
+}

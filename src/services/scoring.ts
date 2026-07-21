@@ -6,6 +6,7 @@ import { familyCompatibility, occupationClusters } from "@/lib/occupationFamily"
 import { isActionable } from "@/lib/actionable";
 import { candidateProfiles } from "@/lib/candidateProfiles";
 import { getCandidateSuppression, suppressedByFeedback } from "@/services/matchFeedback";
+import { prepareSemanticMatcher } from "@/services/semanticMatch";
 
 // Is a vacancy TITLE actually in the candidate's line of work? Uses the vacancy
 // title ONLY (its stored `beruf` is the polluted ingest search term). Occupation
@@ -163,6 +164,18 @@ export async function matchCandidateToVacancies(candidateId: string) {
   // isn't right for this candidate). See services/matchFeedback.
   const suppression = await getCandidateSuppression(candidateId);
 
+  // Semantic layer (opt-in, no-op unless SEMANTIC_MATCH_ENABLED + an embedding
+  // key). Pre-embeds the candidate core + the pool titles once; gives a per-vacancy
+  // cosine similarity used to (a) rescue in-field jobs the keyword gate would drop
+  // and (b) add a small ranking bonus. Runs AFTER the hard cross-field gate below,
+  // so it can never cross occupation fields. Fail-soft → null (unchanged behaviour).
+  const sem = await prepareSemanticMatcher(
+    { desiredPosition: candidate.desiredPosition, beruf: candidate.beruf },
+    vacancies.map((v) => ({ id: v.id, title: v.title })),
+  ).catch(() => null);
+  const SEM_RESCUE = parseFloat(process.env.SEMANTIC_RESCUE_THRESHOLD ?? "0.6");
+  const SEM_BONUS_MAX = parseInt(process.env.SEMANTIC_BONUS_MAX ?? "12");
+
   const created: string[] = [];
   const skipped: string[] = [];
 
@@ -209,10 +222,20 @@ export async function matchCandidateToVacancies(candidateId: string) {
     // (gateProfiles already dropped off-field CV titles). Strict — an
     // unclassifiable title with no keyword overlap is dropped (not given a free
     // pass), so office/IT/finance roles never reach a gastronomy candidate.
-    const matchedProfile = gateProfiles.find((p) => occupationRelevant(p, vacancy.title));
+    let matchedProfile = gateProfiles.find((p) => occupationRelevant(p, vacancy.title));
     if (!matchedProfile) {
-      skipped.push(vacancy.id);
-      continue;
+      // Semantic rescue: the title wording isn't in the keyword lists, but the
+      // embedding says it's genuinely close to the candidate's core occupation.
+      // The hard cross-field cluster gate already ran above, so this cannot cross
+      // fields — it only recovers in-field jobs phrased in unfamiliar words.
+      const sim = sem?.simFor(vacancy.id) ?? null;
+      if (sim !== null && sim >= SEM_RESCUE) {
+        matchedProfile = candidate.desiredPosition?.trim() || candidate.beruf?.trim() || gateProfiles[0];
+      }
+      if (!matchedProfile) {
+        skipped.push(vacancy.id);
+        continue;
+      }
     }
 
     // Seniority window from the profile that actually matched, so a vacancy
@@ -234,10 +257,21 @@ export async function matchCandidateToVacancies(candidateId: string) {
       occupationRelevant: true, // gate above guarantees it
     });
 
-    if (fit.total < MATCH_THRESHOLD) {
+    // Semantic ranking bonus: nudge genuinely-closer titles up within the same
+    // field (a Koch job for a Koch candidate over a same-cluster Spülkraft one).
+    // Zero when the semantic layer is off, so scores are identical to before.
+    const sim = sem?.simFor(vacancy.id) ?? null;
+    const semanticBonus = sim !== null ? Math.round(Math.max(0, sim) * SEM_BONUS_MAX) : 0;
+    const totalWithSem = Math.min(100, fit.total + semanticBonus);
+
+    if (totalWithSem < MATCH_THRESHOLD) {
       skipped.push(vacancy.id);
       continue;
     }
+
+    const breakdown = semanticBonus > 0
+      ? { ...fit, semanticSim: sim, semanticBonus, total: totalWithSem }
+      : fit;
 
     await prisma.match.upsert({
       where: { candidateId_vacancyId: { candidateId, vacancyId: vacancy.id } },
@@ -245,12 +279,12 @@ export async function matchCandidateToVacancies(candidateId: string) {
         candidateId,
         vacancyId: vacancy.id,
         employerId: vacancy.employerId,
-        fitScore: fit.total,
-        fitBreakdown: fit as object,
+        fitScore: totalWithSem,
+        fitBreakdown: breakdown as object,
       },
       update: {
-        fitScore: fit.total,
-        fitBreakdown: fit as object,
+        fitScore: totalWithSem,
+        fitBreakdown: breakdown as object,
       },
     });
     created.push(vacancy.id);
