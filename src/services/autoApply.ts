@@ -101,14 +101,21 @@ async function logApply(candidateId: string, vacancyId: string, company: string,
  * Run the auto-apply pass over FORM-based matches. Safe to call from cron; every
  * gate is re-checked per item so a mid-run config change is respected.
  */
-export async function runAutoApply(opts?: { candidateId?: string; limit?: number; maxMs?: number }): Promise<AutoApplyResult> {
+export async function runAutoApply(opts?: {
+  candidateId?: string; limit?: number; maxMs?: number;
+  // On-demand overrides (admin test endpoint): run even when the env flag is off,
+  // and force dry-run so a test can never submit for real.
+  forceEnabled?: boolean; forceDryRun?: boolean;
+}): Promise<AutoApplyResult> {
   const c = cfg();
+  const enabled = opts?.forceEnabled ?? c.enabled;
+  const dryRun = opts?.forceDryRun ?? c.dryRun;
   const r: AutoApplyResult = {
-    enabled: c.enabled, dryRun: c.dryRun, scanned: 0, submitted: 0, wouldSubmit: 0,
+    enabled, dryRun, scanned: 0, submitted: 0, wouldSubmit: 0,
     queuedForHuman: 0, blocked: 0, alreadyDone: 0, noForm: 0,
     firecrawlRecovered: 0, llmMapped: 0, capReached: false, errors: [],
   };
-  if (!c.enabled) return r;
+  if (!enabled) return r;
 
   const limit = opts?.limit ?? c.limit;
   const maxMs = opts?.maxMs ?? 0;
@@ -265,7 +272,7 @@ export async function runAutoApply(opts?: { candidateId?: string; limit?: number
           continue;
         }
 
-        if (c.dryRun) {
+        if (dryRun) {
           await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "WOULD_APPLY", `filled ${filledCount}${report.cvAttached ? " +CV" : ""}${report.consentTicked.length ? " +consent" : ""} (dry-run)`);
           r.wouldSubmit++;
           continue;
