@@ -56,14 +56,33 @@ export const FILE_MATCH = {
   labels: ["Lebenslauf", "CV", "Anhang", "Datei", "Dokument", "Bewerbungsunterlagen"],
 };
 
+// Descriptor of a REQUIRED text/select field the static mapping could not fill —
+// STRUCTURE ONLY (no candidate PII), so it can be sent to an LLM for semantic
+// mapping to a known candidate key. Each is tagged in the DOM as
+// [data-mz-field="<marker>"] so __mzFillMapped can fill it afterwards.
+export interface UnmatchedField {
+  marker: string;
+  label: string;
+  name: string;
+  type: string;            // "text" | "select"
+  options?: string[];      // visible option texts (selects)
+}
+
 export interface FillReport {
   formPresent: boolean;
   filled: number;
   cvAttached: boolean;
   cvNeeded: boolean;
   missingRequired: string[];   // labels of REQUIRED inputs left empty → block submit
+  unmatchedRequired: UnmatchedField[]; // subset of the above that an LLM can map
   consentTicked: string[];     // required privacy/consent checkboxes we ticked
   submitMarked: boolean;       // a submit control was found + tagged [data-mz-submit]
+}
+
+// Result of __mzFillMapped (LLM-mapped second pass).
+export interface MappedFillResult {
+  filled: number;
+  stillMissing: string[];
 }
 
 /**
@@ -152,7 +171,7 @@ export const FILL_SCRIPT = `
     var root = document; // fill against the whole document; ATS forms vary
     var all = Array.prototype.slice.call(root.querySelectorAll("input, textarea, select"));
     var inputs = all.filter(isVisible);
-    var report = { formPresent: inputs.length >= 2, filled: 0, cvAttached: false, cvNeeded: false, missingRequired: [], consentTicked: [], submitMarked: false };
+    var report = { formPresent: inputs.length >= 2, filled: 0, cvAttached: false, cvNeeded: false, missingRequired: [], unmatchedRequired: [], consentTicked: [], submitMarked: false };
     var used = [];
     var fields = data.fields || {};
     Object.keys(fields).forEach(function (key) {
@@ -204,7 +223,10 @@ export const FILL_SCRIPT = `
       });
     }
 
-    // Any REQUIRED, still-empty field blocks submission (no garbage applications).
+    // Any REQUIRED, still-empty field blocks submission (no garbage
+    // applications). A required TEXT/SELECT field also gets a marker + descriptor
+    // so an LLM can try to map it semantically in a second pass.
+    var reqIdx = 0;
     inputs.forEach(function (el) {
       if (!isRequired(el)) return;
       var k = kindOf(el);
@@ -212,7 +234,16 @@ export const FILL_SCRIPT = `
       if (k === "radio") { // a radio group counts as filled if ANY option in the group is checked
         var nm = el.name; if (nm) { var grp = all.filter(function (x) { return x.name === nm; }); if (grp.some(function (x) { return x.checked; })) empty = false; }
       }
-      if (empty) report.missingRequired.push((labelTextFor(el) || el.name || "unbenannt").slice(0, 60));
+      if (!empty) return;
+      var lbl = (labelTextFor(el) || el.name || "unbenannt").slice(0, 60);
+      report.missingRequired.push(lbl);
+      if (k === "text" || k === "select") {
+        var marker = "u" + (reqIdx++);
+        el.setAttribute("data-mz-field", marker);
+        var desc = { marker: marker, label: lbl, name: el.name || "", type: k };
+        if (k === "select") { desc.options = Array.prototype.slice.call(el.options).map(function (o) { return (o.textContent || "").trim(); }).filter(Boolean).slice(0, 40); }
+        report.unmatchedRequired.push(desc);
+      }
     });
     if (fileInput && isRequired(fileInput) && !report.cvAttached) report.missingRequired.push("Lebenslauf/CV");
 
@@ -222,6 +253,32 @@ export const FILL_SCRIPT = `
     if (submit) { submit.setAttribute("data-mz-submit", "1"); report.submitMarked = true; }
 
     return report;
+  };
+
+  // Second pass: fill the fields an LLM mapped. mapping = { marker: candidateKey },
+  // values = { candidateKey: value } (our data — PII never left the server for the
+  // mapping decision). Returns how many filled + the required fields STILL empty.
+  window.__mzFillMapped = function (mapping, values) {
+    var out = { filled: 0, stillMissing: [] };
+    mapping = mapping || {}; values = values || {};
+    Object.keys(mapping).forEach(function (marker) {
+      var key = mapping[marker]; if (!key) return;
+      var el = document.querySelector('[data-mz-field="' + marker + '"]'); if (!el) return;
+      var val = values[key]; if (!val) return;
+      try {
+        if (kindOf(el) === "select") { if (setSelect(el, val)) out.filled++; }
+        else { setValue(el, val); out.filled++; }
+      } catch (e) {}
+    });
+    var all2 = Array.prototype.slice.call(document.querySelectorAll("input, textarea, select")).filter(isVisible);
+    all2.forEach(function (el) {
+      if (!isRequired(el)) return;
+      var k = kindOf(el);
+      var empty = k === "checkbox" || k === "radio" ? !el.checked : !String(el.value || "").trim();
+      if (k === "radio") { var nm = el.name; if (nm) { var grp = all2.filter(function (x) { return x.name === nm; }); if (grp.some(function (x) { return x.checked; })) empty = false; } }
+      if (empty) out.stillMissing.push((labelTextFor(el) || el.name || "unbenannt").slice(0, 60));
+    });
+    return out;
   };
 })();
 `;

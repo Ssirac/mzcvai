@@ -262,8 +262,11 @@ export function calculateFitScore(params: {
     else if (employerSponsorshipSignal === "LIKELY") sponsorship = 10;
     else sponsorship = 0;
   } else {
-    // Candidate doesn't need sponsorship — no penalty, small bonus for employer openness
-    sponsorship = employerSponsorshipSignal !== "NO" ? 10 : 10;
+    // Candidate doesn't need sponsorship — no penalty, small bonus for employer
+    // openness, but NOT for an employer that explicitly won't sponsor (signal
+    // "NO"). The old ternary returned 10 in both arms (a dead branch), so the
+    // "NO" case wrongly earned the same openness bonus as an open employer.
+    sponsorship = employerSponsorshipSignal !== "NO" ? 10 : 0;
   }
 
   // Level bonus: prioritise jobs SLIGHTLY BELOW the preferred level (easier

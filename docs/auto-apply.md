@@ -40,6 +40,20 @@ See `.env.example`. Summary: `AUTO_FORM_APPLY_ENABLED`,
 `AUTO_FORM_APPLY_REQUIRE_CV`, `AUTO_FORM_APPLY_DAILY_CAP`,
 `AUTO_FORM_APPLY_LIMIT`, `AUTO_FORM_APPLY_INTERVAL_HOURS`.
 
+## Smart assists (raise fill-rate without touching the submit line)
+
+- **LLM field mapping** (`AUTO_FORM_APPLY_LLM`, default on): when a required field
+  can't be resolved by the static substring matcher, the form's **structure**
+  (labels, field names, option texts — never candidate PII) is sent to Claude
+  Haiku, which maps each to a known candidate key or marks it human-only. The
+  engine then fills those fields locally from its own data. The same call also
+  **classifies** the page — if the model says it isn't an application form
+  (search / newsletter / filter), the job is logged `NOT_APPLICATION` and skipped.
+  Fires only when gaps remain, so clean forms cost nothing.
+- **Firecrawl apply-link discovery** (active when `FIRECRAWL_API_KEY` is set): if
+  the landing page has no fillable form, Firecrawl scrapes it, finds the real
+  "Jetzt bewerben" link, and the engine retries the fill on that page once.
+
 ## Statuses written to JobApplicationLog
 
 | status | meaning |
@@ -48,6 +62,7 @@ See `.env.example`. Summary: `AUTO_FORM_APPLY_ENABLED`,
 | `APPLIED` | submitted and a success acknowledgement was seen on the page |
 | `APPLIED_UNCONFIRMED` | submitted, but no confirmation text detected — verify manually |
 | `NEEDS_HUMAN` | filled but a required field / submit button was missing → queued |
+| `NOT_APPLICATION` | the LLM judged the page is not an application form → skipped |
 | `WAITING_CAPTCHA` / `WAITING_OTP` / `WAITING_LOGIN` | blocked class → human queue |
 | `BLOCKED` / `DEAD` / `NO_FORM` / `ERROR` | not applied (see note column) |
 

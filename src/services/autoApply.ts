@@ -34,7 +34,9 @@ import { detectCaptcha, enqueueCaptcha, buildPrefillData } from "@/services/capt
 import { isSafeExternalTarget } from "@/lib/urlGuard";
 import { BLOCKED_HOSTS } from "@/lib/actionable";
 import { buildApplicationFields, APPLICATION_CANDIDATE_SELECT } from "@/lib/applicationFields";
-import { FILL_SCRIPT, dedupeMissing, type FillReport } from "@/lib/formFill";
+import { FILL_SCRIPT, dedupeMissing, type FillReport, type MappedFillResult } from "@/lib/formFill";
+import { classifyAndMapForm } from "@/services/formClassifier";
+import { firecrawlAvailable, discoverApplyUrl } from "@/services/firecrawl";
 
 const OTP_MARKERS = [
   "one-time", "one time password", "otp", "verification code", "bestätigungscode",
@@ -65,6 +67,7 @@ function cfg() {
     dryRun: process.env.AUTO_FORM_APPLY_DRY_RUN !== "false",            // default true
     acceptConsent: process.env.AUTO_FORM_APPLY_ACCEPT_CONSENT === "true", // default false
     requireCv: process.env.AUTO_FORM_APPLY_REQUIRE_CV !== "false",       // default true
+    llm: process.env.AUTO_FORM_APPLY_LLM !== "false",                   // default on (fires only on gaps)
     dailyCap: parseInt(process.env.AUTO_FORM_APPLY_DAILY_CAP ?? "20"),
     limit: parseInt(process.env.AUTO_FORM_APPLY_LIMIT ?? "15"),
   };
@@ -80,6 +83,8 @@ export interface AutoApplyResult {
   blocked: number;        // captcha/otp/login specifically
   alreadyDone: number;
   noForm: number;
+  firecrawlRecovered: number; // forms reached only via a Firecrawl apply-link hop
+  llmMapped: number;          // runs where the LLM filled ≥1 previously-missing field
   capReached: boolean;
   errors: string[];
 }
@@ -100,7 +105,8 @@ export async function runAutoApply(opts?: { candidateId?: string; limit?: number
   const c = cfg();
   const r: AutoApplyResult = {
     enabled: c.enabled, dryRun: c.dryRun, scanned: 0, submitted: 0, wouldSubmit: 0,
-    queuedForHuman: 0, blocked: 0, alreadyDone: 0, noForm: 0, capReached: false, errors: [],
+    queuedForHuman: 0, blocked: 0, alreadyDone: 0, noForm: 0,
+    firecrawlRecovered: 0, llmMapped: 0, capReached: false, errors: [],
   };
   if (!c.enabled) return r;
 
@@ -195,13 +201,58 @@ export async function runAutoApply(opts?: { candidateId?: string; limit?: number
 
         // Fill the form (same field mapping the human extension uses).
         const { fields, cv } = buildApplicationFields(cand);
-        await page.evaluate(FILL_SCRIPT);
-        const payload = JSON.stringify({ fields, cv, acceptConsent: c.acceptConsent });
-        const report = (await page.evaluate(`window.__mzFill(${payload})`)) as FillReport;
+        const fillOnce = async (): Promise<FillReport | null> => {
+          await page.evaluate(FILL_SCRIPT);
+          const payload = JSON.stringify({ fields, cv, acceptConsent: c.acceptConsent });
+          return (await page.evaluate(`window.__mzFill(${payload})`)) as FillReport;
+        };
+        let report = await fillOnce();
+
+        // Firecrawl fallback: no fillable form here → find the real "Jetzt
+        // bewerben" application link and retry once on that page. Only when a key
+        // is configured; a blocked target on the new page still goes to a human.
+        if ((!report || !report.formPresent) && firecrawlAvailable()) {
+          const alt = await discoverApplyUrl(applyUrl).catch(() => null);
+          if (alt && alt !== applyUrl && (await isSafeExternalTarget(alt))) {
+            try {
+              await page.goto(alt, { waitUntil: "domcontentloaded" });
+              if (!(await detectCaptcha(page))) {
+                const retry = await fillOnce();
+                if (retry?.formPresent) { report = retry; r.firecrawlRecovered++; }
+              }
+            } catch { /* keep the original (empty) report */ }
+          }
+        }
 
         if (!report || !report.formPresent) { r.noForm++; await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NO_FORM"); continue; }
 
-        const missing = dedupeMissing(report.missingRequired || []);
+        let missing = dedupeMissing(report.missingRequired || []);
+        let filledCount = report.filled;
+
+        // LLM pass (structure only, no PII sent): map REQUIRED fields the static
+        // matcher missed, and reject a form the model says is not an application.
+        if (missing.length > 0 && c.llm && report.unmatchedRequired && report.unmatchedRequired.length > 0) {
+          const cls = await classifyAndMapForm({
+            jobTitle: vac.title,
+            filledKeys: Object.keys(fields).filter((k) => fields[k]),
+            unmatched: report.unmatchedRequired,
+            availableKeys: Object.keys(fields),
+          });
+          if (cls && cls.isApplicationForm === false && cls.confidence >= 0.7) {
+            r.noForm++;
+            await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NOT_APPLICATION", `LLM: not an application form (conf ${cls.confidence})`);
+            continue;
+          }
+          if (cls && Object.keys(cls.mapping).length > 0) {
+            const mapped = (await page.evaluate(`window.__mzFillMapped(${JSON.stringify(cls.mapping)}, ${JSON.stringify(fields)})`)) as MappedFillResult;
+            if (mapped) {
+              filledCount += mapped.filled;
+              missing = dedupeMissing(mapped.stillMissing || []);
+              if (mapped.filled > 0) r.llmMapped++;
+            }
+          }
+        }
+
         if (missing.length > 0) {
           // Don't submit a form we couldn't complete — hand it to a human.
           await enqueueCaptcha({
@@ -209,19 +260,19 @@ export async function runAutoApply(opts?: { candidateId?: string; limit?: number
             company: emp.name, applicationUrl: applyUrl, matchScore: m.fitScore,
             blockedReason: "form", prefilledData: prefill,
           }).catch(() => {});
-          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NEEDS_HUMAN", `filled ${report.filled}, missing: ${missing.slice(0, 6).join("; ")}`);
+          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NEEDS_HUMAN", `filled ${filledCount}, missing: ${missing.slice(0, 6).join("; ")}`);
           r.queuedForHuman++;
           continue;
         }
 
         if (c.dryRun) {
-          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "WOULD_APPLY", `filled ${report.filled}${report.cvAttached ? " +CV" : ""}${report.consentTicked.length ? " +consent" : ""} (dry-run)`);
+          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "WOULD_APPLY", `filled ${filledCount}${report.cvAttached ? " +CV" : ""}${report.consentTicked.length ? " +consent" : ""} (dry-run)`);
           r.wouldSubmit++;
           continue;
         }
 
         if (!report.submitMarked) {
-          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NEEDS_HUMAN", `filled ${report.filled} but no submit button found`);
+          await logApply(cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source, "NEEDS_HUMAN", `filled ${filledCount} but no submit button found`);
           r.queuedForHuman++;
           continue;
         }
@@ -240,7 +291,7 @@ export async function runAutoApply(opts?: { candidateId?: string; limit?: number
         await logApply(
           cand.id, vac.id, emp.name, vac.title, applyUrl, vac.source,
           confirmed ? "APPLIED" : "APPLIED_UNCONFIRMED",
-          `filled ${report.filled}${report.cvAttached ? " +CV" : ""}${report.consentTicked.length ? ` +consent(${report.consentTicked.length})` : ""}${confirmed ? "" : " — no confirmation text seen"}`,
+          `filled ${filledCount}${report.cvAttached ? " +CV" : ""}${report.consentTicked.length ? ` +consent(${report.consentTicked.length})` : ""}${confirmed ? "" : " — no confirmation text seen"}`,
         );
         // Gentle pace between real submissions.
         await new Promise((res) => setTimeout(res, 2000));
