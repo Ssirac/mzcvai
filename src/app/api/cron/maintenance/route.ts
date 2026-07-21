@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pollReplies } from "@/services/replies";
+import { pollReplies, reconcileReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { deletePartTimeVacancies, deleteExpiredVacancies, deleteNonGermanVacancies, collapseCrossSourceDuplicates, pruneCrossFieldMatches } from "@/services/cleanup";
 import { sweepDeadVacancies } from "@/services/scraper/deadCheck";
@@ -123,6 +123,12 @@ export async function POST(req: NextRequest) {
   try {
     if (job === "replies" || job === "all") {
       log.replies = await pollReplies();
+      // Auto-heal code-matched mis-attributions right after polling (safe: unique
+      // [MZ-…] code only, never the name heuristic). Disable with
+      // REPLY_AUTO_RECONCILE=false. Name-based fixes stay manual on the System page.
+      if (process.env.REPLY_AUTO_RECONCILE !== "false") {
+        log.reconcile = await reconcileReplies(true, true).catch(() => null);
+      }
     }
     // Keep the DB full-time-only, Germany-only and free of stale postings.
     if (job === "cleanup" || job === "replies" || job === "all") {
