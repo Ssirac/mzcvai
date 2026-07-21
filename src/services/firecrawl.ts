@@ -15,8 +15,11 @@
 
 import { load } from "cheerio";
 
-const ENDPOINT = "https://api.firecrawl.dev/v1/scrape";
-const SEARCH_ENDPOINT = "https://api.firecrawl.dev/v1/search";
+// Firecrawl's current API is v2 (api.firecrawl.dev/v2). Base is overridable so a
+// future version bump needs no code change.
+const BASE = (process.env.FIRECRAWL_API_BASE || "https://api.firecrawl.dev/v2").replace(/\/$/, "");
+const ENDPOINT = `${BASE}/scrape`;
+const SEARCH_ENDPOINT = `${BASE}/search`;
 
 export function firecrawlAvailable(): boolean {
   return !!process.env.FIRECRAWL_API_KEY;
