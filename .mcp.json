@@ -1,0 +1,19 @@
+{
+  "$comment": "Project-scoped MCP servers for Claude Code. These activate the moment their API keys are present in the environment (see .env.example → 'External tooling / MCP'). A server whose key is missing simply shows as unavailable — it never breaks the repo. Only the two tools that genuinely fit this codebase are wired here (up-to-date library docs + web scraping); the rest are documented, with ready-to-paste snippets, in docs/tooling-setup.md.",
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      }
+    },
+    "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      }
+    }
+  }
+}
