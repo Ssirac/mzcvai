@@ -35,7 +35,7 @@ export async function register() {
   const port = process.env.PORT || "3000";
   const base = process.env.SELF_URL || `http://127.0.0.1:${port}`;
 
-  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape" | "applyscan" | "digest") => {
+  const fire = async (job: "replies" | "followups" | "refresh" | "cleanup" | "scrape" | "applyscan" | "digest" | "autoapply") => {
     try {
       const res = await fetch(`${base}/api/cron/maintenance?job=${job}`, {
         method: "POST",
@@ -100,6 +100,18 @@ export async function register() {
     setTimeout(() => void fire("applyscan"), 120_000);
     setInterval(() => void fire("applyscan"), applyHours * HOUR);
     console.log(`[scheduler] apply scan every ${applyHours}h`);
+  }
+
+  // Auto-apply engine — opt-in (drives a headless browser). Fills FORM-based
+  // applications and, when AUTO_FORM_APPLY_DRY_RUN=false, submits captcha-free
+  // ones. Default off; even when enabled it is dry-run until explicitly flipped.
+  // captcha/OTP/login and any form with missing required fields go to the human
+  // queue, never auto-submitted (see services/autoApply.ts).
+  if (process.env.AUTO_FORM_APPLY_ENABLED === "true") {
+    const applyHours = Math.max(1, parseFloat(process.env.AUTO_FORM_APPLY_INTERVAL_HOURS ?? "6"));
+    setTimeout(() => void fire("autoapply"), 150_000);
+    setInterval(() => void fire("autoapply"), applyHours * HOUR);
+    console.log(`[scheduler] auto-apply every ${applyHours}h (dryRun=${process.env.AUTO_FORM_APPLY_DRY_RUN !== "false"})`);
   }
 
   console.log(`[scheduler] started (replies hourly, job refresh every 4h, cleanup every ${cleanupMin}m, follow-ups ~08:00)`);
