@@ -35,8 +35,9 @@ describe("buildApplicationFields", () => {
     expect(authorised.arbeitserlaubnis).toBe("Ja");
   });
 
-  it("uses the desired work region (not 'Deutschland') for anstellungsort", () => {
-    expect(buildApplicationFields(base).fields.anstellungsort).toBe("Bayern");
+  it("signals nationwide availability for anstellungsort (not one region)", () => {
+    // The candidate can work anywhere in Germany, so we never pin a single region.
+    expect(buildApplicationFields(base).fields.anstellungsort).toBe("deutschlandweit");
   });
 
   it("uses the agency contact email, not the candidate's own", () => {
