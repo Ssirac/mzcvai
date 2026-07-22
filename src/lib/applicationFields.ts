@@ -81,7 +81,12 @@ export function buildApplicationFields(c: ApplicationCandidate): ApplicationPayl
     starttermin: c.availableFrom ? c.availableFrom.toISOString().slice(0, 10) : "",
     nationalitaet,
     adresse: c.address ?? "",
-    anstellungsort: (c.regionPrefs ?? []).filter((r) => r && r !== "Deutschland")[0] || c.currentCity || "",
+    // The agency places candidates NATIONWIDE, so the desired-location field
+    // signals Germany-wide availability instead of pinning one region — an
+    // employer in any city then sees a candidate open to their location (a single
+    // "Bayern" would get a Hamburg employer to reject them). Override per candidate
+    // with ANSTELLUNGSORT_OVERRIDE if a specific value is ever needed.
+    anstellungsort: process.env.ANSTELLUNGSORT_OVERRIDE?.trim() || "deutschlandweit",
     ort: c.currentCity ?? "",
     land: c.currentCountry ?? "Deutschland",
     beruf: c.desiredPosition?.trim() || c.beruf || "",
