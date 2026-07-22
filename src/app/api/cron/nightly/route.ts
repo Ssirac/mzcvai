@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { enrichPendingEmployers } from "@/services/enrichment";
 import { scoreEmployersForSearch, matchCandidateToVacancies } from "@/services/scoring";
 import { availableSources } from "@/services/sources/registry";
-import { pollReplies } from "@/services/replies";
+import { pollReplies, reconcileReplies } from "@/services/replies";
 import { runFollowUps } from "@/services/followup";
 import { runAutoSend } from "@/services/autopilot";
 import { deletePartTimeVacancies, deleteNonGermanVacancies, deleteExpiredVacancies } from "@/services/cleanup";
@@ -155,6 +155,11 @@ export async function POST(req: NextRequest) {
     try {
       const r = await pollReplies();
       log.push(`Replies: ${r.matched} matched / ${r.scanned} scanned${r.errors.length ? ` (${r.errors.join("; ")})` : ""}`);
+      // Auto-heal code-matched mis-attributions (unique [MZ-…] code only).
+      if (process.env.REPLY_AUTO_RECONCILE !== "false") {
+        const rec = await reconcileReplies(true, true).catch(() => null);
+        if (rec) log.push(`Reconcile (code): ${rec.reassigned} moved, ${rec.deduped} deduped`);
+      }
     } catch (err) {
       log.push(`Replies FAILED: ${(err as Error).message}`);
     }

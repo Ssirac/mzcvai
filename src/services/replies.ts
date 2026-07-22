@@ -110,7 +110,11 @@ export interface ReconcileResult {
  * outreach that already holds its own distinct reply (reported as a conflict for
  * manual review), so nothing real is ever clobbered.
  */
-export async function reconcileReplies(apply = false): Promise<ReconcileResult> {
+// `codeOnly` = automatic-safe mode: act ONLY on unique subject-code ([MZ-…])
+// matches, never the name heuristic (unsafe for same-named candidates). The
+// reply poller calls this with codeOnly=true so coded mis-attributions self-heal;
+// the System-page button calls it with codeOnly=false for the full manual review.
+export async function reconcileReplies(apply = false, codeOnly = false): Promise<ReconcileResult> {
   const result: ReconcileResult = { applied: apply, scanned: 0, reassigned: 0, deduped: 0, conflicts: 0, unmatched: 0, moves: [] };
 
   const replied = await prisma.outreach.findMany({
@@ -144,8 +148,9 @@ export async function reconcileReplies(apply = false): Promise<ReconcileResult> 
     const hay = `${o.replySubject ?? ""} ${o.replyText ?? ""}`.toLowerCase();
 
     const ref = parseRefTag(o.replySubject);
+    const codeOwner = ref ? group.find((s) => outreachRef(s.id) === ref) : undefined;
     const owner =
-      (ref ? group.find((s) => outreachRef(s.id) === ref) : undefined) ||
+      codeOwner ||
       group.find((s) => {
         const nm = s.match?.candidate?.name?.toLowerCase();
         return nm && nm.length > 2 && hay.includes(nm);
@@ -153,6 +158,10 @@ export async function reconcileReplies(apply = false): Promise<ReconcileResult> 
 
     if (!owner) { result.unmatched++; continue; }   // can't tell — leave as is
     if (owner.id === o.id) continue;                 // already correct
+    // Automatic (codeOnly) mode: only act on a UNIQUE subject-code match. A
+    // name-based match is a heuristic — two same-named candidates would be
+    // confused — so it's left for manual review on the System page.
+    if (codeOnly && !codeOwner) { result.unmatched++; continue; }
     if (owner.status === "REPLIED" && owner.replySubject) {
       // The true owner already holds a reply. If it's the SAME message (classic
       // duplication: one mail attached to several candidates, one per poll),
@@ -163,7 +172,7 @@ export async function reconcileReplies(apply = false): Promise<ReconcileResult> 
           employer: o.match?.employer?.name ?? null,
           from: o.match?.candidate?.name ?? o.id,
           to: owner.match?.candidate?.name ?? owner.id,
-          via: ref && group.find((s) => outreachRef(s.id) === ref) ? "code" : "name",
+          via: codeOwner ? "code" : "name",
           subject: (o.replySubject ?? "").slice(0, 120),
         });
         if (apply) {
@@ -183,7 +192,7 @@ export async function reconcileReplies(apply = false): Promise<ReconcileResult> 
       employer: o.match?.employer?.name ?? null,
       from: o.match?.candidate?.name ?? o.id,
       to: owner.match?.candidate?.name ?? owner.id,
-      via: ref && group.find((s) => outreachRef(s.id) === ref) ? "code" : "name",
+      via: codeOwner ? "code" : "name",
       subject: (o.replySubject ?? "").slice(0, 120),
     });
 
