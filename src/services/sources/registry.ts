@@ -17,6 +17,7 @@ import { ingestCareerjet } from "@/services/careerjet";
 import { ingestJSearch } from "@/services/jsearch";
 import { ingestPersonio, personioCompanyCount } from "@/services/personio";
 import { ingestFirecrawl, firecrawlIngestEnabled } from "@/services/firecrawlSource";
+import { ingestCareerPages, careerPagesEnabled } from "@/services/careerPages";
 import { asJobSource } from "@/services/scraper/runner";
 import { SCRAPER_ADAPTERS } from "@/services/scraper/sites";
 import type { IngestOptions, IngestResult } from "@/services/arbeitsagentur";
@@ -126,6 +127,17 @@ const firecrawl: JobSource = {
   ingest: (o) => ingestFirecrawl(o),
 };
 
+// Specific company career pages (Diehl, Sparkasse, …) via Firecrawl + Claude
+// extraction. Add a company by appending its career URL to FIRECRAWL_CAREER_PAGES.
+const careerPages: JobSource = {
+  id: "career-pages",
+  label: "Firmen-Karriereseiten (URL-Liste: Diehl, Sparkasse …)",
+  category: "general",
+  available: () => careerPagesEnabled(),
+  unavailableReason: "FIRECRAWL_API_KEY + FIRECRAWL_CAREER_PAGES (URL-Liste) erforderlich",
+  ingest: () => ingestCareerPages(), // ignores beruf — a career page lists whatever the company has
+};
+
 // Script-based (scraped) sources — no API. Each is a ScraperAdapter bridged into
 // this registry via asJobSource(); the shared runner handles rate-limiting,
 // robots, dead-listing removal, dedup and logging (see services/scraper/).
@@ -145,6 +157,8 @@ export const SOURCES: JobSource[] = [
   // anti-bot / JS-rendered sites the placeholders below can't, and yields the
   // employer's own site + bewerbung@ address.
   firecrawl,
+  // Specific company career pages configured by URL (Diehl, Sparkasse, …).
+  careerPages,
   // HOGAPAGE: kein zugänglicher Listing-Endpunkt — /jobs/* liefert 404, Sitemaps
   // 404, /jobs/suche per robots.txt gesperrt (live geprüft, Bot-Schutz vermutet).
   placeholder("hogapage", "HOGAPAGE (Hotel & Gastronomie)", "hospitality", "Kein zugänglicher Listing-Endpunkt (/jobs/* → 404, /jobs/suche gesperrt)"),
