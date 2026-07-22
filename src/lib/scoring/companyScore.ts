@@ -238,11 +238,14 @@ export function calculateFitScore(params: {
   const relevant = occupationRelevant ?? berufMatches(candidateBeruf, "", vacancyTitle ?? "");
   const beruf = relevant ? 32 : 0;
 
-  let region = 0;
-  if (candidateRegions.length === 0 || candidateRegions.includes("Deutschland") || candidateRegions.includes(vacancyRegion)) {
-    region = 25;
-  } else {
-    region = 0;
+  // The agency places candidates NATIONWIDE, so location must not differentiate
+  // the score — every German city is treated equally (full region points). A
+  // candidate's stored regionPrefs no longer penalises jobs in other cities.
+  // Set REGION_NATIONWIDE=false to restore location-based ranking (region points
+  // only when the vacancy is in the candidate's regionPrefs).
+  let region = 25;
+  if (process.env.REGION_NATIONWIDE === "false") {
+    region = (candidateRegions.length === 0 || candidateRegions.includes("Deutschland") || candidateRegions.includes(vacancyRegion)) ? 25 : 0;
   }
 
   // Graduated German-level score: higher level → more competitive, ranked higher
