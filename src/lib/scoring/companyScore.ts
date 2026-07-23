@@ -120,7 +120,10 @@ function scoreContext(employer: Pick<Employer, "stars" | "rooms" | "region">, ta
   let score = 0;
   const notes: string[] = [];
 
-  if (employer.region === targetRegion) {
+  // Nationwide placement (default): location doesn't bias the employer score
+  // either — every region is equal. Set REGION_NATIONWIDE=false to reward an
+  // employer whose region matches the searched region (+5).
+  if (process.env.REGION_NATIONWIDE === "false" && employer.region === targetRegion) {
     score += 5;
     notes.push(`Region matches ${targetRegion} (+5)`);
   }
