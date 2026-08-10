@@ -15,6 +15,7 @@ import { resolveMx } from "dns/promises";
 import { launchBrowser } from "@/lib/browser";
 import { prisma } from "@/lib/prisma";
 import { classifyExternalTarget, isSafeExternalUrl } from "@/lib/urlGuard";
+import { firecrawlScrape, firecrawlAvailable } from "@/services/firecrawl";
 import type { SponsorshipSignal } from "@prisma/client";
 
 // Free deliverability precheck: a domain with no MX records cannot receive email,
@@ -395,6 +396,47 @@ async function emailFromVacancies(employerId: string, preferDomain?: string | nu
  * address (bewerbung/hr/jobs/info priority). Falls back gracefully on any error
  * so the rest of enrichment continues unaffected. Uses at most 1 API credit.
  *
+ * Find a generic email by scraping the employer's own site via FIRECRAWL — which
+ * renders JS and handles anti-bot walls, so it reaches career/Impressum/Kontakt
+ * pages the plain Puppeteer scrape (Step 4) gives up on. Scrapes the homepage,
+ * then follows one Impressum/Kontakt/Karriere link (≤2 requests total). Prefers an
+ * address on the site's own domain. No-op without a Firecrawl key.
+ */
+async function emailFromFirecrawl(website: string, preferDomain: string | null): Promise<string | null> {
+  if (!firecrawlAvailable()) return null;
+  const base = website.startsWith("http") ? website : `https://${website}`;
+
+  const pick = (text: string): string | null => {
+    const emails = extractGenericEmails(text);
+    if (emails.length === 0) return null;
+    if (preferDomain) {
+      const onDomain = emails.find((e) => {
+        const d = e.split("@")[1]?.toLowerCase();
+        return d === preferDomain || (d?.endsWith("." + preferDomain) ?? false);
+      });
+      if (onDomain) return onDomain;
+    }
+    return emails[0];
+  };
+
+  const home = await firecrawlScrape(base, { formats: ["markdown", "html", "links"] }).catch(() => null);
+  if (!home) return null;
+  let email = pick(`${home.markdown} ${home.html}`);
+  if (email) return email;
+
+  // Follow one Impressum/Kontakt/Karriere link — that's where the address usually is.
+  const wanted = /impressum|imprint|kontakt|contact|karriere|career|jobs?|bewerb/i;
+  const link = home.links.find((l) => wanted.test(l));
+  if (link) {
+    let abs = link;
+    try { abs = new URL(link, base).toString(); } catch { /* keep as-is */ }
+    const sub = await firecrawlScrape(abs, { formats: ["markdown", "html"] }).catch(() => null);
+    if (sub) email = pick(`${sub.markdown} ${sub.html}`);
+  }
+  return email;
+}
+
+/**
  * Requires HUNTER_API_KEY env var (https://hunter.io → API Keys, 25 free/day).
  */
 async function emailFromHunter(domain: string): Promise<string | null> {
@@ -657,6 +699,17 @@ export async function enrichSingleEmployer(employerId: string): Promise<string |
     const guessed = await guessAndVerifyEmail(domain, bounced);
     if (guessed) {
       const ok = await accept(guessed, "guess");
+      if (ok) return ok;
+    }
+  }
+
+  // Step 3.7: Firecrawl the KNOWN website (renders JS / handles anti-bot, so it
+  // reaches sites the Puppeteer scrape below can't). Only on a known domain — a
+  // guessed one could belong to a different same-named company.
+  if (knownWebsite && firecrawlAvailable()) {
+    const fromFirecrawl = await emailFromFirecrawl(knownWebsite, domain);
+    if (fromFirecrawl) {
+      const ok = await accept(fromFirecrawl, "firecrawl");
       if (ok) return ok;
     }
   }
