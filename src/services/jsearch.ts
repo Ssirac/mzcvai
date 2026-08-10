@@ -89,8 +89,8 @@ export async function ingestJSearch(opts: IngestOptions): Promise<IngestResult> 
   // JSearch charges per request — each page ≈ 10 results and costs one RapidAPI
   // call. The page count is env-driven (JSEARCH_MAX_PAGES) so LinkedIn/Indeed/
   // StepStone volume can be dialled up per RapidAPI plan without a code change,
-  // decoupled from the generic per-source maxPages hint. Default 3, hard cap 10.
-  const maxPages = Math.max(1, Math.min(parseInt(process.env.JSEARCH_MAX_PAGES ?? "3"), 10));
+  // decoupled from the generic per-source maxPages hint. Default 6, hard cap 10.
+  const maxPages = Math.max(1, Math.min(parseInt(process.env.JSEARCH_MAX_PAGES ?? "6"), 10));
 
   const run = await prisma.ingestionRun.create({
     data: { beruf: opts.beruf, region: opts.region, source: "jsearch", status: "running" },
