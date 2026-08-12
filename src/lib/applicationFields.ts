@@ -64,10 +64,12 @@ export function buildApplicationFields(c: ApplicationCandidate): ApplicationPayl
     ? "Aserbaidschan"
     : /aserbaid|azerbaij|az[əe]rbayc?an/i.test(rawNat) ? "Aserbaidschan" : rawNat;
 
-  // Honest work-permit answer — never a false "Ja".
+  // Honest work-permit answer — never a false "Ja". Phrased without the word
+  // "Personalvermittlung" so the auto-filled form matches the outreach framing
+  // (Germany Career Center presenting the candidate), not a staffing-agency pitch.
   const permitAnswer = c.needsSponsorship === false
     ? "Ja"
-    : `Nein, wird über die Personalvermittlung ${AGENCY_NAME} organisiert`;
+    : `Nein, wird über ${AGENCY_NAME} organisiert`;
 
   const fields: Record<string, string> = {
     anrede,
