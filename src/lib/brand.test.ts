@@ -19,6 +19,6 @@ describe("brandedFrom — sender display name", () => {
   });
 
   it("uses the current brand", () => {
-    expect(AGENCY_NAME).toBe("MZ Talent Solutions");
+    expect(AGENCY_NAME).toBe("Germany Career Center");
   });
 });
