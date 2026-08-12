@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AGENCY_NAME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
   return page(
     "Abmeldung bestätigen",
-    "Möchten Sie keine weiteren Nachrichten von MZ Talent Solutions erhalten? Bitte bestätigen Sie mit einem Klick.",
+    `Möchten Sie keine weiteren Nachrichten von ${AGENCY_NAME} erhalten? Bitte bestätigen Sie mit einem Klick.`,
     `/api/unsubscribe?id=${id}`
   );
 }
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     await prisma.employer.update({ where: { id }, data: { optedOut: true } });
     return page(
       "Sie wurden abgemeldet",
-      "Sie erhalten keine weiteren Nachrichten von MZ Talent Solutions. Vielen Dank."
+      `Sie erhalten keine weiteren Nachrichten von ${AGENCY_NAME}. Vielen Dank.`
     );
   } catch {
     return page(
