@@ -87,9 +87,11 @@ export async function sendCandidateTestLetter(candidateId: string, recipients: s
 // send-guard, unit-tested there.
 
 // Standard service paragraphs appended to EVERY employer letter (before the
-// signature): visa/process support, the cost-free & non-binding presentation +
-// first online interview, and the offer to arrange one. The visa paragraph is
-// only shown when the candidate actually needs sponsorship.
+// signature): visa/process support and the offer to arrange a first online
+// interview. The "kostenfrei & unverbindlich" message is NOT here anymore — it
+// is woven into the letter's OPENING (prominent, removes the #1 rejection
+// reason up front). The visa paragraph is only shown when the candidate
+// actually needs sponsorship.
 function standardClosing(needsVisa: boolean): string {
   const parts: string[] = [];
   if (needsVisa) {
@@ -97,9 +99,6 @@ function standardClosing(needsVisa: boolean): string {
       `Sollte für den Kandidaten ein Visum erforderlich sein, begleitet ${AGENCY_NAME} den gesamten Bewerbungsprozess und unterstützt sowohl den Kandidaten als auch Ihr Unternehmen bei den organisatorischen Abläufen bis zum Arbeitsbeginn.`
     );
   }
-  parts.push(
-    "Die Vorstellung des Kandidaten sowie ein erstes Online-Vorstellungsgespräch sind für Ihr Unternehmen selbstverständlich unverbindlich und kostenfrei."
-  );
   parts.push(
     "Gerne organisieren wir kurzfristig ein Online-Vorstellungsgespräch mit dem Kandidaten und stehen Ihnen für Rückfragen jederzeit persönlich zur Verfügung."
   );
@@ -172,7 +171,7 @@ function stripAiTells(raw: string): string {
 // rewritten text (already tell-stripped); the caller keeps it only if non-empty.
 async function humanizePass(letter: string, employerName: string, vacancyTitle: string): Promise<string> {
   const prompt = `Der folgende deutsche Bewerbungstext soll klingen, als hätte ihn eine vielbeschäftigte Personalberaterin selbst getippt, nicht eine KI. Schreibe ihn so um, dass:
-- ALLE Fakten, Namen und Aussagen erhalten bleiben (Arbeitgeber "${employerName}", Stelle "${vacancyTitle}", der Hinweis auf die Vertretung durch die Personalvermittlung).
+- ALLE Fakten, Namen und Aussagen erhalten bleiben (Arbeitgeber "${employerName}", Stelle "${vacancyTitle}", der Hinweis, dass der Kandidat im Auftrag von "${AGENCY_NAME}" vorgestellt wird, sowie dass die Vorstellung kostenfrei und unverbindlich ist). Verwende NICHT die Wörter "Personalvermittlung", "Vermittlung" oder "Agentur".
 - typische KI-Muster verschwinden: gleichförmiger Rhythmus, parallele Satzbauten, Dreier-Aufzählungen, glatte Werbefloskeln.
 - die Satzlängen unregelmäßig werden, auch mal ein sehr kurzer Satz.
 - KEINE Gedankenstriche (– oder —), kein Fettdruck, keine Bullet-Points, keine Überschrift.
@@ -230,15 +229,16 @@ export async function composeApplicationLetter(
   // and tone don't move together.
   const toneHint = TONE_VARIANTS[(seed >>> 3) % TONE_VARIANTS.length];
 
-  const prompt = `Du bist eine erfahrene Personalberaterin der Personalvermittlung "${AGENCY_NAME}" und schreibst eine überzeugende, individuell zugeschnittene Bewerbung für einen Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
+  const prompt = `Du schreibst im Namen von "${AGENCY_NAME}", einem Karriereservice, der einem Unternehmen einen konkreten, bereits geprüften Kandidaten für genau eine offene Stelle vorstellt. Die Nachricht ist keine Werbung und kein Agentur-Angebot, sondern die persönliche Vorstellung genau dieses Kandidaten — PASSGENAU auf genau diese eine Stellenanzeige.
 
 PFLICHT (unbedingt einhalten):
 - Sprich den Arbeitgeber NAMENTLICH an: "${employer.name}".
 - Nenne die konkrete Stelle ausdrücklich: "${vacancy.title}".
 - Gehe auf die ANFORDERUNGEN der Stellenanzeige ein und verbinde sie mit der Erfahrung/den Fähigkeiten des Kandidaten (zeige die Passung konkret auf).
-- Mache deutlich, dass die Bewerbung über die Personalvermittlung "${AGENCY_NAME}" erfolgt, die den Kandidaten vertritt, und dass Rückfragen/Antworten an ${AGENCY_NAME} gehen.
+- Sag früh (im 2. oder 3. Satz) klar, dass die Vorstellung dieses Kandidaten für das Unternehmen kostenfrei und völlig unverbindlich ist. Formuliere es natürlich, nicht als Werbeslogan.
+- Mach beiläufig, aber ehrlich transparent, dass du den Kandidaten im Auftrag von "${AGENCY_NAME}" vorstellst und Rückfragen/Antworten an "${AGENCY_NAME}" gehen. Verwende dabei NICHT die Wörter "Personalvermittlung", "Vermittlung", "Makler" oder "Agentur" — präsentiere es schlicht als Vorstellung eines passenden Kandidaten, nicht als Dienstleistungs-Angebot.
 - Schreibe KEINE Grußformel und KEINE Unterschrift am Ende (wird separat ergänzt).
-- Erwähne NICHT die Themen Visum/Visabegleitung, Kostenfreiheit/Unverbindlichkeit der Vorstellung oder das Angebot eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
+- Erwähne NICHT die Themen Visum/Visabegleitung oder das konkrete Angebot/Terminieren eines Online-Vorstellungsgesprächs — diese Absätze werden separat ergänzt. Schreibe sie NICHT selbst.
 - Verwende NIEMALS das Wort "Test".
 - Max. 230 Wörter, professionell, freundlich, konkret (keine Floskeln).
 
