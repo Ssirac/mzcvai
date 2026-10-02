@@ -10,10 +10,19 @@ name: External cron backup
 # Add it in GitHub → Settings → Secrets and variables → Actions.
 
 on:
-  schedule:
-    - cron: "0 * * * *"    # hourly        → replies (+ light cleanup)
-    - cron: "0 */4 * * *"  # every 4 hours → refresh (new listings + auto-send)
-    - cron: "0 8 * * *"    # daily 08:00 UTC → follow-ups + digest
+  # Scheduled runs are DISABLED. This external backup kept hitting 404 at the
+  # public URL (the in-process scheduler in src/instrumentation.ts already runs
+  # the same maintenance jobs internally, so the app is unaffected), and every
+  # failed hourly run emailed the repo owner. The in-process scheduler is the
+  # primary; this file is kept only as a manual trigger.
+  #
+  # To re-enable the backup: first confirm the production URL below serves
+  # POST /api/cron/maintenance (expect 401 on a bad secret, not 404), then
+  # uncomment the schedule block.
+  # schedule:
+  #   - cron: "0 * * * *"    # hourly        → replies (+ light cleanup)
+  #   - cron: "0 */4 * * *"  # every 4 hours → refresh (new listings + auto-send)
+  #   - cron: "0 8 * * *"    # daily 08:00 UTC → follow-ups + digest
   workflow_dispatch: {}     # manual "run now" button
 
 # One run at a time — never overlap ourselves.
